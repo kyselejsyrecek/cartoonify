@@ -23,11 +23,6 @@ imageprocessor = ImageProcessor(str(model_path),
                                 str(root / 'app' / 'object_detection' / 'data' / 'mscoco_label_map.pbtxt'),
                                 tensorflow_model_name)
 
-# Threshold for object detection (0.0 to 1.0).
-threshold = 0.3
-# If not none, only the top X results are drawn (overrides threshold).
-top_x = None
-
 # configure logging
 logging_filename = datetime.datetime.now().strftime('%Y%m%d-%H%M.log')
 logging_path = Path(__file__).parent / 'logs'
@@ -42,7 +37,9 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG, fil
 @click.option('--raspi-headless', is_flag=True, help='run on raspi with camera and GPIO but without gui')
 @click.option('--batch-process', is_flag=True, help='process all jpg images in a directory')
 @click.option('--raspi-gpio', is_flag=True, help='use gpio to trigger capture & process')
-def run(camera, gui, raspi_headless, batch_process, raspi_gpio):
+@click.option('--threshold', type=float, default=0.25, help='threshold for object detection (0.0 to 1.0)')
+@click.option('--max-objects', type=int, default=None, help='draw N objects with highest confidency at most')
+def run(camera, gui, raspi_headless, batch_process, raspi_gpio, threshold, max_objects):
     if gui:
         print('starting gui...')
         start(WebGui, address='0.0.0.0', websocket_port=8082, port=8081, host_name='raspberrypi.local', start_browser=True)
@@ -54,7 +51,7 @@ def run(camera, gui, raspi_headless, batch_process, raspi_gpio):
                 cam.rotation=90
             else:
                 cam = None
-            app = Workflow(dataset, imageprocessor, cam, threshold, top_x)
+            app = Workflow(dataset, imageprocessor, cam, threshold, max_objects)
             app.setup(setup_gpio=raspi_gpio)
         except ImportError as e:
             print('picamera module missing, please install using:\n     sudo apt-get update \n'
@@ -81,7 +78,7 @@ def run(camera, gui, raspi_headless, batch_process, raspi_gpio):
                 path = Path(raw_input("enter the path to the directory to process:"))
                 for file in path.glob('*.jpg'):
                     print('processing {}'.format(str(file)))
-                    app.process(str(file), threshold, top_x)
+                    app.process(str(file))
                     app.save_results(debug=True)
                     app.count += 1
                 print('finished processing files, closing app.')
@@ -90,7 +87,7 @@ def run(camera, gui, raspi_headless, batch_process, raspi_gpio):
             else:
                 path = Path(raw_input("enter the filepath of the image to process:"))
             if str(path) != '.' or 'exit':
-                app.process(str(path), threshold, top_x)
+                app.process(str(path))
                 app.save_results()
             else:
                 app.close()
