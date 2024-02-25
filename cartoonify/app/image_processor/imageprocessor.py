@@ -14,7 +14,6 @@ import click
 root = Path(__file__).parent
 tensorflow_model_name = 'ssd_mobilenet_v1_coco_2017_11_17'
 model_path = root / '..' / '..' / 'downloads' / 'detection_models' / tensorflow_model_name / 'frozen_inference_graph.pb'
-image_resolution_px = 512
 
 class ImageProcessor(object):
     """performs object detection on an image
@@ -98,15 +97,21 @@ class ImageProcessor(object):
         category_index = label_map_util.create_category_index(categories)
         return category_index
 
-    def load_image_into_numpy_array(self, path, scale=1.0):
-        """load image into NxNx3 numpy array
+    def load_image_raw(self, path):
+        """load raw image for later use with numpy
         """
-        image = Image.open(path)
-        scale_tuple = [float(image_resolution_px) / dim for dim in image.size]
-        scale = scale_tuple[0] if scale_tuple[0] < scale_tuple[1] else scale_tuple[1]
-        (im_width, im_height) = [int(scale * dim) for dim in image.size]
-        image = image.resize([im_width, im_height])
-        return np.array(image.getdata()).reshape((im_height, im_width, 3)).astype(np.uint8)
+        return Image.open(path)
+
+    def load_image_into_numpy_array(self, raw_image, scale=1.0, fit_width=None, fit_height=None):
+        """load raw image into NxNx3 numpy array
+        """
+        if fit_width:
+            scale = float(fit_width) / raw_image.size[0]
+        if fit_height:
+            scale = min(scale, float(fit_height) / raw_image.size[1])
+        (im_width, im_height) = [int(scale * dim) for dim in raw_image.size]
+        raw_image = raw_image.resize([im_width, im_height])
+        return np.array(raw_image.getdata()).reshape((im_height, im_width, 3)).astype(np.uint8)
 
     def detect(self, image):
         """detect objects in the image

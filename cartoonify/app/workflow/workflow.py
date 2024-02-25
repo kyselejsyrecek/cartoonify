@@ -13,7 +13,8 @@ class Workflow(object):
     """controls execution of app
     """
 
-    def __init__(self, dataset, imageprocessor, camera, threshold=0.25, max_objects=None):
+    def __init__(self, dataset, imageprocessor, camera, threshold=0.3, max_objects=None, min_inference_dimension=300, max_inference_dimension=1024,
+                 fit_width=None, fit_height=None):
         self._path = Path('')
         self._image_path = Path('')
         self._dataset = dataset
@@ -23,6 +24,10 @@ class Workflow(object):
         self._cam = camera
         self._threshold = threshold
         self._max_objects = max_objects
+        self._min_inference_dimension = min_inference_dimension
+        self._max_inference_dimension = max_inference_dimension
+        self._fit_width = fit_width
+        self._fit_height = fit_height
         self._logger = logging.getLogger(self.__class__.__name__)
         self._image = None
         self._annotated_image = None
@@ -99,14 +104,17 @@ class Workflow(object):
 
         try:
             self._image_path = Path(image_path)
-            img = self._image_processor.load_image_into_numpy_array(image_path)
+            raw_image = self._image_processor.load_image_raw(image_path)
+            image = self._image_processor.load_image_into_numpy_array(raw_image, fit_width=self._fit_width, fit_height=self._fit_height)
             # load a scaled version of the image into memory
-            img_scaled = self._image_processor.load_image_into_numpy_array(image_path, scale=300 / max(img.shape))
-            self._boxes, self._scores, self._classes, num = self._image_processor.detect(img_scaled)
+            inference_scale = min(self._min_inference_dimension, self._max_inference_dimension / max(raw_image.size))
+            raw_inference_image = self._image_processor.load_image_raw(image_path)
+            inference_image = self._image_processor.load_image_into_numpy_array(raw_inference_image, scale=inference_scale)
+            self._boxes, self._scores, self._classes, num = self._image_processor.detect(inference_image)
             # annotate the original image
-            self._annotated_image = self._image_processor.annotate_image(img, self._boxes, self._classes, self._scores, threshold=threshold)
+            self._annotated_image = self._image_processor.annotate_image(image, self._boxes, self._classes, self._scores, threshold=threshold)
             self._sketcher = SketchGizeh()
-            self._sketcher.setup(img.shape[1], img.shape[0])
+            self._sketcher.setup(image.shape[1], image.shape[0])
             if max_objects:
                 sorted_scores = sorted(self._scores.flatten())
                 threshold = sorted_scores[-min([max_objects, self._scores.size])]
@@ -140,18 +148,18 @@ class Workflow(object):
         self._sketcher.save_png(cartoon_path)
         return annotated_path, cartoon_path
 
-    def _save_3d_numpy_array_as_png(self, img, path):
+    def _save_3d_numpy_array_as_png(self, image, path):
         """saves a NxNx3 8 bit numpy array as a png image
 
-        :param img: N.N.3 numpy array
-        :param path: path to save image to, e.g. './img/img.png
+        :param image: N.N.3 numpy array
+        :param path: path to save image to, e.g. './image/image.png
         :return:
         """
-        if len(img.shape) != 3 or img.dtype is not np.dtype('uint8'):
+        if len(image.shape) != 3 or image.dtype is not np.dtype('uint8'):
             raise TypeError('image must be NxNx3 array')
         with open(str(path), 'wb') as f:
-            writer = png.Writer(img.shape[1], img.shape[0], greyscale=False, bitdepth=8)
-            writer.write(f, np.reshape(img, (-1, img.shape[1] * img.shape[2])))
+            writer = png.Writer(image.shape[1], image.shape[0], greyscale=False, bitdepth=8)
+            writer.write(f, np.reshape(image, (-1, image.shape[1] * image.shape[2])))
 
     def close(self):
         self._image_processor.close()
