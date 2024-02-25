@@ -5,6 +5,8 @@ PYTHON_VERSION=2.7.18
 export MAKEFLAGS="-j12"
 export CC="gcc -m64"
 
+sudo apt install build-essential
+
 # Get Python.
 if [ ! -f Python-$PYTHON_VERSION.tar.xz ]; then
     wget https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz
@@ -105,4 +107,9 @@ python2.7 -m virtualenv --python=python2.7 virtualenv
 source ./virtualenv/bin/activate
 cd cartoonify
 pip install -r requirements_desktop.txt
+
+# Development requirements
+sudo apt install tk-dev
+pip install matplotlib
+
 cd ..

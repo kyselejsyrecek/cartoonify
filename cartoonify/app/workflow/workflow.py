@@ -120,7 +120,7 @@ class Workflow(object):
         :return tuple: (path to annotated image, path to cartoon image)
         """
         self._logger.info('saving results...')
-        annotated_path = self._image_path
+        annotated_path = self._image_path.parent / (self._image_path.name + '.annotated.png')
         cartoon_path = self._image_path.with_name('cartoon' + str(self.count) + '.png')
         labels_path = self._image_path.with_name('labels' + str(self.count) + '.txt')
         with open(str(labels_path), 'w') as f:
@@ -130,7 +130,7 @@ class Workflow(object):
             with open(str(scores_path), 'w', newline='') as f:
                 fcsv = writer(f)
                 fcsv.writerow(map(str, self._scores.flatten()))
-        # self._save_3d_numpy_array_as_png(self._annotated_image, annotated_path)
+        self._save_3d_numpy_array_as_png(self._annotated_image, annotated_path)
         self._sketcher.save_png(cartoon_path)
         return annotated_path, cartoon_path
 
