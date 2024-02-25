@@ -13,7 +13,7 @@ class Workflow(object):
     """controls execution of app
     """
 
-    def __init__(self, dataset, imageprocessor, camera):
+    def __init__(self, dataset, imageprocessor, camera, threshold = 0.3, top_x = None):
         self._path = Path('')
         self._image_path = Path('')
         self._dataset = dataset
@@ -21,6 +21,8 @@ class Workflow(object):
         self._sketcher = None
         self.gpio = Gpio()
         self._cam = camera
+        self._threshold = threshold
+        self._top_x = top_x
         self._logger = logging.getLogger(self.__class__.__name__)
         self._image = None
         self._annotated_image = None
@@ -62,7 +64,7 @@ class Workflow(object):
             self.count += 1
             path = self._path / ('image' + str(self.count) + '.jpg')
             self.capture(path)
-            self.process(path, top_x=3)
+            self.process(path, threshold=self._threshold, top_x=self._top_x)
             annotated, cartoon = self.save_results()
             if print_cartoon:
                 subprocess.call(['lp', '-o', 'landscape', '-c', str(cartoon)])

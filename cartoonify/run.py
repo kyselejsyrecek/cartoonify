@@ -23,6 +23,11 @@ imageprocessor = ImageProcessor(str(model_path),
                                 str(root / 'app' / 'object_detection' / 'data' / 'mscoco_label_map.pbtxt'),
                                 tensorflow_model_name)
 
+# Threshold for object detection (0.0 to 1.0).
+threshold = 0.3
+# If not none, only the top X results are drawn (overrides threshold).
+top_x = None
+
 # configure logging
 logging_filename = datetime.datetime.now().strftime('%Y%m%d-%H%M.log')
 logging_path = Path(__file__).parent / 'logs'
@@ -49,7 +54,7 @@ def run(camera, gui, raspi_headless, batch_process, raspi_gpio):
                 cam.rotation=90
             else:
                 cam = None
-            app = Workflow(dataset, imageprocessor, cam)
+            app = Workflow(dataset, imageprocessor, cam, threshold, top_x)
             app.setup(setup_gpio=raspi_gpio)
         except ImportError as e:
             print('picamera module missing, please install using:\n     sudo apt-get update \n'
@@ -76,7 +81,7 @@ def run(camera, gui, raspi_headless, batch_process, raspi_gpio):
                 path = Path(raw_input("enter the path to the directory to process:"))
                 for file in path.glob('*.jpg'):
                     print('processing {}'.format(str(file)))
-                    app.process(str(file), top_x=3)
+                    app.process(str(file), threshold, top_x)
                     app.save_results(debug=True)
                     app.count += 1
                 print('finished processing files, closing app.')
@@ -85,7 +90,7 @@ def run(camera, gui, raspi_headless, batch_process, raspi_gpio):
             else:
                 path = Path(raw_input("enter the filepath of the image to process:"))
             if str(path) != '.' or 'exit':
-                app.process(str(path), top_x=3)
+                app.process(str(path), threshold, top_x)
                 app.save_results()
             else:
                 app.close()
