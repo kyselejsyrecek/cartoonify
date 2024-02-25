@@ -7,6 +7,5 @@ cartoonify/cartoonify.egg-info
 cartoonify/downloads/drawing_dataset/*.bin
 cartoonify/downloads/detection_models
 cartoonify/images
-cartoonify/ssd_mobilenet*.tar.gz
 .idea
 venv
