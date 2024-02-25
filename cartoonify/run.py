@@ -37,13 +37,14 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG, fil
 @click.option('--raspi-headless', is_flag=True, help='run on raspi with camera and GPIO but without gui')
 @click.option('--batch-process', is_flag=True, help='process all jpg images in a directory')
 @click.option('--raspi-gpio', is_flag=True, help='use gpio to trigger capture & process')
+@click.option('--annotate', is_flag=True, help='produce also annotated image')
 @click.option('--threshold', type=float, default=0.3, help='threshold for object detection (0.0 to 1.0)')
 @click.option('--max-objects', type=int, default=None, help='draw N objects with highest confidency at most')
 @click.option('--min-inference-dimension', type=int, default=512, help='minimal inference image dimension in pixels')
 @click.option('--max-inference-dimension', type=int, default=1024, help='maximal inference image dimension in pixels')
 @click.option('--fit-width', type=int, default=2048, help='width of output rectangle in pixels which the resulting image is made to fit')
 @click.option('--fit-height', type=int, default=2048, help='height of output rectangle in pixels which the resulting image is made to fit')
-def run(camera, gui, raspi_headless, batch_process, raspi_gpio, threshold, max_objects, min_inference_dimension, max_inference_dimension,
+def run(camera, gui, raspi_headless, batch_process, raspi_gpio, annotate, threshold, max_objects, min_inference_dimension, max_inference_dimension,
         fit_width, fit_height):
     if gui:
         print('starting gui...')
@@ -56,7 +57,7 @@ def run(camera, gui, raspi_headless, batch_process, raspi_gpio, threshold, max_o
                 cam.rotation=90
             else:
                 cam = None
-            app = Workflow(dataset, imageprocessor, cam, threshold, max_objects, min_inference_dimension, max_inference_dimension,
+            app = Workflow(dataset, imageprocessor, cam, annotate, threshold, max_objects, min_inference_dimension, max_inference_dimension,
                            fit_width, fit_height)
             app.setup(setup_gpio=raspi_gpio)
         except ImportError as e:

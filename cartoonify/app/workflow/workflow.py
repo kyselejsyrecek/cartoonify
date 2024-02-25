@@ -13,7 +13,9 @@ class Workflow(object):
     """controls execution of app
     """
 
-    def __init__(self, dataset, imageprocessor, camera, threshold=0.3, max_objects=None, min_inference_dimension=300, max_inference_dimension=1024,
+    def __init__(self, dataset, imageprocessor, camera, annotate = False,
+                 threshold=0.3, max_objects=None,
+                 min_inference_dimension=300, max_inference_dimension=1024,
                  fit_width=None, fit_height=None):
         self._path = Path('')
         self._image_path = Path('')
@@ -22,6 +24,7 @@ class Workflow(object):
         self._sketcher = None
         self.gpio = Gpio()
         self._cam = camera
+        self._annotate = annotate
         self._threshold = threshold
         self._max_objects = max_objects
         self._min_inference_dimension = min_inference_dimension
@@ -112,7 +115,8 @@ class Workflow(object):
             inference_image = self._image_processor.load_image_into_numpy_array(raw_inference_image, scale=inference_scale)
             self._boxes, self._scores, self._classes, num = self._image_processor.detect(inference_image)
             # annotate the original image
-            self._annotated_image = self._image_processor.annotate_image(image, self._boxes, self._classes, self._scores, threshold=threshold)
+            if self._annotate:
+                self._annotated_image = self._image_processor.annotate_image(image, self._boxes, self._classes, self._scores, threshold=threshold)
             self._sketcher = SketchGizeh()
             self._sketcher.setup(image.shape[1], image.shape[0])
             if max_objects:
@@ -144,7 +148,8 @@ class Workflow(object):
             with open(str(scores_path), 'w', newline='') as f:
                 fcsv = writer(f)
                 fcsv.writerow(map(str, self._scores.flatten()))
-        self._save_3d_numpy_array_as_png(self._annotated_image, annotated_path)
+        if self._annotate:
+            self._save_3d_numpy_array_as_png(self._annotated_image, annotated_path)
         self._sketcher.save_png(cartoon_path)
         return annotated_path, cartoon_path
 
