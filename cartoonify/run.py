@@ -73,7 +73,7 @@ def run(camera, gui, raspi_headless, batch_process, raspi_gpio):
                     app.close()
                     break
             if batch_process:
-                path = Path(input("enter the path to the directory to process:"))
+                path = Path(raw_input("enter the path to the directory to process:"))
                 for file in path.glob('*.jpg'):
                     print('processing {}'.format(str(file)))
                     app.process(str(file), top_x=3)
@@ -83,7 +83,7 @@ def run(camera, gui, raspi_headless, batch_process, raspi_gpio):
                 app.close()
                 sys.exit()
             else:
-                path = Path(input("enter the filepath of the image to process:"))
+                path = Path(raw_input("enter the filepath of the image to process:"))
             if str(path) != '.' or 'exit':
                 app.process(str(path), top_x=3)
                 app.save_results()
