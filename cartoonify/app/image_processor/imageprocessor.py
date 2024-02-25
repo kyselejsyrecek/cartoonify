@@ -14,6 +14,7 @@ import click
 root = Path(__file__).parent
 tensorflow_model_name = 'ssd_mobilenet_v1_coco_2017_11_17'
 model_path = root / '..' / '..' / 'downloads' / 'detection_models' / tensorflow_model_name / 'frozen_inference_graph.pb'
+image_resolution_px = 512
 
 class ImageProcessor(object):
     """performs object detection on an image
@@ -100,8 +101,10 @@ class ImageProcessor(object):
         """load image into NxNx3 numpy array
         """
         image = Image.open(path)
-        image = image.resize(tuple(int(scale * dim) for dim in image.size))
-        (im_width, im_height) = image.size
+        scale_tuple = [float(image_resolution_px) / dim for dim in image.size]
+        scale = scale_tuple[0] if scale_tuple[0] < scale_tuple[1] else scale_tuple[1]
+        (im_width, im_height) = [int(scale * dim) for dim in image.size]
+        image = image.resize([im_width, im_height])
         return np.array(image.getdata()).reshape((im_height, im_width, 3)).astype(np.uint8)
 
     def detect(self, image):
