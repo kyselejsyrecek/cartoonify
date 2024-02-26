@@ -37,6 +37,7 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG, fil
 @click.option('--raspi-headless', is_flag=True, help='run on raspi with camera and GPIO but without gui')
 @click.option('--batch-process', is_flag=True, help='process all jpg images in a directory')
 @click.option('--raspi-gpio', is_flag=True, help='use gpio to trigger capture & process')
+@click.option('--debug', is_flag=True, help='save a list of all detected object scores')
 @click.option('--annotate', is_flag=True, help='produce also annotated image')
 @click.option('--threshold', type=float, default=0.3, help='threshold for object detection (0.0 to 1.0)')
 @click.option('--max-objects', type=int, default=None, help='draw N objects with highest confidency at most')
@@ -44,7 +45,9 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG, fil
 @click.option('--max-inference-dimension', type=int, default=1024, help='maximal inference image dimension in pixels')
 @click.option('--fit-width', type=int, default=2048, help='width of output rectangle in pixels which the resulting image is made to fit')
 @click.option('--fit-height', type=int, default=2048, help='height of output rectangle in pixels which the resulting image is made to fit')
-def run(camera, gui, raspi_headless, batch_process, raspi_gpio, annotate, threshold, max_objects, min_inference_dimension, max_inference_dimension,
+def run(camera, gui, raspi_headless, batch_process, raspi_gpio, debug, annotate,
+        threshold, max_objects,
+        min_inference_dimension, max_inference_dimension,
         fit_width, fit_height):
     if gui:
         print('starting gui...')
@@ -86,7 +89,7 @@ def run(camera, gui, raspi_headless, batch_process, raspi_gpio, annotate, thresh
                 for file in path.glob('*.jpg'):
                     print('processing {}'.format(str(file)))
                     app.process(str(file))
-                    app.save_results(debug=True)
+                    app.save_results(debug=debug)
                     app.count += 1
                 print('finished processing files, closing app.')
                 app.close()
@@ -95,7 +98,7 @@ def run(camera, gui, raspi_headless, batch_process, raspi_gpio, annotate, thresh
                 path = Path(raw_input("enter the filepath of the image to process:"))
             if str(path) != '.' or 'exit':
                 app.process(str(path))
-                app.save_results()
+                app.save_results(debug=debug)
             else:
                 app.close()
                 sys.exit()

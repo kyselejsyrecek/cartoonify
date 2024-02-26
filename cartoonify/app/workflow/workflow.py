@@ -145,7 +145,7 @@ class Workflow(object):
             f.writelines(self.image_labels)
         if debug:
             scores_path = self._image_path.with_name('scores' + str(self.count) + '.txt')
-            with open(str(scores_path), 'w', newline='') as f:
+            with open(str(scores_path), 'w') as f:
                 fcsv = writer(f)
                 fcsv.writerow(map(str, self._scores.flatten()))
         if self._annotate:
