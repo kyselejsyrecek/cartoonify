@@ -142,7 +142,7 @@ class Workflow(object):
         cartoon_path = self._image_path.with_name('cartoon' + str(self.count) + '.png')
         labels_path = self._image_path.with_name('labels' + str(self.count) + '.txt')
         with open(str(labels_path), 'w') as f:
-            f.writelines(self.image_labels)
+            f.write(','.join(self.image_labels))
         if debug:
             scores_path = self._image_path.with_name('scores' + str(self.count) + '.txt')
             with open(str(scores_path), 'w') as f:
