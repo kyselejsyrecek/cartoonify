@@ -14,7 +14,7 @@ class Workflow(object):
     """
 
     def __init__(self, dataset, imageprocessor, camera, annotate = False,
-                 threshold=0.3, max_objects=None,
+                 threshold=0.3, max_overlapping=0.5, max_objects=None,
                  min_inference_dimension=300, max_inference_dimension=1024,
                  fit_width=None, fit_height=None):
         self._path = Path('')
@@ -26,6 +26,7 @@ class Workflow(object):
         self._cam = camera
         self._annotate = annotate
         self._threshold = threshold
+        self._max_overlapping = max_overlapping
         self._max_objects = max_objects
         self._min_inference_dimension = min_inference_dimension
         self._max_inference_dimension = max_inference_dimension
@@ -113,7 +114,7 @@ class Workflow(object):
             inference_scale = min(self._min_inference_dimension, self._max_inference_dimension / max(raw_image.size))
             raw_inference_image = self._image_processor.load_image_raw(image_path)
             inference_image = self._image_processor.load_image_into_numpy_array(raw_inference_image, scale=inference_scale)
-            self._boxes, self._scores, self._classes, num = self._image_processor.detect(inference_image)
+            self._boxes, self._scores, self._classes = self._image_processor.detect(inference_image, self._max_overlapping)
             # annotate the original image
             if self._annotate:
                 self._annotated_image = self._image_processor.annotate_image(image, self._boxes, self._classes, self._scores, threshold=threshold)
@@ -122,9 +123,9 @@ class Workflow(object):
             if max_objects:
                 sorted_scores = sorted(self._scores.flatten())
                 threshold = sorted_scores[-min([max_objects, self._scores.size])]
-            self._image_labels = self._sketcher.draw_object_recognition_results(np.squeeze(self._boxes),
-                                   np.squeeze(self._classes).astype(np.int32),
-                                   np.squeeze(self._scores),
+            self._image_labels = self._sketcher.draw_object_recognition_results(self._boxes,
+                                   self._classes.astype(np.int32),
+                                   self._scores,
                                    self._image_processor.labels,
                                    self._dataset,
                                    threshold=threshold)

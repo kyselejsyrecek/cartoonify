@@ -32,21 +32,26 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG, fil
 
 
 @click.command()
-@click.option('--camera', is_flag=True, help='use this flag to enable captures from the raspberry pi camera')
-@click.option('--gui', is_flag=True, help='enables gui')
-@click.option('--raspi-headless', is_flag=True, help='run on raspi with camera and GPIO but without gui')
-@click.option('--batch-process', is_flag=True, help='process all jpg images in a directory')
-@click.option('--raspi-gpio', is_flag=True, help='use gpio to trigger capture & process')
-@click.option('--debug', is_flag=True, help='save a list of all detected object scores')
-@click.option('--annotate', is_flag=True, help='produce also annotated image')
-@click.option('--threshold', type=float, default=0.3, help='threshold for object detection (0.0 to 1.0)')
-@click.option('--max-objects', type=int, default=None, help='draw N objects with highest confidency at most')
-@click.option('--min-inference-dimension', type=int, default=512, help='minimal inference image dimension in pixels')
-@click.option('--max-inference-dimension', type=int, default=1024, help='maximal inference image dimension in pixels')
-@click.option('--fit-width', type=int, default=2048, help='width of output rectangle in pixels which the resulting image is made to fit')
-@click.option('--fit-height', type=int, default=2048, help='height of output rectangle in pixels which the resulting image is made to fit')
+@click.option('--camera', is_flag=True, help='Use this flag to enable captures from the Raspberry Pi camera.')
+@click.option('--gui', is_flag=True, help='Enables GUI.')
+@click.option('--raspi-headless', is_flag=True, help='Run on Raspberry Pi with camera and GPIO but without GUI.')
+@click.option('--batch-process', is_flag=True, help='Process all *.jpg images in a directory.')
+@click.option('--raspi-gpio', is_flag=True, help='Use GPIO to trigger capture & process.')
+@click.option('--debug', is_flag=True, help='Save a list of all detected object scores.')
+@click.option('--annotate', is_flag=True, help='Produce also annotated image.')
+@click.option('--threshold', type=float, default=0.3, help='Threshold for object detection (0.0 to 1.0).')
+@click.option('--max-overlapping', type=float, default=0.5, help='Threshold for the formula of area of two overlapping'
+                                                                 'detection boxes intersection over area of their union (IOU).'
+                                                                 'Detection box with higher fidelity is chosen over an overlapping'
+                                                                 'detection box with lower fidelity if the computed IOU value'
+                                                                 'of these boxes is higher than the given threshold (0.0 to 1.0).')
+@click.option('--max-objects', type=int, default=None, help='Draw N objects with highest confidency at most.')
+@click.option('--min-inference-dimension', type=int, default=512, help='Minimal inference image dimension in pixels.')
+@click.option('--max-inference-dimension', type=int, default=1024, help='Maximal inference image dimension in pixels.')
+@click.option('--fit-width', type=int, default=2048, help='Width of output rectangle in pixels which the resulting image is made to fit.')
+@click.option('--fit-height', type=int, default=2048, help='Height of output rectangle in pixels which the resulting image is made to fit.')
 def run(camera, gui, raspi_headless, batch_process, raspi_gpio, debug, annotate,
-        threshold, max_objects,
+        threshold, max_overlapping, max_objects,
         min_inference_dimension, max_inference_dimension,
         fit_width, fit_height):
     if gui:
@@ -60,7 +65,9 @@ def run(camera, gui, raspi_headless, batch_process, raspi_gpio, debug, annotate,
                 cam.rotation=90
             else:
                 cam = None
-            app = Workflow(dataset, imageprocessor, cam, annotate, threshold, max_objects, min_inference_dimension, max_inference_dimension,
+            app = Workflow(dataset, imageprocessor, cam, annotate,
+                           threshold, max_overlapping, max_objects,
+                           min_inference_dimension, max_inference_dimension,
                            fit_width, fit_height)
             app.setup(setup_gpio=raspi_gpio)
         except ImportError as e:

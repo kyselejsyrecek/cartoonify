@@ -51,7 +51,7 @@ class ImageProcessor(object):
         self.load_model(self._path_to_model)
         self._labels = self.load_labels(self._path_to_labels)
         # run a detection once, because first model run is always slow
-        self.detect(np.ones((150, 150, 3), dtype=np.uint8))
+        self.detect(np.ones((150, 150, 3), dtype=np.uint8), 1.0)
 
     def download_model(self, url, filename):
         """download a model file from the url and unzip it
@@ -113,16 +113,27 @@ class ImageProcessor(object):
         raw_image = raw_image.resize([im_width, im_height])
         return np.array(raw_image.getdata()).reshape((im_height, im_width, 3)).astype(np.uint8)
 
-    def detect(self, image):
+    def detect(self, image, iou_threshold):
         """detect objects in the image
         """
         # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
         image_np_expanded = np.expand_dims(image, axis=0)
         # Actual detection.
+        # num is not used since it does not take score threshold into account
         (self._boxes, self._scores, self._classes, num) = self._session.run(
             [self.detection_boxes, self.detection_scores, self.detection_classes, self.num_detections],
             feed_dict={self.image_tensor: image_np_expanded})
-        return self._boxes, self._scores, self._classes, self._num
+        selected_indices = tf.image.non_max_suppression(
+            boxes           = self._boxes[0],
+            scores          = self._scores[0],
+            max_output_size = 100, # Arbitrary value, must be set.
+            iou_threshold   = iou_threshold,
+            name            = None)
+        with tf.Session().as_default():
+            self._boxes = tf.gather(self._boxes[0], selected_indices).eval()
+            self._scores = tf.gather(self._scores[0], selected_indices).eval()
+            self._classes = tf.gather(self._classes[0], selected_indices).eval()
+        return self._boxes, self._scores, self._classes
 
     def annotate_image(self, image, boxes, classes, scores, threshold=0.5):
         """draws boxes around the detected objects and labels them
@@ -132,9 +143,9 @@ class ImageProcessor(object):
         annotated_image = image.copy()
         vis_util.visualize_boxes_and_labels_on_image_array(
             annotated_image,
-            np.squeeze(boxes),
-            np.squeeze(classes).astype(np.int32),
-            np.squeeze(scores),
+            boxes,
+            classes.astype(np.int32),
+            scores,
             self._labels,
             use_normalized_coordinates=True,
             line_thickness=5,
