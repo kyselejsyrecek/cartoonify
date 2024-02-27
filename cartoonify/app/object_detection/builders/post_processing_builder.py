@@ -16,7 +16,7 @@
 """Builder function for post processing operations."""
 import functools
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 from app.object_detection.core import post_processing
 from app.object_detection.protos import post_processing_pb2
 

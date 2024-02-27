@@ -15,7 +15,7 @@
 
 """Embedded-friendly SSDFeatureExtractor for MobilenetV1 features."""
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.models import feature_map_generators
 from app.object_detection.models import ssd_mobilenet_v1_feature_extractor

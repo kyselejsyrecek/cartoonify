@@ -15,7 +15,7 @@
 
 """Functions to build DetectionModel training optimizers."""
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 from app.object_detection.utils import learning_schedules
 
 

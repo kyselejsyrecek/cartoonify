@@ -15,7 +15,7 @@
 
 """Tests for object_detection.utils.static_shape."""
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.utils import static_shape
 

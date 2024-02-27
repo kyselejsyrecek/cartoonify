@@ -14,7 +14,7 @@
 # ==============================================================================
 
 """Tests for region_similarity_calculator."""
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.core import box_list
 from app.object_detection.core import region_similarity_calculator

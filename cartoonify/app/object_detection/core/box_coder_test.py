@@ -15,7 +15,7 @@
 
 """Tests for object_detection.core.box_coder."""
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.core import box_coder
 from app.object_detection.core import box_list

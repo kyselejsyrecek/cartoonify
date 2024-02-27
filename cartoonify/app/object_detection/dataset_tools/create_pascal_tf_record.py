@@ -32,7 +32,7 @@ import os
 
 from lxml import etree
 import PIL.Image
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.utils import dataset_util
 from app.object_detection.utils import label_map_util

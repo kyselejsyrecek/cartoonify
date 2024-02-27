@@ -15,7 +15,7 @@
 
 """Tests for object_detection.utils.shape_utils."""
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.utils import shape_utils
 

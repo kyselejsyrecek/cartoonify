@@ -31,7 +31,7 @@ Subclasses should implement the Subsample function and can make use of the
 from abc import ABCMeta
 from abc import abstractmethod
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.utils import ops
 

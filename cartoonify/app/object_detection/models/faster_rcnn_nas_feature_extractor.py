@@ -20,7 +20,7 @@ Barret Zoph, Vijay Vasudevan, Jonathon Shlens, Quoc V. Le
 https://arxiv.org/abs/1707.07012
 """
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.meta_architectures import faster_rcnn_meta_arch
 from nets.nasnet import nasnet

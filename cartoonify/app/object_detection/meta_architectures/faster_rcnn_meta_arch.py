@@ -65,7 +65,7 @@ anchors and proposal_boxes are both represented as absolute coordinates.
 """
 from abc import abstractmethod
 from functools import partial
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.anchor_generators import grid_anchor_generator
 from app.object_detection.core import balanced_positive_negative_sampler as sampler

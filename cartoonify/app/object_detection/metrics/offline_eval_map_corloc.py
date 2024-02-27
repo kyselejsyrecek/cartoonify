@@ -34,7 +34,7 @@ Example usage:
 import csv
 import os
 import re
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection import evaluator
 from app.object_detection.core import standard_fields

@@ -15,7 +15,7 @@
 """Library of common learning rate schedules."""
 
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 
 def exponential_decay_with_burnin(global_step,

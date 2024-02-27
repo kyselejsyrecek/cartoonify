@@ -24,7 +24,7 @@ Feature map generators build on the base feature extractors and produce a list
 of final feature maps.
 """
 import collections
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 slim = tf.contrib.slim
 
 

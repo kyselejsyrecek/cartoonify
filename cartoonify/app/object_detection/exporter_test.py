@@ -17,7 +17,7 @@
 import os
 import numpy as np
 import six
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 from app.object_detection import exporter
 from app.object_detection.builders import model_builder
 from app.object_detection.core import model

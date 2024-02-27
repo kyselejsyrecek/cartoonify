@@ -37,7 +37,7 @@ import os
 
 import contextlib2
 import pandas as pd
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.dataset_tools import oid_tfrecord_creation
 from app.object_detection.utils import label_map_util

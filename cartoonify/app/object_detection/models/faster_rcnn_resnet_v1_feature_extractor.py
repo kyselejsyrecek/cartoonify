@@ -24,7 +24,7 @@ the MSRA provided checkpoints
 (see https://github.com/KaimingHe/deep-residual-networks), e.g., with
 same preprocessing, batch norm scaling, etc.
 """
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.meta_architectures import faster_rcnn_meta_arch
 from nets import resnet_utils

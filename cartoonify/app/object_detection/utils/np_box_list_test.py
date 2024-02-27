@@ -16,7 +16,7 @@
 """Tests for object_detection.utils.np_box_list_test."""
 
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.utils import np_box_list
 

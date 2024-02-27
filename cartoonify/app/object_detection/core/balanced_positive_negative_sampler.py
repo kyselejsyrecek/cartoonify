@@ -26,7 +26,7 @@ one can also call SubsampleWeights(self, weights, labels) which is defined in
 the minibatch_sampler base class.
 """
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.core import minibatch_sampler
 

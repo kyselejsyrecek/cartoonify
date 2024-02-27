@@ -32,7 +32,7 @@ the number of anchors that it uses per location for each feature map.
 from abc import ABCMeta
 from abc import abstractmethod
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 
 class AnchorGenerator(object):

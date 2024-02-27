@@ -22,7 +22,7 @@ as well as
 Huang et al. (https://arxiv.org/abs/1611.10012)
 """
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.meta_architectures import faster_rcnn_meta_arch
 from nets import inception_resnet_v2

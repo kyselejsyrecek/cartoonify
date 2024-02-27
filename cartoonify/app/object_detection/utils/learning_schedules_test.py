@@ -14,7 +14,7 @@
 # ==============================================================================
 
 """Tests for object_detection.utils.learning_schedules."""
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.utils import learning_schedules
 

@@ -16,7 +16,7 @@
 """Tests for object_detection.matchers.argmax_matcher."""
 
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.matchers import argmax_matcher
 

@@ -23,7 +23,7 @@ Example box operations that are supported:
 Whenever box_list_ops functions output a BoxList, the fields of the incoming
 BoxList are retained unless documented otherwise.
 """
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.core import box_list
 from app.object_detection.utils import shape_utils

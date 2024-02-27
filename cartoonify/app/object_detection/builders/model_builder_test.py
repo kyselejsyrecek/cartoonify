@@ -15,7 +15,7 @@
 
 """Tests for object_detection.models.model_builder."""
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from google.protobuf import text_format
 from app.object_detection.builders import model_builder

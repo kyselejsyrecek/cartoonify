@@ -16,7 +16,7 @@
 """Tests for object_detection.core.balanced_positive_negative_sampler."""
 
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.core import balanced_positive_negative_sampler
 

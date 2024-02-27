@@ -16,7 +16,7 @@
 """Functions for importing/exporting Object Detection categories."""
 import csv
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 
 def load_categories_from_csv_file(csv_path):

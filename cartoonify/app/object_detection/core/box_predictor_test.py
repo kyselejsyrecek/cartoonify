@@ -16,7 +16,7 @@
 """Tests for object_detection.core.box_predictor."""
 
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from google.protobuf import text_format
 from app.object_detection.builders import hyperparams_builder

@@ -66,7 +66,7 @@ with contents:
  - frozen_inference_graph.pb
  + saved_model (a directory)
 """
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 from google.protobuf import text_format
 from app.object_detection import exporter
 from app.object_detection.protos import pipeline_pb2

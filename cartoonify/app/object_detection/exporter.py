@@ -17,7 +17,7 @@
 import logging
 import os
 import tempfile
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 from tensorflow.core.protobuf import rewriter_config_pb2
 from tensorflow.python import pywrap_tensorflow
 from tensorflow.python.client import session

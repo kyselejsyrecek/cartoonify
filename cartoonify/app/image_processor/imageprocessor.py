@@ -2,7 +2,7 @@ import numpy as np
 import os
 import six.moves.urllib as urllib
 import tarfile
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 from PIL import Image
 from app.object_detection import label_map_util
 from app.object_detection import visualization_utils as vis_util
@@ -14,6 +14,9 @@ import click
 root = Path(__file__).parent
 tensorflow_model_name = 'ssd_mobilenet_v1_coco_2017_11_17'
 model_path = root / '..' / '..' / 'downloads' / 'detection_models' / tensorflow_model_name / 'frozen_inference_graph.pb'
+
+# The SSD Mobilenet v1 COCO model utilizes TensorFlow v1 API. Set it as default.
+tf.disable_v2_behavior()
 
 class ImageProcessor(object):
     """performs object detection on an image
@@ -71,7 +74,7 @@ class ImageProcessor(object):
         """
         if not Path(path).exists():
             raise IOError('model file missing: {}'.format(str(path)))
-        with tf.gfile.GFile(path, 'rb') as fid:
+        with tf.io.gfile.GFile(path, 'rb') as fid:
             graph_def = tf.GraphDef()
             graph_def.ParseFromString(fid.read())
         with tf.Graph().as_default() as graph:

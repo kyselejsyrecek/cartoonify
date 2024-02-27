@@ -168,7 +168,7 @@ def draw_bounding_box_on_image(image,
   # If the total height of the display strings added to the top of the bounding
   # box exceeds the top of the image, stack the strings below the bounding box
   # instead of above.
-  display_str_heights = [font.getsize(ds)[1] for ds in display_str_list]
+  display_str_heights = [b - t for l, t, r, b in (font.getbbox(ds) for ds in display_str_list)]
   # Each display_str has a top and bottom margin of 0.05x.
   total_display_str_height = (1 + 2 * 0.05) * sum(display_str_heights)
 
@@ -178,7 +178,9 @@ def draw_bounding_box_on_image(image,
     text_bottom = bottom + total_display_str_height
   # Reverse list and print from bottom to top.
   for display_str in display_str_list[::-1]:
-    text_width, text_height = font.getsize(display_str)
+    text_size = font.getbbox(display_str)
+    text_width = text_size[2] - text_size[0]
+    text_height = text_size[3] - text_size[1]
     margin = np.ceil(0.05 * text_height)
     draw.rectangle(
         [(left, text_bottom - text_height - 2 * margin), (left + text_width,

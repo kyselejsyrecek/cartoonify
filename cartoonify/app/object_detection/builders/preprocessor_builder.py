@@ -15,7 +15,7 @@
 
 """Builder for preprocessing steps."""
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.core import preprocessor
 from app.object_detection.protos import preprocessor_pb2

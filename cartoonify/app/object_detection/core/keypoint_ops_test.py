@@ -15,7 +15,7 @@
 
 """Tests for object_detection.core.keypoint_ops."""
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.core import keypoint_ops
 

@@ -19,7 +19,7 @@ import StringIO
 
 import numpy as np
 from PIL import Image
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.core import standard_fields
 from app.object_detection.inference import detection_inference

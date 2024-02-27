@@ -15,7 +15,7 @@
 
 """Tests for ssd_mobilenet_v1_feature_extractor."""
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.models import ssd_feature_extractor_test
 from app.object_detection.models import ssd_mobilenet_v1_feature_extractor

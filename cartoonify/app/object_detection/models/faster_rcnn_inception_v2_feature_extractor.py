@@ -18,7 +18,7 @@
 See "Rethinking the Inception Architecture for Computer Vision"
 https://arxiv.org/abs/1512.00567
 """
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.meta_architectures import faster_rcnn_meta_arch
 from nets import inception_v2

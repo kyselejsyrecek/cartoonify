@@ -15,7 +15,7 @@
 
 """Tests for object_detection.grid_anchor_generator."""
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.anchor_generators import grid_anchor_generator
 

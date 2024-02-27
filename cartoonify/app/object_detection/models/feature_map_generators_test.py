@@ -15,7 +15,7 @@
 
 """Tests for feature map generators."""
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.models import feature_map_generators
 

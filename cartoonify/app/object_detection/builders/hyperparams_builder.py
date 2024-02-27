@@ -14,7 +14,7 @@
 # ==============================================================================
 
 """Builder function to construct tf-slim arg_scope for convolution, fc ops."""
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.protos import hyperparams_pb2
 

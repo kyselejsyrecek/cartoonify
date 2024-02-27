@@ -18,7 +18,7 @@
 import numpy as np
 import six
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.core import preprocessor
 from app.object_detection.core import standard_fields as fields

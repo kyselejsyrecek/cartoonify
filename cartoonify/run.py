@@ -56,7 +56,7 @@ def run(camera, gui, raspi_headless, batch_process, raspi_gpio, debug, annotate,
         fit_width, fit_height):
     if gui:
         print('starting gui...')
-        start(WebGui, address='0.0.0.0', websocket_port=8082, port=8081, host_name='raspberrypi.local', start_browser=True)
+        start(WebGui, address='0.0.0.0', port=8081, start_browser=True)
     else:
         try:
             if camera or raspi_headless:
@@ -92,7 +92,7 @@ def run(camera, gui, raspi_headless, batch_process, raspi_gpio, debug, annotate,
                     app.close()
                     break
             if batch_process:
-                path = Path(raw_input("enter the path to the directory to process:"))
+                path = Path(input("enter the path to the directory to process:"))
                 for file in path.glob('*.jpg'):
                     print('processing {}'.format(str(file)))
                     app.process(str(file))
@@ -102,7 +102,7 @@ def run(camera, gui, raspi_headless, batch_process, raspi_gpio, debug, annotate,
                 app.close()
                 sys.exit()
             else:
-                path = Path(raw_input("enter the filepath of the image to process:"))
+                path = Path(input("enter the filepath of the image to process:"))
             if str(path) != '.' or 'exit':
                 app.process(str(path))
                 app.save_results(debug=debug)

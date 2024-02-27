@@ -92,7 +92,7 @@ A typical conversion script will look like the following:
 
 ```python
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.utils import dataset_util
 

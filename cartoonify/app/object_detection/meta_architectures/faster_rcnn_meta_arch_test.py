@@ -16,7 +16,7 @@
 """Tests for object_detection.meta_architectures.faster_rcnn_meta_arch."""
 
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.meta_architectures import faster_rcnn_meta_arch_test_lib
 

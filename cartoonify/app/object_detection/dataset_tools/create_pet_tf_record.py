@@ -36,7 +36,7 @@ import re
 from lxml import etree
 import numpy as np
 import PIL.Image
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.utils import dataset_util
 from app.object_detection.utils import label_map_util

@@ -27,7 +27,7 @@ These modules are separated from the main model since the same
 few box predictor architectures are shared across many models.
 """
 from abc import abstractmethod
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 from app.object_detection.utils import ops
 from app.object_detection.utils import shape_utils
 from app.object_detection.utils import static_shape

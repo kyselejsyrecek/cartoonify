@@ -15,7 +15,7 @@
 
 """Tests for object_detection.meta_architectures.faster_rcnn_meta_arch."""
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 from google.protobuf import text_format
 from app.object_detection.anchor_generators import grid_anchor_generator
 from app.object_detection.builders import box_predictor_builder

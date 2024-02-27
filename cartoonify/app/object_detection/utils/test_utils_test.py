@@ -16,7 +16,7 @@
 """Tests for object_detection.utils.test_utils."""
 
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from app.object_detection.utils import test_utils
 
