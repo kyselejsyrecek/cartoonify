@@ -1,11 +1,9 @@
 .ipynb_checkpoints
 __pycache__
 *.pyc
-Python-2.7.*
 cartoonify/logs/*
 cartoonify/cartoonify.egg-info
 cartoonify/downloads/drawing_dataset/*.bin
 cartoonify/downloads/detection_models
 cartoonify/images
 .idea
-venv
