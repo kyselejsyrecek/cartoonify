@@ -30,12 +30,15 @@ if not logging_path.exists():
     logging_path.mkdir()
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG, filename=str(Path(__file__).parent / 'logs' / logging_filename))
 
+def flatten(xss):
+    return [x for xs in xss for x in xs]
 
 @click.command()
 @click.option('--camera', is_flag=True, help='Use this flag to enable captures from the Raspberry Pi camera.')
 @click.option('--gui', is_flag=True, help='Enables GUI.')
 @click.option('--raspi-headless', is_flag=True, help='Run on Raspberry Pi with camera and GPIO but without GUI.')
 @click.option('--batch-process', is_flag=True, help='Process all *.jpg images in a directory.')
+@click.option('--file-patterns', type=str, default="*.jpg *.JPG *.jpeg *.JPEG", help='File patterns for batch processing. Defaults to *.jpg *.JPG *.jpeg *.JPEG.')
 @click.option('--raspi-gpio', is_flag=True, help='Use GPIO to trigger capture & process.')
 @click.option('--debug', is_flag=True, help='Save a list of all detected object scores.')
 @click.option('--annotate', is_flag=True, help='Produce also annotated image.')
@@ -50,7 +53,7 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG, fil
 @click.option('--max-inference-dimension', type=int, default=1024, help='Maximal inference image dimension in pixels.')
 @click.option('--fit-width', type=int, default=2048, help='Width of output rectangle in pixels which the resulting image is made to fit.')
 @click.option('--fit-height', type=int, default=2048, help='Height of output rectangle in pixels which the resulting image is made to fit.')
-def run(camera, gui, raspi_headless, batch_process, raspi_gpio, debug, annotate,
+def run(camera, gui, raspi_headless, batch_process, file_patterns, raspi_gpio, debug, annotate,
         threshold, max_overlapping, max_objects,
         min_inference_dimension, max_inference_dimension,
         fit_width, fit_height):
@@ -83,7 +86,7 @@ def run(camera, gui, raspi_headless, batch_process, raspi_gpio, debug, annotate,
                         app.run(print_cartoon=True)
                         time.sleep(0.02)
             if camera:
-                if click.confirm('would you like to capture an image?'):
+                if click.confirm('would you like to capture an image? '):
                     path = root / 'images' / 'image.jpg'
                     if not path.parent.exists():
                         path.parent.mkdir()
@@ -92,8 +95,9 @@ def run(camera, gui, raspi_headless, batch_process, raspi_gpio, debug, annotate,
                     app.close()
                     break
             if batch_process:
-                path = Path(input("enter the path to the directory to process:"))
-                for file in path.glob('*.jpg'):
+                file_patterns = file_patterns.split()
+                path = Path(input("enter the path to the directory to process: "))
+                for file in flatten([list(path.glob(pattern)) for pattern in file_patterns]):
                     print('processing {}'.format(str(file)))
                     app.process(str(file))
                     app.save_results(debug=debug)
@@ -102,7 +106,7 @@ def run(camera, gui, raspi_headless, batch_process, raspi_gpio, debug, annotate,
                 app.close()
                 sys.exit()
             else:
-                path = Path(input("enter the filepath of the image to process:"))
+                path = Path(input("enter the filepath of the image to process: "))
             if str(path) != '.' or 'exit':
                 app.process(str(path))
                 app.save_results(debug=debug)
