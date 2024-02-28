@@ -31,8 +31,9 @@ import six
 import tensorflow as tf
 
 
-_TITLE_LEFT_MARGIN = 10
-_TITLE_TOP_MARGIN = 10
+_TITLE_FONT_SIZE = 18
+_TITLE_HORIZONTAL_MARGIN = _TITLE_FONT_SIZE * 0.4
+_TITLE_VERTICAL_MARGIN = _TITLE_FONT_SIZE * 0.2
 STANDARD_COLORS = [
     'AliceBlue', 'Chartreuse', 'Aqua', 'Aquamarine', 'Azure', 'Beige', 'Bisque',
     'BlanchedAlmond', 'BlueViolet', 'BurlyWood', 'CadetBlue', 'AntiqueWhite',
@@ -153,45 +154,65 @@ def draw_bounding_box_on_image(image,
   """
   draw = ImageDraw.Draw(image)
   im_width, im_height = image.size
+
+  # Halves of rectangle's outline thickness to be compensated for when drawing rectangles.
+  outer_thickness = np.floor(thickness * 0.5)
+
   if use_normalized_coordinates:
-    (left, right, top, bottom) = (xmin * im_width, xmax * im_width,
-                                  ymin * im_height, ymax * im_height)
+    (left, top, right, bottom) = (xmin * im_width, ymin * im_height,
+                                  xmax * im_width, ymax * im_height)
   else:
-    (left, right, top, bottom) = (xmin, xmax, ymin, ymax)
-  draw.line([(left, top), (left, bottom), (right, bottom),
-             (right, top), (left, top)], width=thickness, fill=color)
+    (left, top, right, bottom) = (xmin, ymin, xmax, ymax)
+  
+  # Make outer halves of rectangle's outline fall into visible space.
+  left = max(0 + outer_thickness, left)
+  top = max(0 + outer_thickness, top)
+  right = min(im_width - outer_thickness, right)
+  bottom = min(im_height - outer_thickness, bottom)
+  
   try:
-    font = ImageFont.truetype('arial.ttf', 24)
+    font = ImageFont.truetype('arial.ttf', size=_TITLE_FONT_SIZE)
   except IOError:
-    font = ImageFont.load_default()
+    font = ImageFont.load_default(size=_TITLE_FONT_SIZE)
+  
+  # If multiple text labels are given, they are stacked vertically.
+  partial_label_heights = [b - t for l, t, r, b in (font.getbbox(ds) for ds in display_str_list)]
+  label_height = sum(partial_label_heights) + (len(partial_label_heights) + 1) * _TITLE_VERTICAL_MARGIN
 
   # If the total height of the display strings added to the top of the bounding
   # box exceeds the top of the image, stack the strings below the bounding box
   # instead of above.
-  display_str_heights = [b - t for l, t, r, b in (font.getbbox(ds) for ds in display_str_list)]
-  # Each display_str has a top and bottom margin of 0.05x.
-  total_display_str_height = (1 + 2 * 0.05) * sum(display_str_heights)
-
-  if top > total_display_str_height:
-    text_bottom = top
+  if top + outer_thickness > label_height:
+    text_bottom = top + outer_thickness
   else:
-    text_bottom = bottom + total_display_str_height
+    text_bottom = bottom - outer_thickness + label_height
+    # Make labels fall into visible space.
+    if text_bottom > im_height:
+      shift = text_bottom - im_height
+      bottom -= shift
+      text_bottom -= shift
+
+  draw.line([(left, top), (right, top)], width=thickness, fill=color)
+  draw.line([(left, bottom), (right, bottom)], width=thickness, fill=color)
+  # Compensate thickness of preceding two lines. Half of it falls out of the box coordinates.
+  draw.line([(left, top - outer_thickness), (left, bottom + outer_thickness)], width=thickness, fill=color)
+  draw.line([(right, top - outer_thickness), (right, bottom + outer_thickness)], width=thickness, fill=color)
+
   # Reverse list and print from bottom to top.
   for display_str in display_str_list[::-1]:
-    text_size = font.getbbox(display_str)
-    text_width = text_size[2] - text_size[0]
-    text_height = text_size[3] - text_size[1]
-    margin = np.ceil(0.05 * text_height)
+    t_left, t_top, t_right, t_bottom = font.getbbox(display_str)
+    text_width = t_right - t_left
+    text_height = t_bottom - t_top
     draw.rectangle(
-        [(left, text_bottom - text_height - 2 * margin), (left + text_width,
-                                                          text_bottom)],
+        [(left - outer_thickness, text_bottom - text_height - 2 * _TITLE_VERTICAL_MARGIN),
+        (left - outer_thickness + text_width + _TITLE_HORIZONTAL_MARGIN * 2, text_bottom)],
         fill=color)
     draw.text(
-        (left + margin, text_bottom - text_height - margin),
+        (left + _TITLE_HORIZONTAL_MARGIN, text_bottom - text_height - t_top - _TITLE_VERTICAL_MARGIN),
         display_str,
         fill='black',
         font=font)
-    text_bottom -= text_height - 2 * margin
+    text_bottom -= text_height + _TITLE_VERTICAL_MARGIN
 
 
 def draw_bounding_boxes_on_image_array(image,
