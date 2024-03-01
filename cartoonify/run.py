@@ -1,17 +1,38 @@
 from __future__ import division
+import logging
+import datetime
+from pathlib import Path
+import sys
+import os
+# Fix built-in input() function writing to stderr instead of stdout.
+# See https://discuss.python.org/t/builtin-function-input-writes-its-prompt-to-sys-stderr-and-not-to-sys-stdout/12955/2.
+import readline
+
+# configure logging
+logging_filename = datetime.datetime.now().strftime('%Y%m%d-%H%M.log')
+logging_path = Path(__file__).parent / 'logs'
+if not logging_path.exists():
+    logging_path.mkdir()
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG, filename=str(Path(__file__).parent / 'logs' / logging_filename))
+
+# Redirect standard error output prematurely. Broken TensorFlow library and its
+# CUDA-related dependencies generate a bunch of error output which is irrelevant
+# for the user. This block and two-step import workaround can be discarded when
+# they are fixed.
+redirect_file = open(str(Path(__file__).parent / 'logs' / logging_filename), 'w')
+os.dup2(redirect_file.fileno(), sys.stderr.fileno())
+
+# Import the rest of the application including external libraries like TensorFlow
+# or CUDA-related libraries.
 import click
 from app.workflow import Workflow
 from app.drawing_dataset import DrawingDataset
 from app.image_processor import ImageProcessor, tensorflow_model_name, model_path
 from app.sketch import SketchGizeh
-from pathlib import Path
 from os.path import join
-import logging
-import datetime
 from app.gui import WebGui
 from remi import start
 import importlib
-import sys
 import time
 
 
@@ -22,13 +43,6 @@ dataset = DrawingDataset(str(root / 'downloads/drawing_dataset'), str(root / 'ap
 imageprocessor = ImageProcessor(str(model_path),
                                 str(root / 'app' / 'object_detection' / 'data' / 'mscoco_label_map.pbtxt'),
                                 tensorflow_model_name)
-
-# configure logging
-logging_filename = datetime.datetime.now().strftime('%Y%m%d-%H%M.log')
-logging_path = Path(__file__).parent / 'logs'
-if not logging_path.exists():
-    logging_path.mkdir()
-logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG, filename=str(Path(__file__).parent / 'logs' / logging_filename))
 
 def flatten(xss):
     return [x for xs in xss for x in xs]
