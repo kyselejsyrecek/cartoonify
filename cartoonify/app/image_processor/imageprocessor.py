@@ -2,6 +2,28 @@ import numpy as np
 import os
 import tarfile
 import tensorflow.compat.v1 as tf
+
+# TODO Tensorflow does not yet support limiting CPU resources in version 2.16.1.
+#gpus = tf.config.list_physical_devices('GPU')
+#if gpus:
+#  print("Setting up GPU limits...")
+#  # Restrict TensorFlow to only allocate 1GB of memory on the first GPU.
+#  try:
+#    #tf.config.threading.set_inter_op_parallelism_threads(2)
+#    #tf.config.threading.set_intra_op_parallelism_threads(2)
+#    #tf.config.experimental.set_memory_growth(gpus[0], True)
+#    memory_limit_in_mb=1024
+#    tf.config.set_logical_device_configuration(
+#        gpus[0],
+#        [tf.config.LogicalDeviceConfiguration(memory_limit=memory_limit_in_mb)])
+#    logical_gpus = tf.config.list_logical_devices('GPU')
+#    print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+#  except (RuntimeError, ValueError) as e:
+#    # Virtual devices must be set before GPUs have been initialized
+#    print(e)
+#else:
+#    print("No suitable GPU found. Computation will be done on CPU.")
+
 from PIL import Image
 from app.object_detection import label_map_util
 from app.object_detection import visualization_utils as vis_util
