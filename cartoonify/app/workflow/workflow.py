@@ -9,6 +9,7 @@ import subprocess
 from csv import writer
 from tempfile import NamedTemporaryFile
 import os
+from app.debugging import profiling
 
 
 class Workflow(object):
@@ -116,10 +117,13 @@ class Workflow(object):
             inference_scale = min(self._min_inference_dimension, self._max_inference_dimension / max(raw_image.size))
             raw_inference_image = self._image_processor.load_image_raw(image_path)
             inference_image = self._image_processor.load_image_into_numpy_array(raw_inference_image, scale=inference_scale)
+            profiling.evaluation_point("input image loaded")
             self._boxes, self._scores, self._classes = self._image_processor.detect(inference_image, self._max_overlapping)
+            profiling.evaluation_point("detection done")
             # annotate the original image
             if self._annotate:
                 self._annotated_image = self._image_processor.annotate_image(image, self._boxes, self._classes, self._scores, threshold=threshold)
+                profiling.evaluation_point("annotation done")
             self._sketcher = SketchGizeh()
             self._sketcher.setup(image.shape[1], image.shape[0])
             if max_objects:

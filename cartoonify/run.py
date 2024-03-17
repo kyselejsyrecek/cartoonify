@@ -4,6 +4,7 @@ import datetime
 from pathlib import Path
 import sys
 import os
+from app.debugging import profiling
 
 # BUG: Built-in input() function writes to stderr instead of stdout (Python 3.11).
 # See https://discuss.python.org/t/builtin-function-input-writes-its-prompt-to-sys-stderr-and-not-to-sys-stdout/12955/2.
