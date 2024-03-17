@@ -125,12 +125,13 @@ def run(camera, gui, raspi_headless, batch_process, file_patterns, raspi_gpio, d
                 sys.exit()
             else:
                 path = Path(input("enter the filepath of the image to process: "))
-            if str(path) != '.' or 'exit':
-                app.process(str(path))
-                app.save_results(debug=debug)
-            else:
+            if str(path) in ('', '.', 'exit'):
+                print("exiting on user request.")
                 app.close()
                 sys.exit()
+            else:
+                app.process(str(path))
+                app.save_results(debug=debug)
 
 if __name__=='__main__':
     run()
