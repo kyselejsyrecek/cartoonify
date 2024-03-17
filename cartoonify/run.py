@@ -4,9 +4,13 @@ import datetime
 from pathlib import Path
 import sys
 import os
-# Fix built-in input() function writing to stderr instead of stdout.
+
+# BUG: Built-in input() function writes to stderr instead of stdout (Python 3.11).
 # See https://discuss.python.org/t/builtin-function-input-writes-its-prompt-to-sys-stderr-and-not-to-sys-stdout/12955/2.
-import readline
+from builtins import input as __input
+def input(prompt=""):
+    print(prompt, end="")
+    return __input()
 
 # configure logging
 logging_filename = datetime.datetime.now().strftime('%Y%m%d-%H%M.log')
