@@ -7,3 +7,4 @@ cartoonify/downloads/drawing_dataset/*.bin
 cartoonify/downloads/detection_models
 cartoonify/images
 .idea
+.vscode-ctags
