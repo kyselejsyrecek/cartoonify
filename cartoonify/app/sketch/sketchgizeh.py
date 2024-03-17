@@ -2,6 +2,9 @@ import numpy as np
 import sys
 import gizeh as gz
 import random
+from pathlib import Path
+import os
+import tempfile
 
 
 class SketchGizeh(object):
@@ -82,4 +85,6 @@ class SketchGizeh(object):
         return self._surface.get_npimage()
 
     def save_png(self, path):
-        self._surface.write_to_png(str(path))
+        temp_file_name = Path(os.path.dirname(str(path))) / next(tempfile._get_candidate_names())
+        self._surface.write_to_png(str(temp_file_name))
+        os.replace(temp_file_name, str(path))

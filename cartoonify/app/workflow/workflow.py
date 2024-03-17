@@ -7,6 +7,8 @@ from app.sketch import SketchGizeh
 from app.gpio import Gpio
 import subprocess
 from csv import writer
+from tempfile import NamedTemporaryFile
+import os
 
 
 class Workflow(object):
@@ -163,9 +165,10 @@ class Workflow(object):
         """
         if len(image.shape) != 3 or image.dtype is not np.dtype('uint8'):
             raise TypeError('image must be NxNx3 array')
-        with open(str(path), 'wb') as f:
+        with NamedTemporaryFile(dir=os.path.dirname(str(path)), delete=False) as f:
             writer = png.Writer(image.shape[1], image.shape[0], greyscale=False, bitdepth=8)
             writer.write(f, np.reshape(image, (-1, image.shape[1] * image.shape[2])))
+        os.replace(f.name, str(path))
 
     def close(self):
         self._image_processor.close()
