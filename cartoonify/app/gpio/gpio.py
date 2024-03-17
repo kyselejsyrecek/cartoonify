@@ -16,7 +16,7 @@ class Gpio:
             self.gpio = importlib.import_module('RPi.GPIO')
         except ImportError as e:
             self._logger.exception(e)
-            print('raspi gpio module not found, continuing...')
+            self._logger.info('raspi gpio module not found, continuing...')
 
     def setup(self, capture_callback):
         """setup GPIO pin to trigger callback function when capture pin goes low

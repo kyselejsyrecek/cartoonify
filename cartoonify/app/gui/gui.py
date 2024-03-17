@@ -83,7 +83,7 @@ class WebGui(App):
             gpio.add_event_detect(pin, gpio.FALLING, callback=self.on_snap_pressed, bouncetime=200)
         except ImportError as e:
             self._logger.exception(e)
-            print('raspi gpio module not found, continuing...')
+            self._logger.info('raspi gpio module not found, continuing...')
 
     def construct_ui(self):
         self.main_container = gui.VBox()
