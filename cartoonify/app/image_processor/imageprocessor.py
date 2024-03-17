@@ -1,6 +1,5 @@
 import numpy as np
 import os
-import six.moves.urllib as urllib
 import tarfile
 import tensorflow.compat.v1 as tf
 from PIL import Image
@@ -59,9 +58,9 @@ class ImageProcessor(object):
     def download_model(self, url, filename):
         """download a model file from the url and unzip it
         """
+        import app.urllib
         self._logger.info('downloading model: {}'.format(filename))
-        opener = urllib.request.URLopener()
-        opener.retrieve(url + filename, filename)
+        app.urllib.urlretrieve(url + filename, filename)
         tar_file = tarfile.open(filename)
         for file in tar_file.getmembers():
             file_name = os.path.basename(file.name)

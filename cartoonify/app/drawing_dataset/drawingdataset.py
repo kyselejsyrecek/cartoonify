@@ -1,4 +1,3 @@
-import six.moves.urllib as urllib
 import struct
 from struct import unpack
 from pathlib import Path
@@ -42,11 +41,11 @@ class DrawingDataset(object):
     def download(self, url, filename, path):
         """download file @ specified url and save it to path
         """
+        import app.urllib
         if not Path(path).exists():
             Path(path).mkdir()
         fpath = Path(path) / filename
-        opener = urllib.request.URLopener()
-        opener.retrieve(url, str(fpath))
+        app.urllib.urlretrieve(url, str(fpath))
         return fpath
 
     def download_recurse(self, url, path):
