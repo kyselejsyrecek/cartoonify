@@ -1,4 +1,3 @@
-from __future__ import division
 import logging
 import datetime
 from pathlib import Path
