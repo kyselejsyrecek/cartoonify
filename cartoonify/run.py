@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import os
 from app.debugging import profiling
+import click
 
 # BUG: Built-in input() function writes to stderr instead of stdout (Python 3.11).
 # See https://discuss.python.org/t/builtin-function-input-writes-its-prompt-to-sys-stderr-and-not-to-sys-stdout/12955/2.
@@ -26,28 +27,6 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG, fil
 # they are fixed.
 redirect_file = open(str(Path(__file__).parent / 'logs' / logging_filename), 'w')
 os.dup2(redirect_file.fileno(), sys.stderr.fileno())
-
-# Import the rest of the application including external libraries like TensorFlow
-# or CUDA-related libraries.
-import click
-from app.workflow import Workflow
-from app.drawing_dataset import DrawingDataset
-from app.image_processor import ImageProcessor, tensorflow_model_name, model_path
-from app.sketch import SketchGizeh
-from os.path import join
-from app.gui import WebGui
-from remi import start
-import importlib
-import time
-
-
-root = Path(__file__).parent
-
-# init objects
-dataset = DrawingDataset(str(root / 'downloads/drawing_dataset'), str(root / 'app/label_mapping.jsonl'))
-imageprocessor = ImageProcessor(str(model_path),
-                                str(root / 'app' / 'object_detection' / 'data' / 'mscoco_label_map.pbtxt'),
-                                tensorflow_model_name)
 
 def flatten(xss):
     return [x for xs in xss for x in xs]
@@ -76,6 +55,26 @@ def run(camera, gui, raspi_headless, batch_process, file_patterns, raspi_gpio, d
         threshold, max_overlapping, max_objects,
         min_inference_dimension, max_inference_dimension,
         fit_width, fit_height):
+    # Import the rest of the application including external libraries like TensorFlow
+    # or CUDA-related libraries.
+    from app.workflow import Workflow
+    from app.drawing_dataset import DrawingDataset
+    from app.image_processor import ImageProcessor, tensorflow_model_name, model_path
+    from app.sketch import SketchGizeh
+    from os.path import join
+    from app.gui import WebGui
+    from remi import start
+    import importlib
+    import time
+
+    root = Path(__file__).parent
+
+    # init objects
+    dataset = DrawingDataset(str(root / 'downloads/drawing_dataset'), str(root / 'app/label_mapping.jsonl'))
+    imageprocessor = ImageProcessor(str(model_path),
+                                    str(root / 'app' / 'object_detection' / 'data' / 'mscoco_label_map.pbtxt'),
+                                    tensorflow_model_name)
+
     if gui:
         print('starting gui...')
         start(WebGui, address='0.0.0.0', port=8081, start_browser=True)
