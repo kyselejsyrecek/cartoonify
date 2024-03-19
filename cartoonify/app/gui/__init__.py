@@ -1,1 +1,1 @@
-from .gui import WebGui
+from .gui import get_WebGui

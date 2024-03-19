@@ -61,7 +61,7 @@ def run(camera, gui, raspi_headless, batch_process, file_patterns, raspi_gpio, d
     from app.image_processor import ImageProcessor, tensorflow_model_name, model_path
     from app.sketch import SketchGizeh
     from os.path import join
-    from app.gui import WebGui
+    from app.gui import get_WebGui
     from remi import start
     import importlib
     import time
@@ -74,27 +74,29 @@ def run(camera, gui, raspi_headless, batch_process, file_patterns, raspi_gpio, d
                                     str(root / 'app' / 'object_detection' / 'data' / 'mscoco_label_map.pbtxt'),
                                     tensorflow_model_name)
 
-    if gui:
-        print('starting gui...')
-        start(WebGui, address='0.0.0.0', port=8081, start_browser=True)
-    else:
+    if camera or raspi_headless:
         try:
-            if camera or raspi_headless:
-                picam = importlib.import_module('picamera')
-                cam = picam.PiCamera()
-                cam.rotation=90
-            else:
-                cam = None
-            app = Workflow(dataset, imageprocessor, cam, annotate,
-                           threshold, max_overlapping, max_objects,
-                           min_inference_dimension, max_inference_dimension,
-                           fit_width, fit_height)
-            app.setup(setup_gpio=raspi_gpio)
+            picam = importlib.import_module('picamera')
         except ImportError as e:
             print('picamera module missing, please install using:\n     sudo apt-get update \n'
-                  '     sudo apt-get install python-picamera')
+                    '     sudo apt-get install python-picamera')
             logging.exception(e)
             sys.exit()
+        cam = picam.PiCamera()
+        #cam.rotation=90 # Was not set in WebGui.
+    else:
+        cam = None
+    app = Workflow(dataset, imageprocessor, cam, annotate,
+                    threshold, max_overlapping, max_objects,
+                    min_inference_dimension, max_inference_dimension,
+                    fit_width, fit_height)
+
+    if gui:
+        print('starting gui...')
+        web_gui = get_WebGui(app)
+        start(web_gui, address='0.0.0.0', port=8081, start_browser=True)
+    else:
+        app.setup(setup_gpio=raspi_gpio)
         while True:
             if raspi_headless:
                 while True:
