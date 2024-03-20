@@ -33,6 +33,9 @@ def flatten(xss):
 @click.command()
 @click.option('--camera', is_flag=True, help='Use this flag to enable captures from the Raspberry Pi camera.')
 @click.option('--gui', is_flag=True, help='Enables GUI.')
+@click.option('--web-server', is_flag=True, help='Enables web interface, without starting a browser.')
+@click.option('--ip', default='0.0.0.0', help='IP address to listen on if switch --gui or --web-server is provided. Listening on all interfaces by default.')
+@click.option('--port', type=int, default=8081, help='Port to listen on if switch --gui or --web-server is provided. Defaults to 8081.')
 @click.option('--raspi-headless', is_flag=True, help='Run on Raspberry Pi with camera and GPIO but without GUI.')
 @click.option('--batch-process', is_flag=True, help='Process all *.jpg images in a directory.')
 @click.option('--file-patterns', type=str, default="*.jpg *.JPG *.jpeg *.JPEG", help='File patterns for batch processing. Defaults to *.jpg *.JPG *.jpeg *.JPEG.')
@@ -50,7 +53,7 @@ def flatten(xss):
 @click.option('--max-inference-dimension', type=int, default=1024, help='Maximal inference image dimension in pixels.')
 @click.option('--fit-width', type=int, default=2048, help='Width of output rectangle in pixels which the resulting image is made to fit.')
 @click.option('--fit-height', type=int, default=2048, help='Height of output rectangle in pixels which the resulting image is made to fit.')
-def run(camera, gui, raspi_headless, batch_process, file_patterns, raspi_gpio, debug, annotate,
+def run(camera, gui, web_server, ip, port, raspi_headless, batch_process, file_patterns, raspi_gpio, debug, annotate,
         threshold, max_overlapping, max_objects,
         min_inference_dimension, max_inference_dimension,
         fit_width, fit_height):
@@ -91,10 +94,14 @@ def run(camera, gui, raspi_headless, batch_process, file_patterns, raspi_gpio, d
                     min_inference_dimension, max_inference_dimension,
                     fit_width, fit_height)
 
-    if gui:
-        print('starting gui...')
+    if gui or web_server:
+        if gui:
+            print('starting gui...')
+        else:
+            print('starting public HTTP server on address {}:{}...'.format(ip, port))
         web_gui = get_WebGui(app)
-        start(web_gui, address='0.0.0.0', port=8081, start_browser=True)
+        start(web_gui, address=ip, port=port, start_browser=gui)
+        profiling.evaluation_point("web server started")
     else:
         app.setup(setup_gpio=raspi_gpio)
         while True:
