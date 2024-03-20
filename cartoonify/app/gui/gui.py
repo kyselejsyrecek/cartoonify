@@ -11,8 +11,10 @@ import sys
 
 class PILImageViewerWidget(gui.Image):
     def __init__(self, **kwargs):
-        super(PILImageViewerWidget, self).__init__('/res/logo.png', **kwargs)
+        super(PILImageViewerWidget, self).__init__(**kwargs)
         self._buf = None
+        initial_image = str(Path(__file__).parent / '..' / '..' / 'images' / 'default.png')
+        self.load(initial_image)
 
     def load(self, file_path_name):
         pil_image = PIL.Image.open(file_path_name)
@@ -51,6 +53,8 @@ def get_WebGui(workflow):
         def main(self):
             self.app.setup(setup_gpio=False)
             self.setup_gpio()
+            self.display_original = False
+            #self.display_tagged = False # TODO Not yet implemented.
             return self.construct_ui()
 
         def setup_gpio(self):
@@ -122,28 +126,20 @@ def get_WebGui(workflow):
             vbox_settings.style['top'] = "149.734375px"
             vbox_settings.style['height'] = "80px"
             checkbox_display_original = gui.CheckBoxLabel(' Display original image', False, '')
-            checkbox_display_original.style['order'] = "4348263224"
-            checkbox_display_original.style['-webkit-order'] = "4348263224"
-            checkbox_display_original.style['display'] = "block"
             checkbox_display_original.style['margin'] = "0px"
             checkbox_display_original.style['align-items'] = "center"
-            checkbox_display_original.style['overflow'] = "auto"
             checkbox_display_original.style['width'] = "200px"
             checkbox_display_original.style['top'] = "135.734375px"
             checkbox_display_original.style['position'] = "static"
             checkbox_display_original.style['height'] = "30px"
             vbox_settings.append(checkbox_display_original, 'checkbox_display_original')
-            checkbox_display_tagged = gui.CheckBoxLabel(' Display tagged image', False, '')
-            checkbox_display_tagged.style['order'] = "4355939912"
-            checkbox_display_tagged.style['-webkit-order'] = "4355939912"
-            checkbox_display_tagged.style['display'] = "block"
-            checkbox_display_tagged.style['margin'] = "0px"
-            checkbox_display_tagged.style['overflow'] = "auto"
-            checkbox_display_tagged.style['width'] = "200px"
-            checkbox_display_tagged.style['top'] = "135px"
-            checkbox_display_tagged.style['position'] = "static"
-            checkbox_display_tagged.style['height'] = "30px"
-            vbox_settings.append(checkbox_display_tagged, 'checkbox_display_tagged')
+            #checkbox_display_tagged = gui.CheckBoxLabel(' Display tagged image', False, '')
+            #checkbox_display_tagged.style['margin'] = "0px"
+            #checkbox_display_tagged.style['width'] = "200px"
+            #checkbox_display_tagged.style['top'] = "135px"
+            #checkbox_display_tagged.style['position'] = "static"
+            #checkbox_display_tagged.style['height'] = "30px"
+            #vbox_settings.append(checkbox_display_tagged, 'checkbox_display_tagged')
             hbox_snap.append(vbox_settings, 'vbox_settings')
             button_close = gui.Button('close')
             button_close.style['background-color'] = 'red'
@@ -151,21 +147,31 @@ def get_WebGui(workflow):
             button_close.style['height'] = '30px'
             hbox_snap.append(button_close, 'button_close')
             self.main_container.append(hbox_snap, 'hbox_snap')
-            width = 200
-            height = 200
-            self.image_original = PILImageViewerWidget(width=width, height=height)
+            height = 300
+            self.image_original = PILImageViewerWidget(height=height)
+            self.image_original.style['display'] = "block" if self.display_original else "none"
             self.main_container.append(self.image_original, 'image_original')
-            self.image_result = PILImageViewerWidget(width=width, height=height)
+            self.image_result = PILImageViewerWidget(height=height)
             self.main_container.append(self.image_result, 'image_result')
             self.image_label = gui.Label('', width=400, height=30, margin='10px')
-            self.image_label.style['align-items'] = "center"
+            self.image_label.style['text-align'] = "center"
             self.main_container.append(self.image_label, 'image_label')
 
             button_close.set_on_click_listener(self.on_close_pressed)
             button_snap.set_on_click_listener(self.on_snap_pressed)
             button_open.set_on_click_listener(self.on_open_pressed)
 
+            checkbox_display_original.set_on_change_listener(self.on_display_original_change)
+            #checkbox_display_tagged.set_on_change_listener(self.on_display_tagged_change)
+
             return self.main_container
+
+        def on_display_original_change(self, widget, value):
+            self.display_original = value
+            self.image_original.style['display'] = "block" if self.display_original else "none"
+
+        #def on_display_tagged_change(self, widget, value):
+        #    self.display_tagged = value
 
         def on_close_pressed(self, *_):
             self.app.close()
