@@ -98,7 +98,7 @@ def run(camera, gui, web_server, ip, port, raspi_headless, batch_process, file_p
         if gui:
             print('starting gui...')
         else:
-            print('starting public HTTP server on address {}:{}...'.format(ip, port))
+            print('starting HTTP server on address {}:{}...'.format(ip, port))
         web_gui = get_WebGui(app)
         start(web_gui, address=ip, port=port, start_browser=gui)
         profiling.evaluation_point("web server started")
