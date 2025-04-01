@@ -9,6 +9,7 @@ import subprocess
 from csv import writer
 from tempfile import NamedTemporaryFile
 import os
+import time
 from app.debugging import profiling
 
 
@@ -62,7 +63,11 @@ class Workflow(object):
             self._path.mkdir()
         self.count = len(list(self._path.glob('image*.jpg')))
         if self._cam is not None:
-            self._cam.resolution = (640, 480)
+            capture_config = self._cam.create_still_configuration()
+            # TODO resolution = (640, 480)
+            self._cam.configure(capture_config)
+            self._cam.start()
+            time.sleep(2) # FIXME Replace with lazy sleep instead? Is that even needed?
         self._logger.info('setup finished.')
 
     def run(self, print_cartoon=False):
@@ -87,7 +92,7 @@ class Workflow(object):
     def capture(self, path):
         if self._cam is not None:
             self._logger.info('capturing image')
-            self._cam.capture(str(path))
+            self._cam.capture_file(str(path))
         else:
             raise AttributeError("app wasn't started with --camera flag, so you can't use the camera to capture images.")
         return path
@@ -175,6 +180,8 @@ class Workflow(object):
         os.replace(f.name, str(path))
 
     def close(self):
+        if self._cam is not None:
+            self._cam.close()
         self._image_processor.close()
         self.gpio.close()
 

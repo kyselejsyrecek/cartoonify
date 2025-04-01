@@ -86,14 +86,12 @@ def run(camera, gui, web_server, ip, port,
 
     if camera or raspi_headless:
         try:
-            picam = importlib.import_module('picamera')
+            picam = importlib.import_module('picamera2')
         except ImportError as e:
-            print('picamera module missing, please install using:\n     sudo apt-get update \n'
-                    '     sudo apt-get install python-picamera')
+            print('picamera2 module missing, please install using:\n     pip install picamera2')
             logging.exception(e)
             sys.exit()
-        cam = picam.PiCamera()
-        #cam.rotation=90 # Was not set in WebGui.
+        cam = picam.Picamera2()
     else:
         cam = None
     app = Workflow(dataset, imageprocessor, cam, annotate,
