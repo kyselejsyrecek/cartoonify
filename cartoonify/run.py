@@ -36,6 +36,7 @@ def flatten(xss):
 @click.option('--web-server', is_flag=True, help='Enables web interface, without starting a browser.')
 @click.option('--ip', default='0.0.0.0', help='IP address to listen on if switch --gui or --web-server is provided. Listening on all interfaces by default.')
 @click.option('--port', type=int, default=8081, help='Port to listen on if switch --gui or --web-server is provided. Defaults to 8081.')
+@click.option('--force-download', is_flag=True,help='Download data if missing, suppressing confirmation prompt.')
 @click.option('--raspi-headless', is_flag=True, help='Run on Raspberry Pi with camera and GPIO but without GUI.')
 @click.option('--batch-process', is_flag=True, help='Process all *.jpg images in a directory.')
 @click.option('--file-patterns', type=str, default="*.jpg *.JPG *.jpeg *.JPEG", help='File patterns for batch processing. Defaults to *.jpg *.JPG *.jpeg *.JPEG.')
@@ -53,7 +54,9 @@ def flatten(xss):
 @click.option('--max-inference-dimension', type=int, default=1024, help='Maximal inference image dimension in pixels.')
 @click.option('--fit-width', type=int, default=2048, help='Width of output rectangle in pixels which the resulting image is made to fit.')
 @click.option('--fit-height', type=int, default=2048, help='Height of output rectangle in pixels which the resulting image is made to fit.')
-def run(camera, gui, web_server, ip, port, raspi_headless, batch_process, file_patterns, raspi_gpio, debug, annotate,
+def run(camera, gui, web_server, ip, port,
+        force_download,
+        raspi_headless, batch_process, file_patterns, raspi_gpio, debug, annotate,
         threshold, max_overlapping, max_objects,
         min_inference_dimension, max_inference_dimension,
         fit_width, fit_height):
@@ -72,10 +75,11 @@ def run(camera, gui, web_server, ip, port, raspi_headless, batch_process, file_p
     root = Path(__file__).parent
 
     # init objects
-    dataset = DrawingDataset(str(root / 'downloads/drawing_dataset'), str(root / 'app/label_mapping.jsonl'))
+    dataset = DrawingDataset(str(root / 'downloads/drawing_dataset'), str(root / 'app/label_mapping.jsonl'),
+                             force_download)
     imageprocessor = ImageProcessor(str(model_path),
                                     str(root / 'app' / 'object_detection' / 'data' / 'mscoco_label_map.pbtxt'),
-                                    tensorflow_model_name)
+                                    tensorflow_model_name, force_download)
 
     if camera or raspi_headless:
         try:

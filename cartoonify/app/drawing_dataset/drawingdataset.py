@@ -11,10 +11,11 @@ class DrawingDataset(object):
     interface to the drawing dataset
     """
 
-    def __init__(self, path_to_drawing_dataset, path_to_label_mapping):
+    def __init__(self, path_to_drawing_dataset, path_to_label_mapping, force_download):
         self._path = Path(path_to_drawing_dataset)
         self._categories_filepath = self._path / 'categories.txt'
         self._category_mapping_filepath = path_to_label_mapping
+        self._force_download = force_download
         self._quickdraw_dataset_url = 'https://storage.googleapis.com/quickdraw_dataset/full/binary/'
         self._categories = []
         self._category_mapping = dict()
@@ -30,7 +31,8 @@ class DrawingDataset(object):
             raise e
         self._categories = self.load_categories(self._path)
         if not self._categories:
-            if click.confirm('no drawings available, would you like to download the dataset? '
+            if self._force_download or \
+               click.confirm('no drawings available, would you like to download the dataset? '
                              'download will take approx 5gb of space'):
                 self.download_recurse(self._quickdraw_dataset_url, self._path)
                 self._categories = self.load_categories(self._path)

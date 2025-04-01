@@ -43,13 +43,14 @@ class ImageProcessor(object):
     """performs object detection on an image
     """
 
-    def __init__(self, path_to_model, path_to_labels, model_name):
+    def __init__(self, path_to_model, path_to_labels, model_name, force_download=False):
         self._model_name = model_name
         # Path to frozen detection graph. This is the actual model that is used for the object detection.
         self._path_to_model = path_to_model
         # strings used to add correct label for each box.
         self._path_to_labels = path_to_labels
         self._download_url = 'http://download.tensorflow.org/models/object_detection/'
+        self._force_download = force_download
         self._num_classes = 90
         self._detection_graph = None
         self._labels = dict()
@@ -69,7 +70,8 @@ class ImageProcessor(object):
     def setup(self):
         self._logger = logging.getLogger(self.__class__.__name__)
         if not Path(self._path_to_model).exists():
-            if click.confirm('no object detection model available, would you like to download the model? '
+            if self._force_download or \
+               click.confirm('no object detection model available, would you like to download the model? '
                              'download will take approx 100mb of space'):
                 self.download_model(self._download_url, self._model_name + '.tar.gz')
         self.load_model(self._path_to_model)
