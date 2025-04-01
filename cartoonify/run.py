@@ -36,6 +36,9 @@ def flatten(xss):
 @click.option('--web-server', is_flag=True, help='Enables web interface, without starting a browser.')
 @click.option('--ip', default='0.0.0.0', help='IP address to listen on if switch --gui or --web-server is provided. Listening on all interfaces by default.')
 @click.option('--port', type=int, default=8081, help='Port to listen on if switch --gui or --web-server is provided. Defaults to 8081.')
+@click.option('--icr-daemon', is_flag=True, help='Set Advantech ICR compatible mode.')
+@click.option('--image-url', type=str, default="", help='Set image URL to download capture from in ICR mode (IP camera).')
+@click.option('--offline-image', type=str, default="", help='Path to image to be copied to images/cartoon0.png when image from URL given by parameter --image-url cannot be retrieved.')
 @click.option('--force-download', is_flag=True,help='Download data if missing, suppressing confirmation prompt.')
 @click.option('--raspi-headless', is_flag=True, help='Run on Raspberry Pi with camera and GPIO but without GUI.')
 @click.option('--batch-process', is_flag=True, help='Process all *.jpg images in a directory.')
@@ -55,7 +58,7 @@ def flatten(xss):
 @click.option('--fit-width', type=int, default=2048, help='Width of output rectangle in pixels which the resulting image is made to fit.')
 @click.option('--fit-height', type=int, default=2048, help='Height of output rectangle in pixels which the resulting image is made to fit.')
 def run(camera, gui, web_server, ip, port,
-        force_download,
+        icr_daemon, image_url, offline_image, force_download,
         raspi_headless, batch_process, file_patterns, raspi_gpio, debug, annotate,
         threshold, max_overlapping, max_objects,
         min_inference_dimension, max_inference_dimension,
@@ -108,6 +111,7 @@ def run(camera, gui, web_server, ip, port,
         profiling.evaluation_point("web server started")
     else:
         app.setup(setup_gpio=raspi_gpio)
+        error = False
         while True:
             if raspi_headless:
                 while True:
@@ -124,7 +128,32 @@ def run(camera, gui, web_server, ip, port,
                 else:
                     app.close()
                     break
-            if batch_process:
+            if icr_daemon:
+                import subprocess
+                import time
+                import traceback
+                from app.urllib import urlretrieve as urlretrieve
+
+                def get_cmd_output(command):
+                    return subprocess.run(command, shell=True, text=True, capture_output=True).stdout.rstrip()
+                    
+                if get_cmd_output('io get out1') == '1':
+                    logging.info('downloading image: {}'.format(image_url))
+                    try:
+                        urlretrieve(image_url, "camera0.jpg")
+                        error = False
+                        app.process("camera0.jpg")
+                        app.save_results(debug=debug)
+                    except:
+                        if not error:
+                            error = True
+                            from shutil import copy
+                            copy(offline_image, "cartoon0.png")
+                            logging.error('error downloading image: {}.\nSuppresing this message until first successful retrieval.'.format(traceback.format_exc()))
+
+                time.sleep(1)
+                
+            elif batch_process:
                 file_patterns = file_patterns.split()
                 path = Path(input("enter the path to the directory to process: "))
                 for file in flatten([list(path.glob(pattern)) for pattern in file_patterns]):
@@ -137,13 +166,13 @@ def run(camera, gui, web_server, ip, port,
                 sys.exit()
             else:
                 path = Path(input("enter the filepath of the image to process: "))
-            if str(path) in ('', '.', 'exit'):
-                print("exiting on user request.")
-                app.close()
-                sys.exit()
-            else:
-                app.process(str(path))
-                app.save_results(debug=debug)
+                if str(path) in ('', '.', 'exit'):
+                    print("exiting on user request.")
+                    app.close()
+                    sys.exit()
+                else:
+                    app.process(str(path))
+                    app.save_results(debug=debug)
 
 if __name__=='__main__':
     run()

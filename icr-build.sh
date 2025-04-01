@@ -22,9 +22,11 @@ fi
 #source ./virtualenv/bin/activate
 cd cartoonify
 python3 -m pip install -r requirements_icr.txt
+RETVAL=$?
 
 # Development requirements
 #sudo apt install tk-dev
 #pip install matplotlib
 
 cd ..
+exit $RETVAL
