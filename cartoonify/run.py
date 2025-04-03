@@ -125,10 +125,11 @@ def run(camera, gui, web_server, ip, port,
                     if not path.parent.exists():
                         path.parent.mkdir()
                     app.capture(str(path))
+                    app.process(str(path))
+                    app.save_results(debug=debug)
                 else:
-                    app.close()
                     break
-            if icr_daemon:
+            elif icr_daemon:
                 import subprocess
                 import time
                 import traceback
@@ -162,17 +163,16 @@ def run(camera, gui, web_server, ip, port,
                     app.save_results(debug=debug)
                     app.count += 1
                 print('finished processing files, closing app.')
-                app.close()
-                sys.exit()
+                break
             else:
                 path = Path(input("enter the filepath of the image to process: "))
                 if str(path) in ('', '.', 'exit'):
                     print("exiting on user request.")
-                    app.close()
-                    sys.exit()
+                    break
                 else:
                     app.process(str(path))
                     app.save_results(debug=debug)
+        app.close()
 
 if __name__=='__main__':
     run()
