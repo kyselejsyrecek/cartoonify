@@ -3,8 +3,10 @@ import datetime
 from pathlib import Path
 import sys
 import os
-from app.debugging import profiling
 import click
+
+from app.utils.attributedict import AttributeDict
+from app.debugging import profiling
 
 # BUG: Built-in input() function writes to stderr instead of stdout (Python 3.11).
 # See https://discuss.python.org/t/builtin-function-input-writes-its-prompt-to-sys-stderr-and-not-to-sys-stdout/12955/2.
@@ -57,12 +59,7 @@ def flatten(xss):
 @click.option('--max-inference-dimension', type=int, default=1024, help='Maximal inference image dimension in pixels.')
 @click.option('--fit-width', type=int, default=2048, help='Width of output rectangle in pixels which the resulting image is made to fit.')
 @click.option('--fit-height', type=int, default=2048, help='Height of output rectangle in pixels which the resulting image is made to fit.')
-def run(camera, gui, web_server, ip, port,
-        icr_daemon, image_url, offline_image, force_download,
-        raspi_headless, batch_process, file_patterns, raspi_gpio, debug, annotate,
-        threshold, max_overlapping, max_objects,
-        min_inference_dimension, max_inference_dimension,
-        fit_width, fit_height):
+def run(**kwargs):
     # Import the rest of the application including external libraries like TensorFlow
     # or CUDA-related libraries.
     from app.workflow import Workflow
@@ -76,15 +73,17 @@ def run(camera, gui, web_server, ip, port,
     import time
 
     root = Path(__file__).parent
+    config = AttributeDict(kwargs)
+    config.file_patterns = config.file_patterns.split()
 
     # init objects
     dataset = DrawingDataset(str(root / 'downloads/drawing_dataset'), str(root / 'app/label_mapping.jsonl'),
-                             force_download)
+                             config.force_download)
     imageprocessor = ImageProcessor(str(model_path),
                                     str(root / 'app' / 'object_detection' / 'data' / 'mscoco_label_map.pbtxt'),
-                                    tensorflow_model_name, force_download)
+                                    tensorflow_model_name, config.force_download)
 
-    if camera or raspi_headless:
+    if config.camera or config.raspi_headless:
         try:
             picam = importlib.import_module('picamera2')
         except ImportError as e:
@@ -94,40 +93,39 @@ def run(camera, gui, web_server, ip, port,
         cam = picam.Picamera2()
     else:
         cam = None
-    app = Workflow(dataset, imageprocessor, cam, annotate,
-                    threshold, max_overlapping, max_objects,
-                    min_inference_dimension, max_inference_dimension,
-                    fit_width, fit_height)
+    app = Workflow(dataset, imageprocessor, cam, config)
 
-    if gui or web_server:
-        if gui:
+    if config.gui or config.web_server:
+        if config.gui:
             print('starting gui...')
         else:
-            print('starting HTTP server on address {}:{}...'.format(ip, port))
+            print('starting HTTP server on address {}:{}...'.format(config.ip, config.port))
         web_gui = get_WebGui(app)
-        start(web_gui, address=ip, port=port, start_browser=gui)
+        start(web_gui, address=config.ip, port=config.port, start_browser=config.gui)
         profiling.evaluation_point("web server started")
     else:
-        app.setup(setup_gpio=raspi_gpio)
+        app.setup(setup_gpio=config.raspi_gpio)
         error = False
         while True:
-            if raspi_headless:
+            if config.raspi_headless:
                 while True:
                     if app.gpio.get_capture_pin():
                         print('capture button pressed.')
                         app.run(print_cartoon=True)
                         time.sleep(0.02)
-            if camera:
+
+            if config.camera:
                 if click.confirm('would you like to capture an image? '):
                     path = root / 'images' / 'image.jpg'
                     if not path.parent.exists():
                         path.parent.mkdir()
                     app.capture(str(path))
                     app.process(str(path))
-                    app.save_results(debug=debug)
+                    app.save_results(debug=config.debug)
                 else:
                     break
-            elif icr_daemon:
+
+            elif config.icr_daemon:
                 import subprocess
                 import time
                 import traceback
@@ -137,31 +135,30 @@ def run(camera, gui, web_server, ip, port,
                     return subprocess.run(command, shell=True, text=True, capture_output=True).stdout.rstrip()
                     
                 if get_cmd_output('io get out1') == '1':
-                    logging.info('downloading image: {}'.format(image_url))
+                    logging.info('downloading image: {}'.format(config.image_url))
                     try:
-                        urlretrieve(image_url, "camera0.jpg")
+                        urlretrieve(config.image_url, "camera0.jpg")
                         error = False
                         app.process("camera0.jpg")
-                        app.save_results(debug=debug)
+                        app.save_results(debug=config.debug)
                     except:
                         if not error:
                             error = True
                             from shutil import copy
-                            copy(offline_image, "cartoon0.png")
+                            copy(config.offline_image, "cartoon0.png")
                             logging.error('error downloading image: {}.\nSuppresing this message until first successful retrieval.'.format(traceback.format_exc()))
-
                 time.sleep(1)
-                
+
             elif batch_process:
-                file_patterns = file_patterns.split()
                 path = Path(input("enter the path to the directory to process: "))
-                for file in flatten([list(path.glob(pattern)) for pattern in file_patterns]):
+                for file in flatten([list(path.glob(pattern)) for pattern in config.file_patterns]):
                     print('processing {}'.format(str(file)))
                     app.process(str(file))
-                    app.save_results(debug=debug)
+                    app.save_results(debug=config.debug)
                     app.count += 1
                 print('finished processing files, closing app.')
                 break
+
             else:
                 path = Path(input("enter the filepath of the image to process: "))
                 if str(path) in ('', '.', 'exit'):
@@ -169,7 +166,7 @@ def run(camera, gui, web_server, ip, port,
                     break
                 else:
                     app.process(str(path))
-                    app.save_results(debug=debug)
+                    app.save_results(debug=config.debug)
         app.close()
 
 if __name__=='__main__':
