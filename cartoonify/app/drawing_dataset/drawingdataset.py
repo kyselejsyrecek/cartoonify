@@ -47,7 +47,12 @@ class DrawingDataset(object):
         if not Path(path).exists():
             Path(path).mkdir()
         fpath = Path(path) / filename
-        app.urllib.urlretrieve(url, str(fpath))
+        for i in range(5):
+            try:
+                app.urllib.urlretrieve(url, str(fpath))
+                break
+            except:
+                if i == 4: raise
         return fpath
 
     def download_recurse(self, url, path):

@@ -84,7 +84,12 @@ class ImageProcessor(object):
         """
         import app.urllib
         self._logger.info('downloading model: {}'.format(filename))
-        app.urllib.urlretrieve(url + filename, filename)
+        for i in range(5):
+            try:
+                app.urllib.urlretrieve(url + filename, filename)
+                break
+            except:
+                if i == 4: raise
         tar_file = tarfile.open(filename)
         for file in tar_file.getmembers():
             file_name = os.path.basename(file.name)
