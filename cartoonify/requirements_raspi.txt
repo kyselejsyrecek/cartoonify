@@ -1,0 +1,37 @@
+
+click # ==8.1.7
+gizeh # ==0.1.11
+jsonlines # ==4.0.0
+matplotlib # ==3.8.3
+picamera2
+pillow # ==10.2.0
+protobuf==3.20.3 # Version lower than 3.21 is required.
+pypng # ==0.20220715.0
+remi==2020.11.20 # Required. Latest version with compatible API.
+tensorflow # ==2.16.1
+
+#bleach==1.5.0
+#cairocffi==0.8.0
+#certifi==2017.11.5
+#cffi==1.11.2
+#chardet==3.0.4
+#cycler==0.10.0
+#enum34==1.1.6
+#html5lib==0.9999999
+#idna==2.6
+#Markdown==2.6.10
+#pycparser==2.18
+#pyparsing==2.2.0
+#python-dateutil==2.6.1
+#pytz==2017.3
+#requests==2.18.4
+#six==1.11.0
+#urllib3==1.22
+#Werkzeug==0.14.1
+#pathlib
+#pyserial
+#mock
+#pbr
+#funcsigs
+#absl-py
+rpi.gpio

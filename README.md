@@ -10,10 +10,10 @@ If you'd like to try it out for yourself, [the good folks at Kapwing have create
 
 The software can run both on a desktop environment (OSX, Linux) such as a laptop, or an embedded environment on a raspberry pi. 
 
-### Desktop installation (only tested on OSX and linux)
+### Desktop installation (only tested on Ubuntu Linux)
 
 - Requirements:
-    * Python 2.7*
+    * Python 3
     * Cairo (on OSX `brew install cairo`)
 - install dependencies using `pip install -r requirements_desktop.txt` from the `cartoonify` subdirectory.
 - run app from command line using `python run.py`.
@@ -21,8 +21,6 @@ The software can run both on a desktop environment (OSX, Linux) such as a laptop
 - close the app using ctrl-C once the downloads have finished.
 - start the app again using `cartoonify`.
 - you will be prompted to enter the filepath to an image for processing. Enter the absolute filepath surrounded by double quotes.
-
-*Unfortunately python 2.7 is required because the correct python 3 wheels are not available for both the pi and desktop.
 
 ### Raspberry pi wiring
 
@@ -39,7 +37,7 @@ deliver 1.2V each, as well as enough current to drive the raspi and thermal prin
 
 - requirements:
     * raspberry pi 3
-    * rasbian stretch image on 16gb SD card (8gb too small)
+    * rasbian stretch image on 16 GB SD card
     * internet access on the raspi
     * pip + python
     * raspi camera v2
@@ -47,12 +45,10 @@ deliver 1.2V each, as well as enough current to drive the raspi and thermal prin
     * (optional) Thermal printer to suit a raspi 3. I used [this printer here](https://www.adafruit.com/product/2751).
     Note you will need to use the printer TTL serial interface as per the wiring diagram above, rather than USB.
 
-- install docker on the raspi by running: `curl -sSL https://get.docker.com | sh`
 - set up and enable the raspi camera through `raspi-config`
 - clone the source code from this repo
-- run `./raspi-build.sh`. This will download the google quickdraw dataset and tensorflow model,
-then build the required docker image.
-- run `./raspi-run.sh`. This will start the docker image.
+- run `./raspi-build.sh`. This will download all required dependencies, the Google Quickdraw dataset and tensorflow model and install system services.
+- run `./raspi-run.sh`. This will start the application.
 
 
 ### Troubleshooting

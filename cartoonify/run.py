@@ -126,7 +126,7 @@ def run(**kwargs):
                 else:
                     break
 
-            elif config.icr_daemon:
+            elif config.icr_daemon: # TODO Convert to IP camera.
                 import subprocess
                 import time
                 import traceback

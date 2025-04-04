@@ -1,10 +1,12 @@
 .ipynb_checkpoints
 __pycache__
 *.pyc
+.idea
+.vscode-ctags
 cartoonify/logs/*
 cartoonify/cartoonify.egg-info
 cartoonify/downloads/drawing_dataset/*.bin
 cartoonify/downloads/detection_models
 cartoonify/images
-.idea
-.vscode-ctags
+WiringPi/**
+zj-58/**

@@ -13,7 +13,7 @@ setup(
     # Packages
     packages=["app"],
 
-    # todo fill out manifest.in
+    # TODO fill out manifest.in
     # Include additional files into the package
     include_package_data=True,
 
@@ -22,7 +22,7 @@ setup(
     description="Python package for turning a photo into a cartoon.",
 
     # long_description=open("README.txt").read(),
-    # todo add dependent packages
+    # TODO add dependent packages
     # Dependent packages (distributions)
     install_requires=[
     ],
