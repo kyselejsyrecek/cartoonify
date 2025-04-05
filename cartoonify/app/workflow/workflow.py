@@ -45,7 +45,7 @@ class Workflow(object):
         self._boxes = None
         self._classes = None
         self._scores = None
-        self._count = 0
+        self._image_number = 0
 
     def setup(self, setup_gpio=True):
         self._logger.info('loading cartoon dataset...')
@@ -58,12 +58,14 @@ class Workflow(object):
         self._logger.info('Done')
         if setup_gpio:
             self._logger.info('setting up GPIO...')
-            self._gpio.setup(capture_callback=self.run)
+            # FIXME Capture callback not given because we are polling the capture button.
+            self._gpio.setup()
             self._logger.info('done')
         self._path = Path(__file__).parent / '..' / '..' / 'images'
         if not self._path.exists():
             self._path.mkdir()
-        self._count = len(list(self._path.glob('image*.jpg')))
+        image_numbers = list(map(lambda x: int(os.path.basename(x).split('image')[1].split('.')[0]), self._path.glob('image*.jpg')))
+        self._image_number = image_numbers[-1] if len(image_numbers) > 0 else 0
         if self._cam is not None:
             capture_config = self._cam.create_still_configuration()
             # TODO resolution = (640, 480)
@@ -80,8 +82,8 @@ class Workflow(object):
         try:
             self._logger.info('capturing and processing image.')
             self._gpio.set_status_pin(True)
-            self._count += 1
-            path = self._path / ('image' + str(self._count) + '.jpg')
+            self._image_number += 1
+            path = self._path / ('image' + str(self._image_number) + '.jpg')
             self.capture(path)
             self.process(path)
             annotated, cartoon = self.save_results()
@@ -153,12 +155,12 @@ class Workflow(object):
         """
         self._logger.info('saving results...')
         annotated_path = self._image_path.parent / (self._image_path.name + '.annotated.png')
-        cartoon_path = self._image_path.with_name('cartoon' + str(self._count) + '.png')
-        labels_path = self._image_path.with_name('labels' + str(self._count) + '.txt')
+        cartoon_path = self._image_path.with_name('cartoon' + str(self._image_number) + '.png')
+        labels_path = self._image_path.with_name('labels' + str(self._image_number) + '.txt')
         with open(str(labels_path), 'w') as f:
             f.write(','.join(self.image_labels))
         if debug:
-            scores_path = self._image_path.with_name('scores' + str(self._count) + '.txt')
+            scores_path = self._image_path.with_name('scores' + str(self._image_number) + '.txt')
             with open(str(scores_path), 'w') as f:
                 fcsv = writer(f)
                 fcsv.writerow(map(str, self._scores.flatten()))
@@ -186,6 +188,12 @@ class Workflow(object):
             self._cam.close()
         self._image_processor.close()
         self._gpio.close()
+
+    def get_capture_pin(self):
+        return self._gpio.get_capture_pin()
+
+    def increment(self):
+        self._image_number += 1
 
     @property
     def image_labels(self):
