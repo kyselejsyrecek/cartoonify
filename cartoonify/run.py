@@ -34,7 +34,7 @@ def flatten(xss):
 
 @click.command()
 @click.option('--camera', is_flag=True, help='Use this flag to enable captures from the Raspberry Pi camera.')
-@click.option('--gui', is_flag=True, help='Enables GUI.')
+@click.option('--gui', is_flag=True, help='Enables GUI based on a web browser (requires a screen).')
 @click.option('--web-server', is_flag=True, help='Enables web interface, without starting a browser.')
 @click.option('--ip', default='0.0.0.0', help='IP address to listen on if switch --gui or --web-server is provided. Listening on all interfaces by default.')
 @click.option('--port', type=int, default=8081, help='Port to listen on if switch --gui or --web-server is provided. Defaults to 8081.')
@@ -42,11 +42,9 @@ def flatten(xss):
 @click.option('--image-url', type=str, default="", help='Set image URL to download capture from in ICR mode (IP camera).')
 @click.option('--offline-image', type=str, default="", help='Path to image to be copied to images/cartoon0.png when image from URL given by parameter --image-url cannot be retrieved.')
 @click.option('--force-download', is_flag=True,help='Download data if missing, suppressing confirmation prompt.')
-@click.option('--raspi-headless', is_flag=True, help='Run on Raspberry Pi with camera and GPIO but without GUI.')
-@click.option('--batch-process', is_flag=True, help='Process all *.jpg images in a directory.')
+@click.option('--raspi-headless', is_flag=True, help='Run on Raspberry Pi with camera, trigger and a printer (without GUI).')
+@click.option('--batch-process', is_flag=True, help='Process all images in current directory matching --file-pattern.')
 @click.option('--file-patterns', type=str, default="*.jpg *.JPG *.jpeg *.JPEG", help='File patterns for batch processing. Defaults to *.jpg *.JPG *.jpeg *.JPEG.')
-@click.option('--raspi-gpio', is_flag=True, help='Use GPIO to trigger capture & process.')
-@click.option('--debug', is_flag=True, help='Save a list of all detected object scores.')
 @click.option('--annotate', is_flag=True, help='Produce also annotated image.')
 @click.option('--threshold', type=float, default=0.3, help='Threshold for object detection (0.0 to 1.0).')
 @click.option('--max-overlapping', type=float, default=0.5, help='Threshold for the formula of area of two overlapping'
@@ -59,6 +57,7 @@ def flatten(xss):
 @click.option('--max-inference-dimension', type=int, default=1024, help='Maximal inference image dimension in pixels.')
 @click.option('--fit-width', type=int, default=2048, help='Width of output rectangle in pixels which the resulting image is made to fit.')
 @click.option('--fit-height', type=int, default=2048, help='Height of output rectangle in pixels which the resulting image is made to fit.')
+@click.option('--debug-detection', is_flag=True, help='Save a list of all detected object scores.')
 def run(**kwargs):
     # Import the rest of the application including external libraries like TensorFlow
     # or CUDA-related libraries.
@@ -103,25 +102,26 @@ def run(**kwargs):
         web_gui = get_WebGui(app)
         start(web_gui, address=config.ip, port=config.port, start_browser=config.gui)
         profiling.evaluation_point("web server started")
+        print("done")
     else:
-        app.setup(setup_gpio=config.raspi_gpio)
+        app.setup(setup_gpio=config.raspi_headless)
         error = False
         while True:
             if config.raspi_headless:
                 while True:
-                    if app.gpio.get_capture_pin():
+                    if app.get_capture_pin():
                         print('capture button pressed.')
                         app.run(print_cartoon=True)
                         time.sleep(0.02)
 
-            if config.camera:
+            elif config.camera:
                 if click.confirm('would you like to capture an image? '):
                     path = root / 'images' / 'image.jpg'
                     if not path.parent.exists():
                         path.parent.mkdir()
                     app.capture(str(path))
                     app.process(str(path))
-                    app.save_results(debug=config.debug)
+                    app.save_results(debug=config.debug_detection)
                 else:
                     break
 
@@ -140,7 +140,7 @@ def run(**kwargs):
                         urlretrieve(config.image_url, "camera0.jpg")
                         error = False
                         app.process("camera0.jpg")
-                        app.save_results(debug=config.debug)
+                        app.save_results(debug=config.debug_detection)
                     except:
                         if not error:
                             error = True
@@ -149,13 +149,13 @@ def run(**kwargs):
                             logging.error('error downloading image: {}.\nSuppresing this message until first successful retrieval.'.format(traceback.format_exc()))
                 time.sleep(1)
 
-            elif batch_process:
+            elif config.batch_process:
                 path = Path(input("enter the path to the directory to process: "))
                 for file in flatten([list(path.glob(pattern)) for pattern in config.file_patterns]):
                     print('processing {}'.format(str(file)))
                     app.process(str(file))
-                    app.save_results(debug=config.debug)
-                    app.count += 1
+                    app.save_results(debug=config.debug_detection)
+                    app.increment()
                 print('finished processing files, closing app.')
                 break
 
@@ -166,7 +166,7 @@ def run(**kwargs):
                     break
                 else:
                     app.process(str(path))
-                    app.save_results(debug=config.debug)
+                    app.save_results(debug=config.debug_detection)
         app.close()
 
 if __name__=='__main__':
