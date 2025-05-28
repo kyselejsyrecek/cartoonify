@@ -57,6 +57,7 @@ def flatten(xss):
 @click.option('--max-inference-dimension', type=int, default=1024, help='Maximal inference image dimension in pixels.')
 @click.option('--fit-width', type=int, default=2048, help='Width of output rectangle in pixels which the resulting image is made to fit.')
 @click.option('--fit-height', type=int, default=2048, help='Height of output rectangle in pixels which the resulting image is made to fit.')
+@click.option('--max-image-number', type=int, default=10000, help='Maximal number of images to be stored. Numbering will be restarted from zero when the limit is reached. Defaults to 10,000.')
 @click.option('--debug-detection', is_flag=True, help='Save a list of all detected object scores.')
 def run(**kwargs):
     # Import the rest of the application including external libraries like TensorFlow

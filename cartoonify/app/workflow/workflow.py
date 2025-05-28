@@ -28,7 +28,8 @@ class Workflow(object):
             "min_inference_dimension": 300,
             "max_inference_dimension": 1024,
             "fit_width": None,
-            "fit_height": None
+            "fit_height": None,
+            "max_image_number": 10000
         })
         self._config.update(config)
         self._path = Path('')
@@ -82,7 +83,7 @@ class Workflow(object):
         try:
             self._logger.info('capturing and processing image.')
             self._gpio.set_status_pin(True)
-            self._image_number += 1
+            self.increment()
             path = self._path / ('image' + str(self._image_number) + '.jpg')
             self.capture(path)
             self.process(path)
@@ -193,7 +194,7 @@ class Workflow(object):
         return self._gpio.get_capture_pin()
 
     def increment(self):
-        self._image_number += 1
+        self._image_number = (self._image_number + 1) % self._config.max_image_number
 
     @property
     def image_labels(self):
