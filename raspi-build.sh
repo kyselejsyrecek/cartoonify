@@ -2,7 +2,7 @@
 
 echo "Installing requirements..."
 
-[ command -v git ] || apt install git
+command -v git || apt install git
 
 git clone https://github.com/WiringPi/WiringPi
 pushd WiringPi
@@ -11,6 +11,7 @@ popd
 
 git clone https://github.com/kyselejsyrecek/zj-58
 pushd zj-58
+sudo apt install cups libcups2-dev # TODO Unify all DEB dependencies to one command.
 make
 sudo ./install
 popd
@@ -18,13 +19,13 @@ popd
 # Install the shutdown listener script.
 # Shutdown listener runs on startup and shuts down the system when GPIO3 goes low.
 echo "Copying start-up scripts..."
-sudo cp listen-for-shutdown.py /usr/local/bin/
-sudo cp listen-for-shutdown.sh /etc/init.d/
+sudo cp raspi/listen-for-shutdown.py /usr/local/bin/
+sudo cp raspi/listen-for-shutdown.sh /etc/init.d/
 echo "setting script to run on boot..."
 sudo update-rc.d listen-for-shutdown.sh defaults
 sudo /etc/init.d/listen-for-shutdown.sh start
 # Install the "cartoonify" shell command.
-sudo pip install -e .
+sudo python3 -m pip install -e .
 
 # Disable Wi-Fi power save to resolve network lags.
 sudo nmcli con mod preconfigured wifi.powersave disable
@@ -46,7 +47,7 @@ RETVAL=$?
 if [ ! -z "$DEBUG" ]; then
   # Development requirements
   sudo apt install tk-dev
-  pip install matplotlib
+  sudo python3 -m pip install matplotlib
 fi
 
 popd
