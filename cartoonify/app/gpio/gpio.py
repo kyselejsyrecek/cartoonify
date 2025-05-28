@@ -1,5 +1,17 @@
 import importlib
 import logging
+import time
+
+
+# GPIO PINS
+HALT_BUTTON = 6
+CAPTURE_BUTTON = 5
+READY_LED = 4
+BUSY_LED = 27
+PRINTING_LED = 17
+
+EYE_1_LED = 18
+EYE_2_LED = 22
 
 
 class Gpio:
@@ -8,7 +20,6 @@ class Gpio:
     """
 
     def __init__(self):
-        self._capture_pin = 4
         self._status_pin = 2
         self._logger = logging.getLogger(self.__class__.__name__)
         self.gpio = None
@@ -23,29 +34,146 @@ class Gpio:
 
         :return:
         """
+        if not self.available():
+            return
+        
         self.gpio.setmode(self.gpio.BCM)
-        self.gpio.setup(self._capture_pin, self.gpio.IN, pull_up_down=self.gpio.PUD_UP)
+        self.gpio.setup(READY_LED, self.gpio.OUT)
+        self.gpio.setup(BUSY_LED, self.gpio.OUT)
+        self.gpio.setup(PRINTING_LED, self.gpio.OUT)
+        self.gpio.setup(EYE_1_LED, self.gpio.OUT)
+        self.gpio.setup(EYE_2_LED, self.gpio.OUT)
+        self.gpio.setup(HALT_BUTTON, self.gpio.IN, pull_up_down=self.gpio.PUD_UP)
+        self.gpio.setup(CAPTURE_BUTTON, self.gpio.IN, pull_up_down=self.gpio.PUD_UP)
         if capture_callback:
-            self.gpio.add_event_detect(self._capture_pin, self.gpio.FALLING, callback=capture_callback, bouncetime=200)
-        self.gpio.setup(self._status_pin, self.gpio.OUT)
-        self.set_status_pin(False)
+            self.gpio.add_event_detect(CAPTURE_BUTTON, self.gpio.FALLING, callback=capture_callback, bouncetime=200)
+        self.set_ready(False)
 
-    def set_status_pin(self, state):
-        """set status pin high/low
+    def set_ready(self, ready):
+        """set status LEDs
 
-        :param bool state:
+        :param bool ready:
         :return:
         """
         if self.available():
-            self.gpio.output(self._status_pin, state)
+            self.gpio.output(READY_LED, self.gpio.HIGH if ready else self.gpio.LOW)
+            self.gpio.output(BUSY_LED, self.gpio.LOW if ready else self.gpio.HIGH)
+            self.gpio.output(PRINTING_LED, self.gpio.LOW if ready else self.gpio.HIGH)
+
+
+    def flash_eyes():
+        """Flash the eye LEDs in a pattern
+        """
+        if not self.available():
+            return
+        
+        self.gpio.output(EYE_1_LED, self.gpio.LOW)
+        self.gpio.output(EYE_2_LED, self.gpio.LOW)
+        time.sleep(0.5)
+        self.gpio.output(EYE_1_LED, self.gpio.HIGH)
+        time.sleep(0.3)
+        self.gpio.output(EYE_1_LED, self.gpio.LOW)
+        self.gpio.output(EYE_2_LED, self.gpio.HIGH)
+        time.sleep(0.3)
+        self.gpio.output(EYE_1_LED, self.gpio.HIGH)
+        self.gpio.output(EYE_2_LED, self.gpio.LOW)
+        time.sleep(0.3)
+        self.gpio.output(EYE_1_LED, self.gpio.LOW)
+        self.gpio.output(EYE_2_LED, self.gpio.HIGH)
+        time.sleep(0.3)
+        self.gpio.output(EYE_1_LED, self.gpio.LOW)
+        self.gpio.output(EYE_2_LED, self.gpio.LOW)
+        time.sleep(0.5)
+        self.gpio.output(EYE_1_LED, self.gpio.HIGH)
+        self.gpio.output(EYE_2_LED, self.gpio.HIGH)
+
+
+
+    def shutdown(): # FIXME This is dead code. There already is a shutdown service!
+        """Shut down the Pi safely.
+        """
+        self.gpio.output(READY_LED, self.gpio.LOW)
+        self.gpio.output(BUSY_LED, self.gpio.HIGH)
+        self.gpio.output(PRINTING_LED, self.gpio.HIGH)
+        self.gpio.output(EYE_1_LED, self.gpio.LOW)
+        self.gpio.output(EYE_2_LED, self.gpio.LOW)
+        os.system("sudo halt")
+
+
+    def set_error_state(e):
+        self.gpio.output(READY_LED, self.gpio.LOW)
+        
+        self.gpio.output(PRINTING_LED, self.gpio.LOW)
+        self.gpio.output(BUSY_LED, self.gpio.HIGH)
+        time.sleep(0.5)
+        self.gpio.output(PRINTING_LED, self.gpio.HIGH)
+        self.gpio.output(BUSY_LED, self.gpio.LOW)
+        time.sleep(0.5)
+        self.gpio.output(PRINTING_LED, self.gpio.LOW)
+        self.gpio.output(BUSY_LED, self.gpio.HIGH)
+        time.sleep(0.5)
+        self.gpio.output(PRINTING_LED, self.gpio.HIGH)
+        self.gpio.output(BUSY_LED, self.gpio.LOW)
+        time.sleep(0.5)
+        self.gpio.output(BUSY_LED, self.gpio.HIGH)
+        self.gpio.output(PRINTING_LED, self.gpio.HIGH)
+        time.sleep(2)
+        
+        #if e != "":
+        #    printer.println(e) # TODO printer
+        #    printer.feed(2)
+        
+        self.gpio.output(PRINTING_LED, self.gpio.LOW)
+        self.gpio.output(BUSY_LED, self.gpio.LOW)
+        
+
+    def set_ready_state():
+        self.flash_eyes()
+        self.gpio.output(BUSY_LED, self.gpio.LOW)
+        self.gpio.output(PRINTING_LED, self.gpio.LOW)
+        self.gpio.output(READY_LED, self.gpio.HIGH)
+        #self.systemIsReady = True # TODO
+
+
+    def print(image_file):
+        """Print the image (and text).
+        """
+        if not self.available():
+            return
+        
+        self.gpio.output(READY_LED, self.gpio.LOW)
+        self.gpio.output(BUSY_LED, self.gpio.HIGH)
+        
+        self.gpio.output(BUSY_LED, self.gpio.LOW)
+        self.gpio.output(PRINTING_LED, self.gpio.HIGH)
+        
+        # try:
+        #     img = Image.open(image_file) # TODO from PIL import Image
+        # except:
+        #     showErrorState("ERROR: No image found")
+        #     return
+        # 
+        # # MAX CHARS: 32 "12345678901234567890123456789012"
+        # printer.println("SPRING FOR ZINES!  April 8, 2018") # TODO printer = Adafruit_Thermal("/dev/ttyUSB0", 9600, timeout=5)
+        # printer.println("--------------------------------")
+        # 
+        # printer.printImage(img)
+        # 
+        # printer.println("VOMIT COMIC #" + str(num))
+        # printer.println("www.cadinbatrack.com/vomit-comic")
+        # printer.feed(3)
+        
+        self.set_ready_state()
 
     def get_capture_pin(self):
         """get state of capture pin
 
         :return:
         """
-        if self.available():
-            return self.gpio.input(self._capture_pin) == self.gpio.LOW
+        if not self.available():
+            return False
+        
+        return self.gpio.input(CAPTURE_BUTTON) == self.gpio.LOW
 
     def available(self):
         """return true if gpio package is available

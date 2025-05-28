@@ -75,28 +75,30 @@ class Workflow(object):
             time.sleep(2) # FIXME Replace with lazy sleep instead? Is that even needed?
         self._logger.info('setup finished.')
 
-    def run(self, print_cartoon=False):
+    def run(self, print_cartoon=False): # TODO Refactor. This code must be unified.
         """capture an image, process it, save to file, and optionally print it
 
         :return:
         """
         try:
             self._logger.info('capturing and processing image.')
-            self._gpio.set_status_pin(True)
+            self._gpio.set_ready(False)
             self.increment()
             path = self._path / ('image' + str(self._image_number) + '.jpg')
             self.capture(path)
             self.process(path)
             annotated, cartoon = self.save_results()
             if print_cartoon:
+                self._gpio.print() # TODO Should blink in parallel to the printing job.
                 subprocess.call(['lp', '-o', 'landscape', '-c', str(cartoon)])
-            self._gpio.set_status_pin(False)
+            self._gpio.set_ready(True)
         except Exception as e:
             self._logger.exception(e)
 
     def capture(self, path):
         if self._cam is not None:
             self._logger.info('capturing image')
+            self._gpio.flash_eyes() # FIXME Produces a 2.2s delay!
             self._cam.capture_file(str(path))
         else:
             raise AttributeError("app wasn't started with --camera flag, so you can't use the camera to capture images.")
