@@ -28,6 +28,9 @@ popd
 sudo gpio drive 0 5 # group 0 is GPIO 0..27, 5 is 12mA (max is 16 mA, 50 mA total for all GPIOs) # FIXME Is sudo required?
 #sudo gpio mode 0 OUT # TODO Set all remaining GPIOs.
 
+# Disable swapping to protect the storage from excessive usage and application from slowing down.
+sudo swapoff -a
+
 source ./virtualenv/bin/activate
 pushd cartoonify/images/
 python3 ../run.py --raspi-headless --max-inference-dimension $MAX_INFERENCE_DIMENSION --fit-width $MAX_OUTPUT_DIMENSTION --fit-height $MAX_OUTPUT_DIMENSTION --force-download --camera "$@"
