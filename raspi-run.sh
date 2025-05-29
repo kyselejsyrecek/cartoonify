@@ -25,8 +25,8 @@ popd
 # Initialize GPIOs.
 # We need to set drive strength here since Python package RPi.GPIO does not provide that functionality.
 # Python package pigpio is able to do that.
-sudo gpio drive 0 5 # group 0 is GPIO 0..27, 5 is 12mA (max is 16 mA, 50 mA total for all GPIOs) # FIXME Is sudo required?
-#sudo gpio mode 0 OUT # TODO Set all remaining GPIOs.
+gpio drive 0 7 # group 0 is GPIO 0..27, 7 is 16mA (max is 16 mA, 50 mA total for all GPIOs)
+#gpio mode 0 OUT # TODO Set all remaining GPIOs.
 
 # Disable swapping to protect the storage from excessive usage and application from slowing down.
 sudo swapoff -a
