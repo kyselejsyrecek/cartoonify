@@ -47,21 +47,37 @@ class Gpio:
         self.gpio.setup(CAPTURE_BUTTON, self.gpio.IN, pull_up_down=self.gpio.PUD_UP)
         if capture_callback:
             self.gpio.add_event_detect(CAPTURE_BUTTON, self.gpio.FALLING, callback=capture_callback, bouncetime=200)
-        self.set_ready(False)
+        self.set_busy()
 
-    def set_ready(self, ready):
+    def set_busy(self):
         """set status LEDs
 
         :param bool ready:
         :return:
         """
-        if self.available():
-            self.gpio.output(READY_LED, self.gpio.HIGH if ready else self.gpio.LOW)
-            self.gpio.output(BUSY_LED, self.gpio.LOW if ready else self.gpio.HIGH)
-            self.gpio.output(PRINTING_LED, self.gpio.LOW if ready else self.gpio.HIGH)
+        if not self.available():
+            return
+        
+        self.gpio.output(READY_LED, self.gpio.LOW)
+        self.gpio.output(BUSY_LED, self.gpio.HIGH)
+        self.gpio.output(PRINTING_LED, self.gpio.HIGH)
+
+    def set_ready(self):
+        """set status LEDs
+
+        :param bool ready:
+        :return:
+        """
+        if not self.available():
+            return
+        
+        self.flash_eyes()
+        self.gpio.output(READY_LED, self.gpio.HIGH)
+        self.gpio.output(BUSY_LED, self.gpio.LOW)
+        self.gpio.output(PRINTING_LED, self.gpio.LOW)
 
 
-    def flash_eyes():
+    def flash_eyes(self):
         """Flash the eye LEDs in a pattern
         """
         if not self.available():
@@ -88,8 +104,26 @@ class Gpio:
         self.gpio.output(EYE_2_LED, self.gpio.HIGH)
 
 
+    def blink_eyes(self):
+        """Flash the eye LEDs in a pattern
+        """
+        if not self.available():
+            return
 
-    def shutdown(): # FIXME This is dead code. There already is a shutdown service!
+        self.gpio.output(EYE_1_LED, self.gpio.LOW)
+        self.gpio.output(EYE_2_LED, self.gpio.LOW)
+        time.sleep(0.1)
+        self.gpio.output(EYE_1_LED, self.gpio.HIGH)
+        self.gpio.output(EYE_2_LED, self.gpio.HIGH)
+        time.sleep(0.1)
+        self.gpio.output(EYE_1_LED, self.gpio.LOW)
+        self.gpio.output(EYE_2_LED, self.gpio.LOW)
+        time.sleep(0.1)
+        self.gpio.output(EYE_1_LED, self.gpio.HIGH)
+        self.gpio.output(EYE_2_LED, self.gpio.HIGH)
+
+
+    def shutdown(self): # FIXME This is dead code. There already is a shutdown service!
         """Shut down the Pi safely.
         """
         self.gpio.output(READY_LED, self.gpio.LOW)
@@ -100,7 +134,7 @@ class Gpio:
         os.system("sudo halt")
 
 
-    def set_error_state(e):
+    def set_error_state(self, e):
         self.gpio.output(READY_LED, self.gpio.LOW)
         
         self.gpio.output(PRINTING_LED, self.gpio.LOW)
@@ -125,17 +159,9 @@ class Gpio:
         
         self.gpio.output(PRINTING_LED, self.gpio.LOW)
         self.gpio.output(BUSY_LED, self.gpio.LOW)
-        
-
-    def set_ready_state():
-        self.flash_eyes()
-        self.gpio.output(BUSY_LED, self.gpio.LOW)
-        self.gpio.output(PRINTING_LED, self.gpio.LOW)
-        self.gpio.output(READY_LED, self.gpio.HIGH)
-        #self.systemIsReady = True # TODO
 
 
-    def print(image_file):
+    def print(self, image_file):
         """Print the image (and text).
         """
         if not self.available():
@@ -163,7 +189,7 @@ class Gpio:
         # printer.println("www.cadinbatrack.com/vomit-comic")
         # printer.feed(3)
         
-        self.set_ready_state()
+        self.set_ready()
 
     def get_capture_pin(self):
         """get state of capture pin

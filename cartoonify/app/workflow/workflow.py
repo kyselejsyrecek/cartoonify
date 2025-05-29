@@ -82,7 +82,7 @@ class Workflow(object):
         """
         try:
             self._logger.info('capturing and processing image.')
-            self._gpio.set_ready(False)
+            self._gpio.set_busy()
             self.increment()
             path = self._path / ('image' + str(self._image_number) + '.jpg')
             self.capture(path)
@@ -91,15 +91,16 @@ class Workflow(object):
             if print_cartoon:
                 self._gpio.print() # TODO Should blink in parallel to the printing job.
                 subprocess.call(['lp', '-o', 'landscape', '-c', str(cartoon)])
-            self._gpio.set_ready(True)
         except Exception as e:
             self._logger.exception(e)
+
+        self._gpio.set_ready()
 
     def capture(self, path):
         if self._cam is not None:
             self._logger.info('capturing image')
-            self._gpio.flash_eyes() # FIXME Produces a 2.2s delay!
             self._cam.capture_file(str(path))
+            self._gpio.blink_eyes()
         else:
             raise AttributeError("app wasn't started with --camera flag, so you can't use the camera to capture images.")
         return path
