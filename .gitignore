@@ -6,7 +6,7 @@ __pycache__
 cartoonify/logs/*
 cartoonify/cartoonify.egg-info
 cartoonify/downloads/drawing_dataset/*.bin
-cartoonify/downloads/detection_models
-cartoonify/images
-WiringPi/**
-zj-58/**
+cartoonify/downloads/detection_models/
+cartoonify/images/
+WiringPi/
+zj-58/
