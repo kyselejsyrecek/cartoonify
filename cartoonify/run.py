@@ -110,10 +110,9 @@ def run(**kwargs):
         while True:
             if config.raspi_headless:
                 while True:
-                    if app.get_capture_pin():
-                        print('capture button pressed.')
-                        app.run(print_cartoon=True)
-                        time.sleep(0.02)
+                    # From now on, app takes care of itself and waits for button press event from GPIO driver.
+                    # This thread's only responsibility is not to die so that the program is not terminated.
+                    time.sleep(1)
 
             elif config.camera:
                 if click.confirm('would you like to capture an image? '):

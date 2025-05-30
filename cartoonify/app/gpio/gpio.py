@@ -206,16 +206,6 @@ class Gpio:
                 break
             time.sleep(1)
 
-    def get_capture_pin(self):
-        """get state of capture pin
-
-        :return:
-        """
-        if not self.available():
-            return False
-        
-        return self.button_capture.is_pressed
-
     def available(self):
         """return true if gpio package is available
 

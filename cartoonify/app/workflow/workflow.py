@@ -50,8 +50,7 @@ class Workflow(object):
     def setup(self, setup_gpio=True):
         if setup_gpio:
             self._logger.info('setting up GPIO...')
-            # FIXME Capture callback not given because we are polling the capture button.
-            self._gpio.setup()
+            self._gpio.setup(capture_callback=self.capture_event)
             self._logger.info('done')
         self._logger.info('loading cartoon dataset...')
         self._dataset.setup()
@@ -74,6 +73,10 @@ class Workflow(object):
             time.sleep(2) # FIXME Replace with lazy sleep instead? Is that even needed?
         self._gpio.set_initial_state()
         self._logger.info('setup finished.')
+
+    def capture_event(self):
+        print('capture button pressed.')
+        self.run(print_cartoon=True)
 
     def run(self, print_cartoon=False): # TODO Refactor. This code must be unified.
         """capture an image, process it, save to file, and optionally print it
@@ -191,9 +194,6 @@ class Workflow(object):
             self._cam.close()
         self._image_processor.close()
         self._gpio.close()
-
-    def get_capture_pin(self):
-        return self._gpio.get_capture_pin()
 
     def increment(self):
         self._image_number = (self._image_number + 1) % self._config.max_image_number
