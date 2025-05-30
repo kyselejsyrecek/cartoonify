@@ -28,6 +28,9 @@ popd
 gpio drive 0 7 # group 0 is GPIO 0..27, 7 is 16mA (max is 16 mA, 50 mA total for all GPIOs)
 #gpio mode 0 OUT # TODO Set all remaining GPIOs.
 
+# Set power LED state
+sudo sh -c "echo none > /sys/class/leds/power_led/trigger && echo 1 > /sys/class/leds/power_led/brightness"
+
 # Disable swapping to protect the storage from excessive usage and application from slowing down.
 sudo swapoff -a
 

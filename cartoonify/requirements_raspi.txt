@@ -8,7 +8,7 @@ pillow # ==11.2.1
 protobuf==3.20.3 # Version lower than 3.21 is required.
 pypng # ==0.20220715.0
 remi==2020.11.20 # Required. Latest version with compatible API.
-RPi.GPIO # ==0.7.1 # Likely outdated. Code should be migrated to pigpio.
+gpiozero # ==2.0.1
 tensorflow # ==2.19.0
 
 # Original requirements:
