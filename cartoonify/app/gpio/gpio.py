@@ -1,7 +1,9 @@
 import importlib
 import logging
+import re
 import time
-import subprocess
+
+from subprocess import *
 
 
 # GPIO PINS
@@ -130,7 +132,7 @@ class Gpio:
         self.led_small_eye.on()
 
 
-    def set_error_state(self, e):
+    def set_error_state(self, error_msg):
         self.led_ready.off()
         
         self.led_printing.off()
@@ -150,7 +152,9 @@ class Gpio:
         time.sleep(2)
         
         if e != "":
-            subprocess.call(['bash', '-c', f'lp -o cpi=13 <<< "{e}"'])
+            process = Popen(['lp', '-o', 'cpi=13'], stdin=PIPE, stdout=PIPE, stderr=PIPE)
+            output, err = process.communicate(error_msg)
+            self._wait_for_print_job(output)
         
         self.set_ready()
 
@@ -161,9 +165,21 @@ class Gpio:
         if not self.available():
             return
         
-        self.set_busy()
-        subprocess.call(['lp', '-o', 'orientation-requested=5', '-o', 'fit-to-page', '-c', image_file])
-        self.set_ready()
+        self.led_printing.on()
+        output = check_output(['lp', '-o', 'orientation-requested=5', '-o', 'fit-to-page', '-c', image_file])
+        self._wait_for_print_job(output)
+        self.led_printing.off()
+    
+
+    def _wait_for_print_job(self, lp_output):
+        """Waits until the given print job is finished.
+        """
+        job_id = re.search('request id is (.*) \\(.*', str(lp_output)).group(1)
+        while True:
+            result = run(['lpstat'], stdout=PIPE, stderr=PIPE, text=True)
+            if not re.match(f'^{job_id}', result.stdout):
+                break
+            time.sleep(1)
 
     def get_capture_pin(self):
         """get state of capture pin
