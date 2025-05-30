@@ -16,26 +16,20 @@ MAX_OUTPUT_DIMENSTION=1280
 # -w /cartoonify \
 # cartoonify
 
-# Initialize thermal printer.
-pushd zj-58
-sudo lpadmin -p ZJ-58 -E -v serial:/dev/ttyS0?baud=9600 -m zjiang/ZJ-58.ppd
-sudo lpoptions -d ZJ-58
-popd
-
 # Initialize GPIOs.
 # We need to set drive strength here since Python package RPi.GPIO does not provide that functionality.
 # Python package pigpio is able to do that.
 gpio drive 0 7 # group 0 is GPIO 0..27, 7 is 16mA (max is 16 mA, 50 mA total for all GPIOs)
 #gpio mode 0 OUT # TODO Set all remaining GPIOs.
 
-# Set power LED state
-sudo sh -c "echo none > /sys/class/leds/power_led/trigger && echo 1 > /sys/class/leds/power_led/brightness"
-
 # Disable swapping to protect the storage from excessive usage and application from slowing down.
 sudo swapoff -a
 
+# Set power LED state
+sudo sh -c "echo none > /sys/class/leds/power_led/trigger && echo 1 > /sys/class/leds/power_led/brightness"
+
 source ./virtualenv/bin/activate
-pushd cartoonify/images/
+cd cartoonify/images/
 python3 ../run.py --raspi-headless --max-inference-dimension $MAX_INFERENCE_DIMENSION --fit-width $MAX_OUTPUT_DIMENSTION --fit-height $MAX_OUTPUT_DIMENSTION --force-download --camera "$@"
-popd
+cd ..
 deactivate

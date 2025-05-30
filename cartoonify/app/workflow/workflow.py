@@ -90,7 +90,7 @@ class Workflow(object):
             annotated, cartoon = self.save_results()
             if print_cartoon:
                 self._gpio.print() # TODO Should blink in parallel to the printing job.
-                subprocess.call(['lp', '-o', 'landscape', '-c', str(cartoon)])
+                subprocess.call(['lp', '-o', 'orientation-requested=5', '-o', 'fit-to-page', '-c', str(cartoon)])
         except Exception as e:
             self._logger.exception(e)
 
