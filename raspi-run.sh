@@ -26,7 +26,7 @@ gpio drive 0 7 # group 0 is GPIO 0..27, 7 is 16mA (max is 16 mA, 50 mA total for
 sudo swapoff -a
 
 # Set power LED state
-sudo sh -c "echo none > /sys/class/leds/power_led/trigger && echo 1 > /sys/class/leds/power_led/brightness"
+sudo sh -c "echo none > /sys/class/leds/power_led/trigger && echo 0 > /sys/class/leds/power_led/brightness"
 
 source ./virtualenv/bin/activate
 cd cartoonify/images/
