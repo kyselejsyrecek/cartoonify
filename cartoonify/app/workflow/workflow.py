@@ -48,6 +48,11 @@ class Workflow(object):
         self._image_number = 0
 
     def setup(self, setup_gpio=True):
+        if setup_gpio:
+            self._logger.info('setting up GPIO...')
+            # FIXME Capture callback not given because we are polling the capture button.
+            self._gpio.setup()
+            self._logger.info('done')
         self._logger.info('loading cartoon dataset...')
         self._dataset.setup()
         self._logger.info('Done')
@@ -56,11 +61,6 @@ class Workflow(object):
         self._logger.info('loading tensorflow model...')
         self._image_processor.setup()
         self._logger.info('Done')
-        if setup_gpio:
-            self._logger.info('setting up GPIO...')
-            # FIXME Capture callback not given because we are polling the capture button.
-            self._gpio.setup()
-            self._logger.info('done')
         self._path = Path(__file__).parent / '..' / '..' / 'images'
         if not self._path.exists():
             self._path.mkdir()
@@ -72,6 +72,7 @@ class Workflow(object):
             self._cam.configure(capture_config)
             self._cam.start()
             time.sleep(2) # FIXME Replace with lazy sleep instead? Is that even needed?
+        self._gpio.set_initial_state()
         self._logger.info('setup finished.')
 
     def run(self, print_cartoon=False): # TODO Refactor. This code must be unified.

@@ -57,6 +57,25 @@ class Gpio:
         if capture_callback:
             self.button_capture.when_released = capture_callback
         self.set_busy()
+        time.sleep(4)
+        self.led_small_eye.on()
+        time.sleep(2)
+        self.led_small_eye.off()
+        time.sleep(4)
+        self.led_small_eye.on()
+        time.sleep(6)
+        self.led_small_eye.off()
+        time.sleep(3)
+        self.led_small_eye.on()
+        time.sleep(0.1)
+        self.led_small_eye.off()
+        time.sleep(0.1)
+        self.led_small_eye.on()
+        time.sleep(0.1)
+        self.led_small_eye.off()
+        time.sleep(0.5)
+        self.led_small_eye.on()
+
 
     def set_busy(self):
         """set status LEDs
@@ -68,8 +87,8 @@ class Gpio:
             return
         
         self.led_ready.off()
+        self.led_printing.off()
         self.led_busy.on()
-        self.led_printing.on()
 
     def set_ready(self):
         """set status LEDs
@@ -80,13 +99,19 @@ class Gpio:
         if not self.available():
             return
         
-        self.flash_eyes()
+        self.flash_eyes_individually()
         self.led_ready.on()
         self.led_busy.off()
         self.led_printing.off()
 
+    def set_initial_state(self):
 
-    def flash_eyes(self):
+        self.set_ready()
+        time.sleep(3)
+        self.blink_eyes()
+
+
+    def flash_eyes_individually(self):
         """Flash the eye LEDs in a pattern
         """
         if not self.available():
