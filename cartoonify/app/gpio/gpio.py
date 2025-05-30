@@ -1,17 +1,18 @@
 import importlib
 import logging
 import time
+import subprocess
 
 
 # GPIO PINS
-HALT_BUTTON = 6
+#HALT_BUTTON = 6
 CAPTURE_BUTTON = 5
 READY_LED = 4
 BUSY_LED = 27
 PRINTING_LED = 17
 
-EYE_1_LED = 18
-EYE_2_LED = 22
+EYE_BIG_LED = 18
+EYE_SMALL_LED = 22
 
 
 class Gpio:
@@ -22,9 +23,17 @@ class Gpio:
     def __init__(self):
         self._status_pin = 2
         self._logger = logging.getLogger(self.__class__.__name__)
+
         self.gpio = None
+        self.led_ready = None
+        self.led_busy = None
+        self.led_printing = None
+        self.led_big_eye = None
+        self.led_small_eye = None
+        self.button_capture = None
+
         try:
-            self.gpio = importlib.import_module('RPi.GPIO')
+            self.gpio = importlib.import_module('gpiozero')
         except ImportError as e:
             self._logger.exception(e)
             self._logger.info('raspi gpio module not found, continuing...')
@@ -37,16 +46,14 @@ class Gpio:
         if not self.available():
             return
         
-        self.gpio.setmode(self.gpio.BCM)
-        self.gpio.setup(READY_LED, self.gpio.OUT)
-        self.gpio.setup(BUSY_LED, self.gpio.OUT)
-        self.gpio.setup(PRINTING_LED, self.gpio.OUT)
-        self.gpio.setup(EYE_1_LED, self.gpio.OUT)
-        self.gpio.setup(EYE_2_LED, self.gpio.OUT)
-        self.gpio.setup(HALT_BUTTON, self.gpio.IN, pull_up_down=self.gpio.PUD_UP)
-        self.gpio.setup(CAPTURE_BUTTON, self.gpio.IN, pull_up_down=self.gpio.PUD_UP)
+        self.led_ready = self.gpio.LED(READY_LED)
+        self.led_busy = self.gpio.LED(BUSY_LED)
+        self.led_printing = self.gpio.LED(PRINTING_LED)
+        self.led_big_eye = self.gpio.LED(EYE_BIG_LED)
+        self.led_small_eye = self.gpio.LED(EYE_SMALL_LED)
+        self.button_capture = self.gpio.Button(CAPTURE_BUTTON)
         if capture_callback:
-            self.gpio.add_event_detect(CAPTURE_BUTTON, self.gpio.FALLING, callback=capture_callback, bouncetime=200)
+            self.button_capture.when_released = capture_callback
         self.set_busy()
 
     def set_busy(self):
@@ -58,9 +65,9 @@ class Gpio:
         if not self.available():
             return
         
-        self.gpio.output(READY_LED, self.gpio.LOW)
-        self.gpio.output(BUSY_LED, self.gpio.HIGH)
-        self.gpio.output(PRINTING_LED, self.gpio.HIGH)
+        self.led_ready.off()
+        self.led_busy.on()
+        self.led_printing.on()
 
     def set_ready(self):
         """set status LEDs
@@ -72,9 +79,9 @@ class Gpio:
             return
         
         self.flash_eyes()
-        self.gpio.output(READY_LED, self.gpio.HIGH)
-        self.gpio.output(BUSY_LED, self.gpio.LOW)
-        self.gpio.output(PRINTING_LED, self.gpio.LOW)
+        self.led_ready.on()
+        self.led_busy.off()
+        self.led_printing.off()
 
 
     def flash_eyes(self):
@@ -83,25 +90,25 @@ class Gpio:
         if not self.available():
             return
         
-        self.gpio.output(EYE_1_LED, self.gpio.LOW)
-        self.gpio.output(EYE_2_LED, self.gpio.LOW)
+        self.led_big_eye.off()
+        self.led_small_eye.off()
         time.sleep(0.5)
-        self.gpio.output(EYE_1_LED, self.gpio.HIGH)
+        self.led_big_eye.on()
         time.sleep(0.3)
-        self.gpio.output(EYE_1_LED, self.gpio.LOW)
-        self.gpio.output(EYE_2_LED, self.gpio.HIGH)
+        self.led_big_eye.off()
+        self.led_small_eye.on()
         time.sleep(0.3)
-        self.gpio.output(EYE_1_LED, self.gpio.HIGH)
-        self.gpio.output(EYE_2_LED, self.gpio.LOW)
+        self.led_big_eye.on()
+        self.led_small_eye.off()
         time.sleep(0.3)
-        self.gpio.output(EYE_1_LED, self.gpio.LOW)
-        self.gpio.output(EYE_2_LED, self.gpio.HIGH)
+        self.led_big_eye.off()
+        self.led_small_eye.on()
         time.sleep(0.3)
-        self.gpio.output(EYE_1_LED, self.gpio.LOW)
-        self.gpio.output(EYE_2_LED, self.gpio.LOW)
+        self.led_big_eye.off()
+        self.led_small_eye.off()
         time.sleep(0.5)
-        self.gpio.output(EYE_1_LED, self.gpio.HIGH)
-        self.gpio.output(EYE_2_LED, self.gpio.HIGH)
+        self.led_big_eye.on()
+        self.led_small_eye.on()
 
 
     def blink_eyes(self):
@@ -110,55 +117,42 @@ class Gpio:
         if not self.available():
             return
 
-        self.gpio.output(EYE_1_LED, self.gpio.LOW)
-        self.gpio.output(EYE_2_LED, self.gpio.LOW)
+        self.led_big_eye.off()
+        self.led_small_eye.off()
         time.sleep(0.1)
-        self.gpio.output(EYE_1_LED, self.gpio.HIGH)
-        self.gpio.output(EYE_2_LED, self.gpio.HIGH)
+        self.led_big_eye.on()
+        self.led_small_eye.on()
         time.sleep(0.1)
-        self.gpio.output(EYE_1_LED, self.gpio.LOW)
-        self.gpio.output(EYE_2_LED, self.gpio.LOW)
+        self.led_big_eye.off()
+        self.led_small_eye.off()
         time.sleep(0.1)
-        self.gpio.output(EYE_1_LED, self.gpio.HIGH)
-        self.gpio.output(EYE_2_LED, self.gpio.HIGH)
-
-
-    def shutdown(self): # FIXME This is dead code. There already is a shutdown service!
-        """Shut down the Pi safely.
-        """
-        self.gpio.output(READY_LED, self.gpio.LOW)
-        self.gpio.output(BUSY_LED, self.gpio.HIGH)
-        self.gpio.output(PRINTING_LED, self.gpio.HIGH)
-        self.gpio.output(EYE_1_LED, self.gpio.LOW)
-        self.gpio.output(EYE_2_LED, self.gpio.LOW)
-        os.system("sudo halt")
+        self.led_big_eye.on()
+        self.led_small_eye.on()
 
 
     def set_error_state(self, e):
-        self.gpio.output(READY_LED, self.gpio.LOW)
+        self.led_ready.off()
         
-        self.gpio.output(PRINTING_LED, self.gpio.LOW)
-        self.gpio.output(BUSY_LED, self.gpio.HIGH)
+        self.led_printing.off()
+        self.led_busy.on()
         time.sleep(0.5)
-        self.gpio.output(PRINTING_LED, self.gpio.HIGH)
-        self.gpio.output(BUSY_LED, self.gpio.LOW)
+        self.led_printing.on()
+        self.led_busy.off()
         time.sleep(0.5)
-        self.gpio.output(PRINTING_LED, self.gpio.LOW)
-        self.gpio.output(BUSY_LED, self.gpio.HIGH)
+        self.led_printing.off()
+        self.led_busy.on()
         time.sleep(0.5)
-        self.gpio.output(PRINTING_LED, self.gpio.HIGH)
-        self.gpio.output(BUSY_LED, self.gpio.LOW)
+        self.led_printing.on()
+        self.led_busy.off()
         time.sleep(0.5)
-        self.gpio.output(BUSY_LED, self.gpio.HIGH)
-        self.gpio.output(PRINTING_LED, self.gpio.HIGH)
+        self.led_busy.on()
+        self.led_printing.on()
         time.sleep(2)
         
-        #if e != "":
-        #    printer.println(e) # TODO printer
-        #    printer.feed(2)
+        if e != "":
+            subprocess.call(['bash', '-c', f'lp -o cpi=13 <<< "{e}"'])
         
-        self.gpio.output(PRINTING_LED, self.gpio.LOW)
-        self.gpio.output(BUSY_LED, self.gpio.LOW)
+        self.set_ready()
 
 
     def print(self, image_file):
@@ -167,28 +161,8 @@ class Gpio:
         if not self.available():
             return
         
-        self.gpio.output(READY_LED, self.gpio.LOW)
-        self.gpio.output(BUSY_LED, self.gpio.HIGH)
-        
-        self.gpio.output(BUSY_LED, self.gpio.LOW)
-        self.gpio.output(PRINTING_LED, self.gpio.HIGH)
-        
-        # try:
-        #     img = Image.open(image_file) # TODO from PIL import Image
-        # except:
-        #     showErrorState("ERROR: No image found")
-        #     return
-        # 
-        # # MAX CHARS: 32 "12345678901234567890123456789012"
-        # printer.println("SPRING FOR ZINES!  April 8, 2018") # TODO printer = Adafruit_Thermal("/dev/ttyUSB0", 9600, timeout=5)
-        # printer.println("--------------------------------")
-        # 
-        # printer.printImage(img)
-        # 
-        # printer.println("VOMIT COMIC #" + str(num))
-        # printer.println("www.cadinbatrack.com/vomit-comic")
-        # printer.feed(3)
-        
+        self.set_busy()
+        subprocess.call(['lp', '-o', 'orientation-requested=5', '-o', 'fit-to-page', '-c', image_file])
         self.set_ready()
 
     def get_capture_pin(self):
@@ -199,7 +173,7 @@ class Gpio:
         if not self.available():
             return False
         
-        return self.gpio.input(CAPTURE_BUTTON) == self.gpio.LOW
+        return self.button_capture.is_pressed
 
     def available(self):
         """return true if gpio package is available
@@ -210,4 +184,9 @@ class Gpio:
 
     def close(self):
         if self.available():
-            self.gpio.cleanup()
+          self.led_ready.close()
+          self.led_busy.close()
+          self.led_printing.close()
+          self.led_big_eye.close()
+          self.led_small_eye.close()
+          self.button_capture.close()

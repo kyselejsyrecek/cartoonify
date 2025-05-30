@@ -3,7 +3,6 @@ import png
 import numpy as np
 from pathlib import Path
 import logging
-import subprocess
 from csv import writer
 from tempfile import NamedTemporaryFile
 import os
@@ -89,8 +88,7 @@ class Workflow(object):
             self.process(path)
             annotated, cartoon = self.save_results()
             if print_cartoon:
-                self._gpio.print() # TODO Should blink in parallel to the printing job.
-                subprocess.call(['lp', '-o', 'orientation-requested=5', '-o', 'fit-to-page', '-c', str(cartoon)])
+                self._gpio.print(str(cartoon))
         except Exception as e:
             self._logger.exception(e)
 
