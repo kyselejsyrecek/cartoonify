@@ -117,7 +117,7 @@ def run(**kwargs):
 
             elif config.camera:
                 if click.confirm('would you like to capture an image? '):
-                    path = root / 'images' / 'image.jpg'
+                    path = root / 'images' / 'image.jpg' # FIXME Overwrites each image. Should be managed by Workflow which does this for Raspberry Pi anyway.
                     if not path.parent.exists():
                         path.parent.mkdir()
                     app.capture(str(path))

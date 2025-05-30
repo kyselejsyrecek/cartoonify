@@ -64,7 +64,7 @@ class Workflow(object):
         self._path = Path(__file__).parent / '..' / '..' / 'images'
         if not self._path.exists():
             self._path.mkdir()
-        image_numbers = list(map(lambda x: int(os.path.basename(x).split('image')[1].split('.')[0]), self._path.glob('image*.jpg')))
+        image_numbers = sorted(list(map(lambda x: int(os.path.basename(x).split('image')[1].split('.')[0]), self._path.glob('image?*.jpg'))))
         self._image_number = image_numbers[-1] if len(image_numbers) > 0 else 0
         if self._cam is not None:
             capture_config = self._cam.create_still_configuration()
