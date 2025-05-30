@@ -46,11 +46,12 @@ class Workflow(object):
         self._classes = None
         self._scores = None
         self._image_number = 0
+        self._original_image_number = -1
 
     def setup(self, setup_gpio=True):
         if setup_gpio:
             self._logger.info('setting up GPIO...')
-            self._gpio.setup(capture_callback=self.capture_event)
+            self._gpio.setup(trigger_release_callback=self.capture_event, trigger_held_callback=self.print_previous_original)
             self._logger.info('done')
         self._logger.info('loading cartoon dataset...')
         self._dataset.setup()
@@ -65,6 +66,7 @@ class Workflow(object):
             self._path.mkdir()
         image_numbers = sorted(list(map(lambda x: int(os.path.basename(x).split('image')[1].split('.')[0]), self._path.glob('image?*.jpg'))))
         self._image_number = image_numbers[-1] if len(image_numbers) > 0 else 0
+        self._original_image_number = self._image_number - 1
         if self._cam is not None:
             capture_config = self._cam.create_still_configuration()
             # TODO resolution = (640, 480)
@@ -74,9 +76,26 @@ class Workflow(object):
         self._gpio.set_initial_state()
         self._logger.info('setup finished.')
 
-    def capture_event(self):
+
+    def capture_event(self, e):
+        """Capture a photo, convert it to cartoon and then print it if possible.
+        """
         print('capture button pressed.')
         self.run(print_cartoon=True)
+
+
+    def print_previous_original(self, e):
+        """Print previous original. 
+           When called multiple times, prints originals in backward order.
+        """
+        if self._original_image_number <= 0:
+            self._logger.info(f'Refusing to print previous original as no previous photo is available. Original image number: {self._original_image_number}.')
+        else:
+            print('printing original photo.')
+            path = self._path / ('image' + str(self._original_image_number) + '.jpg')
+            self._gpio.print(str(path))
+            self._original_image_number = self._original_image_number - 1
+
 
     def run(self, print_cartoon=False): # TODO Refactor. This code must be unified.
         """capture an image, process it, save to file, and optionally print it
@@ -197,6 +216,7 @@ class Workflow(object):
 
     def increment(self):
         self._image_number = (self._image_number + 1) % self._config.max_image_number
+        self._original_image_number = self._image_number - 1
 
     @property
     def image_labels(self):

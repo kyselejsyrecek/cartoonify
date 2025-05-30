@@ -26,7 +26,11 @@ class Gpio:
         self._status_pin = 2
         self._logger = logging.getLogger(self.__class__.__name__)
 
+        # References to imported libraries
         self.gpio = None
+        self.elements = None
+
+        # State objects
         self.led_ready = None
         self.led_busy = None
         self.led_printing = None
@@ -36,11 +40,12 @@ class Gpio:
 
         try:
             self.gpio = importlib.import_module('gpiozero')
+            self.elements = importlib.import_module('app.gpio.elements')
         except ImportError as e:
             self._logger.exception(e)
             self._logger.info('raspi gpio module not found, continuing...')
 
-    def setup(self, capture_callback=None):
+    def setup(self, trigger_release_callback=None, trigger_held_callback=None, trigger_hold_time=1.5):
         """setup GPIO pin to trigger callback function when capture pin goes low
 
         :return:
@@ -53,9 +58,11 @@ class Gpio:
         self.led_printing = self.gpio.LED(PRINTING_LED)
         self.led_big_eye = self.gpio.LED(EYE_BIG_LED)
         self.led_small_eye = self.gpio.LED(EYE_SMALL_LED)
-        self.button_capture = self.gpio.Button(CAPTURE_BUTTON)
-        if capture_callback:
-            self.button_capture.when_released = capture_callback
+        self.button_capture = self.elements.SmartButton(CAPTURE_BUTTON, hold_time=trigger_hold_time)
+        if trigger_release_callback:
+            self.button_capture.when_released = trigger_release_callback
+        if trigger_held_callback:
+            self.button_capture.when_held = trigger_held_callback
         self.set_busy()
         time.sleep(4)
         self.led_small_eye.on()
@@ -73,7 +80,7 @@ class Gpio:
         self.led_small_eye.on()
         time.sleep(0.1)
         self.led_small_eye.off()
-        time.sleep(0.5)
+        time.sleep(1)
         self.led_small_eye.on()
 
 
@@ -191,7 +198,9 @@ class Gpio:
             return
         
         self.led_printing.on()
-        output = check_output(['lp', '-o', 'orientation-requested=5', '-o', 'fit-to-page', '-c', image_file])
+        # Media dimensions come from width of printable area (for 58mm paper) and cartoon width
+        # which appears as height of the print when printed in landscape orientation.
+        output = check_output(['lp', '-o', 'orientation-requested=5', '-o', 'media=Custom.57.86x102.87mm', '-o', 'fit-to-page', '-c', image_file])
         self._wait_for_print_job(output)
         self.led_printing.off()
     
