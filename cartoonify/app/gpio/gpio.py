@@ -200,7 +200,7 @@ class Gpio:
         self.led_printing.on()
         # Media dimensions come from width of printable area (for 58mm paper) and cartoon width
         # which appears as height of the print when printed in landscape orientation.
-        output = check_output(['lp', '-o', 'orientation-requested=5', '-o', 'media=Custom.57.86x102.87mm', '-o', 'fit-to-page', '-c', image_file])
+        output = check_output(['lp', '-o', 'orientation-requested=5', '-o', 'media=Custom.57.86x102.87mm', '-o', 'fit-to-page', image_file])
         self._wait_for_print_job(output)
         self.led_printing.off()
     
