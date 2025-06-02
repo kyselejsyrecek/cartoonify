@@ -4,6 +4,7 @@ import re
 import time
 
 from subprocess import *
+import atexit
 
 
 # GPIO PINS
@@ -45,6 +46,17 @@ class Gpio:
             self._logger.exception(e)
             self._logger.info('raspi gpio module not found, continuing...')
 
+    def __del__(self):
+        if not self.available():
+            return
+
+        # Revert power LED back to its initial state which signals that the app is not running (heartbeat pattern).
+        try:
+            self.led_ready.off()
+        except:
+            pass
+        call(['sudo', 'sh', '-c', 'echo heartbeat > /sys/class/leds/power_led/trigger'])
+
     def setup(self, trigger_release_callback=None, trigger_held_callback=None, trigger_hold_time=1.5):
         """setup GPIO pin to trigger callback function when capture pin goes low
 
@@ -52,7 +64,8 @@ class Gpio:
         """
         if not self.available():
             return
-        
+            
+        # Hook-up all objects.
         self.led_ready = self.gpio.LED(READY_LED)
         self.led_busy = self.gpio.LED(BUSY_LED)
         self.led_printing = self.gpio.LED(PRINTING_LED)
@@ -63,7 +76,16 @@ class Gpio:
             self.button_capture.when_released = trigger_release_callback
         if trigger_held_callback:
             self.button_capture.when_held = trigger_held_callback
+        atexit.register(self.__del__)
+
+        # Initial state
+        # The LED is connected to two GPIO pins. Disable heartbeat blinking so that the LED is not overpowered.
+        call(['sudo', 'sh', '-c', 'echo none > /sys/class/leds/power_led/trigger && echo 0 > /sys/class/leds/power_led/brightness'])
+        # Set power LED state.
+        self.led_ready.on()
         self.set_busy()
+
+        # Awakening animation
         time.sleep(4)
         self.led_small_eye.on()
         time.sleep(2)

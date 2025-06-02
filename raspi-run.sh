@@ -16,9 +16,6 @@ MAX_OUTPUT_DIMENSTION=1280
 # -w /cartoonify \
 # cartoonify
 
-# Set power LED state
-sudo sh -c "echo none > /sys/class/leds/power_led/trigger && echo 0 > /sys/class/leds/power_led/brightness"
-
 source ./virtualenv/bin/activate
 cd cartoonify/images/
 python3 ../run.py --raspi-headless --max-inference-dimension $MAX_INFERENCE_DIMENSION --fit-width $MAX_OUTPUT_DIMENSTION --fit-height $MAX_OUTPUT_DIMENSTION --force-download --camera "$@"
