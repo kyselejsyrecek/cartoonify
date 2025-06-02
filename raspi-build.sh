@@ -1,11 +1,20 @@
 #!/usr/bin/env bash
 
+requirements="git" # GPIO management and thermal printer
+requirements+="cups libcups2-dev cmake" # thermal printer
+
+# FIXME Package python3-picamera2 installs 600 MB of requirements, incl. NumPy! That may not be the best means to gather photos and videos.
+requirements+="libcairo2 python3-virtualenv libcap-dev python3-picamera2"
+
+if [ ! -z "$DEBUG" ]; then
+  requirements+="tk-dev" # Development requirements
+fi
+
 echo "Installing requirements..."
-
 sudo apt update
+sudo apt install $requirements
 
-command -v git &>/dev/null || sudo apt install git
-
+# GPIO management
 if [ ! -d "WiringPi" ]; then
   git clone https://github.com/WiringPi/WiringPi
   cd WiringPi
@@ -13,10 +22,10 @@ if [ ! -d "WiringPi" ]; then
   cd ..
 fi
 
+# thermal printer
 if [ ! -d "zj-58" ]; then
 git clone https://github.com/kyselejsyrecek/zj-58
   cd zj-58
-  sudo apt install cups libcups2-dev cmake # TODO Merge all DEB dependencies to one command.
   cmake .
   cmake --build .
   sudo make install
@@ -56,8 +65,6 @@ sudo /etc/init.d/disable-swapping.sh start
 
 # Disable Wi-Fi power save to resolve network lags.
 sudo nmcli con mod preconfigured wifi.powersave disable
-
-sudo apt install libcairo2 python3-virtualenv libcap-dev #python3-picamera2 # FIXME Balik python3-picamera2 instaluje 600 MB závislostí vč. NumPy! To asi není správný způsob získávání obrázků.
 
 # Create virtual Python 3 environment inside the cartoonify repository.
 # The environment is not isolated so that libcamera and its dependencies do not have to be rebuilt and so that their proper versions are used.
