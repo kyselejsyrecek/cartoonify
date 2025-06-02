@@ -7,6 +7,7 @@
 # Create virtual Python 3 environment inside the cartoonify repository.
 python -m virtualenv virtualenv
 source ./virtualenv/bin/activate
+pip install --upgrade pip setuptools
 cd cartoonify
 pip install -r requirements_desktop.txt
 
