@@ -1,4 +1,4 @@
-#! /bin/sh
+#!/usr/bin/env bash
 
 ### BEGIN INIT INFO
 # Provides:          cartoonify.py
@@ -20,16 +20,22 @@ start_daemon() {
   gpio drive 0 7 # group 0 is GPIO 0..27, 7 is 16mA (max is 16 mA, 50 mA total for all GPIOs)
   # Disable swapping to protect the storage from excessive usage and application from slowing down.
   swapoff -a
+  # Enable job control so that all processes handle SIGINT and exit gracefully.
+  set -m
   daemon &
   echo $! > "$PID_FILE"
 }
 
 stop_daemon() {
   pid=$( cat "$PID_FILE" 2> /dev/null )
-  [ ! -z "$pid" ] && pkill -INT $pid &> /dev/null
+  if [ ! -z "$pid" ]; then
+    pgid=$( ps -o pgid= $pid | xargs echo -n )
+    kill -INT -$pgid 2> /dev/null
+  fi
 }
 
 daemon() {
+  trap "exit 1" SIGINT
   cd "$CARTOONIFY_DIR"
   while true; do
     ./raspi-run.sh
@@ -53,7 +59,6 @@ case "$1" in
     ;;
   restart)
     echo "Restarting cartoonify"
-    stop_daemon
     start_daemon
     ;;
   *)

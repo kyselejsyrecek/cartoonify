@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# Enable job control so that all processes handle SIGINT and exit gracefully.
+set -m
+
 MAX_INFERENCE_DIMENSION=640
 MAX_OUTPUT_DIMENSTION=1280
 
@@ -21,7 +24,7 @@ interrupt_handler(){
 }
 
 pid=
-trap 'interrupt_handler' 2
+trap 'interrupt_handler' SIGINT
 
 source ./virtualenv/bin/activate
 cd cartoonify/images/
