@@ -4,7 +4,7 @@ class SmartButton(Button):
     """Specialization of gpio.Button class which does not trigger when_released
     (alias for when_deactivated) if when_held handler is defined and was called.
     """
-    # FIXME Would probably break if None or multiple triggers are assigned.
+    # FIXME Would probably break if None or multiple triggers were assigned.
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
