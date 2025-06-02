@@ -13,13 +13,20 @@ CARTOONIFY_DIR=
 
 start_daemon() {
   stop_daemon
+  # Initialize GPIOs.
+  # We need to set drive strength here since Python package gpiozero does not provide that functionality.
+  # Python package pigpio is able to do that.
+  # Either way, we want the green LED to have constant brightness throughout the entire life-cycle of the app.
+  gpio drive 0 7 # group 0 is GPIO 0..27, 7 is 16mA (max is 16 mA, 50 mA total for all GPIOs)
+  # Disable swapping to protect the storage from excessive usage and application from slowing down.
+  swapoff -a
   daemon &
   echo $! > "$PID_FILE"
 }
 
 stop_daemon() {
-  pid=$( cat "$PID_FILE" )
-  [ ! -z "$pid" ] && kill $pid &> /dev/null
+  pid=$( cat "$PID_FILE" 2> /dev/null )
+  [ ! -z "$pid" ] && pkill -INT $pid &> /dev/null
 }
 
 daemon() {
@@ -40,6 +47,9 @@ case "$1" in
   stop)
     echo "Stopping cartoonify"
     stop_daemon
+    # It is not desired to re-enable swapping if the system is being shut down.
+    # Revert GPIO state back to its initial state.
+    gpio drive 0 0
     ;;
   restart)
     echo "Restarting cartoonify"

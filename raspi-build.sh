@@ -42,17 +42,11 @@ git clone https://github.com/kyselejsyrecek/zj-58
 fi
 
 # Install start-up scripts.
-echo "Copying start-up scripts..."
-sudo cp raspi/gpio-mode.sh raspi/disable-swapping.sh raspi/cartoonify.sh /etc/init.d/
+echo "Installing cartoonify service..."
+sudo cp raspi/cartoonify.sh /etc/init.d/
 sudo sed -i "s;CARTOONIFY_DIR=;CARTOONIFY_DIR=\"$PWD\";g" /etc/init.d/cartoonify.sh
-echo "Setting script to run on boot..."
-sudo update-rc.d gpio-mode.sh defaults
-sudo update-rc.d disable-swapping.sh defaults
+sudo chmod +x /etc/init.d/cartoonify.sh
 sudo update-rc.d cartoonify.sh defaults
-echo "Starting scripts..."
-sudo /etc/init.d/gpio-mode.sh start
-sudo /etc/init.d/disable-swapping.sh start
-# We don't want to launch the app yet.
 
 # XXX Legacy code. GPIO pin 6 (BCM numbering) is used instead. See README for more information.
 # Install the shutdown listener script.
@@ -61,6 +55,7 @@ sudo /etc/init.d/disable-swapping.sh start
 #sudo cp raspi/listen-for-shutdown.sh /etc/init.d/
 #echo "setting script to run on boot..."
 #sudo update-rc.d listen-for-shutdown.sh defaults
+#echo "Starting scripts..."
 #sudo /etc/init.d/listen-for-shutdown.sh start
 
 # Disable Wi-Fi power save to resolve network lags.
