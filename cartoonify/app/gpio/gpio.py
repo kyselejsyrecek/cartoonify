@@ -101,7 +101,7 @@ class Gpio:
         self.led_small_eye.on()
         time.sleep(0.1)
         self.led_small_eye.off()
-        time.sleep(1)
+        time.sleep(0.5)
         self.led_small_eye.on()
 
 
