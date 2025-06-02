@@ -2,6 +2,7 @@
 
 requirements="git" # GPIO management and thermal printer
 requirements+="cups libcups2-dev cmake" # thermal printer
+requirements+="dnsmasq" # Wi-Fi hotspot
 
 # FIXME Package python3-picamera2 installs 600 MB of requirements, incl. NumPy! That may not be the best means to gather photos and videos.
 requirements+="libcairo2 python3-virtualenv libcap-dev python3-picamera2"
@@ -60,6 +61,11 @@ sudo update-rc.d cartoonify.sh defaults
 
 # Disable Wi-Fi power save to resolve network lags.
 sudo nmcli con mod preconfigured wifi.powersave disable
+
+# Configure Wi-Fi hotspot connection
+sudo cp raspi/cartoonify_hotspot.conf /etc/dnsmasq.d/
+sudo systemctl restart dnsmasq
+sudo nmcli connection add type wifi ifname wlan0s1 con-name "Hotspot" autoconnect no save yes wifi.mode ap wifi.ssid "Robot" ipv4.method manual ipv4.address 10.250.1.1/24 ipv4.dns 10.250.1.1
 
 # Create virtual Python 3 environment inside the cartoonify repository.
 # The environment is not isolated so that libcamera and its dependencies do not have to be rebuilt and so that their proper versions are used.

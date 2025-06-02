@@ -11,8 +11,18 @@
 PID_FILE="/var/run/cartoonify.pid"
 CARTOONIFY_DIR=
 
+get_phy() {
+  wifname=$1
+  iw dev | \
+  awk -v wifname=$wifname \
+    '/^phy/ {sub("#", ""); phy = $1} \
+     /Interface / && $2 == wifname {print phy; exit}'
+}
+wiphy=$( get_phy wlan0 )
+
 start_daemon() {
   stop_daemon
+
   # Initialize GPIOs.
   # We need to set drive strength here since Python package gpiozero does not provide that functionality.
   # Python package pigpio is able to do that.
@@ -24,9 +34,21 @@ start_daemon() {
   set -m
   daemon &
   echo $! > "$PID_FILE"
+
+  # Initialize Wi-Fi hotspot
+  if [ ! -d /sys/class/net/wlan0s1 ]; then
+    iw phy $wiphy interface add wlan0s1 type __ap
+    nmcli conn up Hotspot
+  fi
 }
 
 stop_daemon() {
+  # Shut down Wi-Fi hotspot
+  if [ -d /sys/class/net/wlan0s1 ]; then
+    nmcli conn down Hotspot
+  fi
+
+  # Stop daemon
   pid=$( cat "$PID_FILE" 2> /dev/null )
   if [ ! -z "$pid" ]; then
     pgid=$( ps -o pgid= $pid | xargs echo -n )
