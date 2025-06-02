@@ -83,6 +83,11 @@ class Gpio:
         call(['sudo', 'sh', '-c', 'echo none > /sys/class/leds/power_led/trigger && echo 0 > /sys/class/leds/power_led/brightness'])
         # Set power LED state.
         self.led_alive.on()
+        # Just in case.
+        self.led_recording.off()
+        self.led_printing.off()
+        self.led_big_eye.off()
+        self.led_small_eye.off()
 
         # Awakening animation
         time.sleep(4)
