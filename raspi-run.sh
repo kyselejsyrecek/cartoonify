@@ -16,9 +16,6 @@ MAX_OUTPUT_DIMENSTION=1280
 # -w /cartoonify \
 # cartoonify
 
-# Disable swapping to protect the storage from excessive usage and application from slowing down.
-sudo swapoff -a
-
 # Set power LED state
 sudo sh -c "echo none > /sys/class/leds/power_led/trigger && echo 0 > /sys/class/leds/power_led/brightness"
 

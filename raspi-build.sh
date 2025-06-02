@@ -34,10 +34,14 @@ fi
 
 # Install start-up scripts.
 echo "Copying start-up scripts..."
-sudo cp raspi/gpio-mode.sh /etc/init.d/
-echo "setting script to run on boot..."
+sudo cp raspi/gpio-mode.sh raspi/disable-swapping.sh /etc/init.d/
+echo "Setting script to run on boot..."
 sudo update-rc.d gpio-mode.sh defaults
+sudo update-rc.d disable-swapping.sh defaults
+echo "Starting scripts..."
 sudo /etc/init.d/gpio-mode.sh start
+sudo /etc/init.d/disable-swapping.sh start
+
 # XXX Legacy code. GPIO pin 6 (BCM numbering) is used instead. See README for more information.
 # Install the shutdown listener script.
 # Shutdown listener runs on startup and shuts down the system when GPIO3 goes low.
