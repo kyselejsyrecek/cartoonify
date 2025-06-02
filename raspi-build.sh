@@ -32,10 +32,15 @@ git clone https://github.com/kyselejsyrecek/zj-58
   cd ..
 fi
 
+# Install start-up scripts.
+echo "Copying start-up scripts..."
+sudo cp raspi/gpio-mode.sh /etc/init.d/
+echo "setting script to run on boot..."
+sudo update-rc.d gpio-mode.sh defaults
+sudo /etc/init.d/gpio-mode.sh start
 # XXX Legacy code. GPIO pin 6 (BCM numbering) is used instead. See README for more information.
 # Install the shutdown listener script.
 # Shutdown listener runs on startup and shuts down the system when GPIO3 goes low.
-#echo "Copying start-up scripts..."
 #sudo cp raspi/listen-for-shutdown.py /usr/local/bin/
 #sudo cp raspi/listen-for-shutdown.sh /etc/init.d/
 #echo "setting script to run on boot..."
