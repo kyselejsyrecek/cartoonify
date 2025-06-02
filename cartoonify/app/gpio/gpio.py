@@ -10,7 +10,7 @@ import atexit
 # GPIO PINS
 #HALT_BUTTON = 6
 CAPTURE_BUTTON = 5
-READY_LED = 4
+ALIVE_LED = 4
 BUSY_LED = 27
 PRINTING_LED = 17
 
@@ -32,7 +32,7 @@ class Gpio:
         self.elements = None
 
         # State objects
-        self.led_ready = None
+        self.led_alive = None
         self.led_busy = None
         self.led_printing = None
         self.led_big_eye = None
@@ -52,7 +52,7 @@ class Gpio:
 
         # Revert power LED back to its initial state which signals that the app is not running (heartbeat pattern).
         try:
-            self.led_ready.off()
+            self.led_alive.off()
         except:
             pass
         call(['sudo', 'sh', '-c', 'echo heartbeat > /sys/class/leds/power_led/trigger'])
@@ -66,7 +66,7 @@ class Gpio:
             return
             
         # Hook-up all objects.
-        self.led_ready = self.gpio.LED(READY_LED)
+        self.led_alive = self.gpio.LED(ALIVE_LED)
         self.led_busy = self.gpio.LED(BUSY_LED)
         self.led_printing = self.gpio.LED(PRINTING_LED)
         self.led_big_eye = self.gpio.LED(EYE_BIG_LED)
@@ -82,7 +82,7 @@ class Gpio:
         # The LED is connected to two GPIO pins. Disable heartbeat blinking so that the LED is not overpowered.
         call(['sudo', 'sh', '-c', 'echo none > /sys/class/leds/power_led/trigger && echo 0 > /sys/class/leds/power_led/brightness'])
         # Set power LED state.
-        self.led_ready.on()
+        self.led_alive.on()
         self.set_busy()
 
         # Awakening animation
@@ -115,7 +115,6 @@ class Gpio:
         if not self.available():
             return
         
-        self.led_ready.off()
         self.led_printing.off()
         self.led_busy.on()
 
@@ -129,7 +128,6 @@ class Gpio:
             return
         
         self.flash_eyes_individually()
-        self.led_ready.on()
         self.led_busy.off()
         self.led_printing.off()
 
@@ -187,8 +185,6 @@ class Gpio:
 
 
     def set_error_state(self, error_msg):
-        self.led_ready.off()
-        
         self.led_printing.off()
         self.led_busy.on()
         time.sleep(0.5)
@@ -246,7 +242,7 @@ class Gpio:
 
     def close(self):
         if self.available():
-          self.led_ready.close()
+          self.led_alive.close()
           self.led_busy.close()
           self.led_printing.close()
           self.led_big_eye.close()
