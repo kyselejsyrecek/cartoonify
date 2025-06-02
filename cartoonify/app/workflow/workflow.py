@@ -104,7 +104,6 @@ class Workflow(object):
         """
         try:
             self._logger.info('capturing and processing image.')
-            self._gpio.set_busy()
             self.increment()
             path = self._path / ('image' + str(self._image_number) + '.jpg')
             self.capture(path)
