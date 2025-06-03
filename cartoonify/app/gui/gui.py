@@ -34,7 +34,7 @@ class PILImageViewerWidget(gui.Image):
         return [self._buf.read(), headers]
 
 
-def get_WebGui(workflow, cam_only):
+def get_WebGui(workflow, i18n, cam_only):
     class WebGui(App):
         """
         gui for the app
@@ -43,9 +43,11 @@ def get_WebGui(workflow, cam_only):
         app = workflow
         full_capabilities = not cam_only
         _logger = logging.getLogger("WebGui")
+        _i18n = i18n
 
         def __init__(self, *args):
             super().__init__(*args)
+            
 
         def idle(self):
             # idle function called every update cycle
@@ -59,6 +61,7 @@ def get_WebGui(workflow, cam_only):
             return ui
 
         def construct_ui(self):
+            _ = self._i18n.gettext
             # layout
             self.main_container = gui.VBox()
             self.main_container.style['top'] = "0px"
@@ -86,14 +89,14 @@ def get_WebGui(workflow, cam_only):
             hbox_snap.style['align-items'] = "center"
             hbox_snap.style['top'] = "125px"
             hbox_snap.style['height'] = "150px"
-            button_snap = gui.Button('snap')
+            button_snap = gui.Button(_('Snap'))
             button_snap.style['margin'] = "0px"
             button_snap.style['overflow'] = "auto"
             button_snap.style['width'] = "200px"
             button_snap.style['height'] = "30px"
             hbox_snap.append(button_snap, 'button_snap')
             if self.full_capabilities:
-                button_open = gui.Button('open image from file')
+                button_open = gui.Button(_('Open image'))
                 button_open.style['margin'] = "0px"
                 button_open.style['overflow'] = "auto"
                 button_open.style['width'] = "200px"
@@ -112,7 +115,7 @@ def get_WebGui(workflow, cam_only):
             vbox_settings.style['align-items'] = "center"
             vbox_settings.style['top'] = "149.734375px"
             vbox_settings.style['height'] = "80px"
-            checkbox_display_original = gui.CheckBoxLabel(' Display original image', False, '')
+            checkbox_display_original = gui.CheckBoxLabel(_(' Display original image'), False, '')
             checkbox_display_original.style['margin'] = "0px"
             checkbox_display_original.style['align-items'] = "center"
             checkbox_display_original.style['width'] = "200px"
@@ -120,7 +123,7 @@ def get_WebGui(workflow, cam_only):
             checkbox_display_original.style['position'] = "static"
             checkbox_display_original.style['height'] = "30px"
             vbox_settings.append(checkbox_display_original, 'checkbox_display_original')
-            #checkbox_display_tagged = gui.CheckBoxLabel(' Display tagged image', False, '')
+            #checkbox_display_tagged = gui.CheckBoxLabel(_(' Display tagged image'), False, '')
             #checkbox_display_tagged.style['margin'] = "0px"
             #checkbox_display_tagged.style['width'] = "200px"
             #checkbox_display_tagged.style['top'] = "135px"
@@ -129,7 +132,7 @@ def get_WebGui(workflow, cam_only):
             #vbox_settings.append(checkbox_display_tagged, 'checkbox_display_tagged')
             hbox_snap.append(vbox_settings, 'vbox_settings')
             if self.full_capabilities:
-                button_close = gui.Button('close')
+                button_close = gui.Button(_('Terminate'))
                 button_close.style['background-color'] = 'red'
                 button_close.style['width'] = "200px"
                 button_close.style['height'] = '30px'
@@ -173,7 +176,7 @@ def get_WebGui(workflow, cam_only):
             self.app.capture_event() 
 
         def on_open_pressed(self, *_):
-            self.fileselectionDialog = gui.FileSelectionDialog('File Selection Dialog', 'Select an image file', False, '.')
+            self.fileselectionDialog = gui.FileSelectionDialog(_('File Selection Dialog'), _('Select an image file'), False, '.')
             self.fileselectionDialog.onchange.do(self.process_image)
             self.fileselectionDialog.set_on_cancel_dialog_listener(
                 self.on_dialog_cancel)

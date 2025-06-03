@@ -56,6 +56,14 @@ dtoverlay=gpio-shutdown,gpio_pin=6
 ```
 - run `sudo raspi-config`, navigate under *Advanced settings* and change the power-off behaviour to suspend the device to enable the functionality of a power-on button. # FIXME Not working.
 - clone the source code from this repo
+- (optional) set your locale:
+    * Run `sudo dpkg-reconfigure locales`
+    * Edit `/etc/default/locale` to say:
+```
+LANG=cs_CZ.UTF-8
+LC_MESSAGES=cs_CZ.UTF-8
+```
+    * Reboot, or restart all affected processes.
 - run `./raspi-build.sh`. This will download all required dependencies, the Google Quickdraw dataset and tensorflow model and install system services.
 - run `./raspi-run.sh`. This will start the application.
 

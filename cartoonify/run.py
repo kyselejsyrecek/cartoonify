@@ -4,6 +4,7 @@ from pathlib import Path
 import sys
 import os
 import click
+import gettext
 
 from app.utils.attributedict import AttributeDict
 from app.debugging import profiling
@@ -79,6 +80,10 @@ def run(**kwargs):
     config.file_patterns = config.file_patterns.split()
     error = False
 
+    # Localization
+    _ = gettext.translation('cartoonify', str(root / 'app' / 'locales'), fallback=True)
+    _.install()
+
     # init objects
     dataset = DrawingDataset(str(root / 'downloads/drawing_dataset'), str(root / 'app/label_mapping.jsonl'),
                              config.force_download)
@@ -105,7 +110,7 @@ def run(**kwargs):
             print('starting gui...')
         else:
             print('starting HTTP server on address {}:{}...'.format(config.ip, config.port))
-        web_gui = get_WebGui(app, cam_only=config.raspi_headless)
+        web_gui = get_WebGui(app, i18n=_, cam_only=config.raspi_headless)
         start(web_gui, address=config.ip, port=config.port, start_browser=config.gui,
               certfile=config.cert_file, keyfile=config.key_file)
         profiling.evaluation_point("web server started")
