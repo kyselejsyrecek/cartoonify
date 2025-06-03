@@ -42,8 +42,8 @@ class Gpio:
 
         try:
             self.gpio = importlib.import_module('gpiozero')
-            self.elements = importlib.import_module('app.gpio.elements')
-        except ImportError as e:
+            self.elements = importlib.import_module('app.io.elements')
+        except (ImportError, ModuleNotFoundError) as e:
             self._logger.exception(e)
             self._logger.info('raspi gpio module not found, continuing...')
 

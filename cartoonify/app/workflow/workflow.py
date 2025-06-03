@@ -10,7 +10,7 @@ import os
 import time
 
 from app.sketch import SketchGizeh
-from app.gpio import Gpio
+from app.io import Gpio
 from app.utils.attributedict import AttributeDict
 from app.debugging import profiling
 
