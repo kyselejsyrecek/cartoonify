@@ -147,12 +147,12 @@ def get_WebGui(workflow, cam_only):
                 self.main_container.append(self.image_label, 'image_label')
 
             # event handlers
-            button_snap.set_on_click_listener(self.on_snap_pressed)
+            button_snap.onclick.do(self.on_snap_pressed)
             if self.full_capabilities:
-                button_open.set_on_click_listener(self.on_open_pressed)
-                button_close.set_on_click_listener(self.on_close_pressed)
-            checkbox_display_original.set_on_change_listener(self.on_display_original_change)
-            #checkbox_display_tagged.set_on_change_listener(self.on_display_tagged_change)
+                button_open.onclick.do(self.on_open_pressed)
+                button_close.onclick.do(self.on_close_pressed)
+            checkbox_display_original.onchange.do(self.on_display_original_change)
+            #checkbox_display_tagged.onchange.do(self.on_display_tagged_change)
 
             return self.main_container
 
@@ -174,8 +174,7 @@ def get_WebGui(workflow, cam_only):
 
         def on_open_pressed(self, *_):
             self.fileselectionDialog = gui.FileSelectionDialog('File Selection Dialog', 'Select an image file', False, '.')
-            self.fileselectionDialog.set_on_confirm_value_listener(
-                self.process_image)
+            self.fileselectionDialog.onchange.do(self.process_image)
             self.fileselectionDialog.set_on_cancel_dialog_listener(
                 self.on_dialog_cancel)
             # here is shown the dialog as root widget
