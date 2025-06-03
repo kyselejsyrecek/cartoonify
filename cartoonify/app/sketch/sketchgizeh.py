@@ -75,7 +75,7 @@ class SketchGizeh(object):
                 centre = [np.mean([xmin, xmax]), np.mean([ymin, ymax])]
                 size = np.mean([xmax - xmin, ymax - ymin])
                 if class_name == 'person':
-                    self.draw_person(dataset, scale=ymax - ymin, position=centre)
+                    self.draw_person(dataset, scale=size, position=centre)
                 else:
                     drawing = dataset.get_drawing(class_name, random.randint(1, 1000))
                     self.draw(drawing, scale=size, pos=centre)
