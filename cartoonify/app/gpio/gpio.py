@@ -67,6 +67,7 @@ class Gpio:
             return
             
         # Hook-up all objects.
+        atexit.register(self.__del__)
         self.led_alive = self.gpio.LED(ALIVE_LED)
         self.led_recording = self.gpio.LED(RECORDING_LED)
         self.led_printing = self.gpio.LED(PRINTING_LED)
@@ -77,7 +78,6 @@ class Gpio:
             self.button_capture.when_released = trigger_release_callback
         if trigger_held_callback:
             self.button_capture.when_held = trigger_held_callback
-        atexit.register(self.__del__)
 
         # Initial state
         # The LED is connected to two GPIO pins. Disable heartbeat blinking so that the LED is not overpowered.
