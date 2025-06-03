@@ -37,7 +37,7 @@ def flatten(xss):
 @click.option('--force-download', is_flag=True,help='Download data if missing, suppressing confirmation prompt.')
 @click.option('--raspi-headless', is_flag=True, help='Run on Raspberry Pi with camera, trigger and a printer (without GUI).')
 @click.option('--batch-process', is_flag=True, help='Process all images in current directory matching --file-pattern.')
-@click.option('--file-patterns', type=str, default="*.jpg *.JPG *.jpeg *.JPEG", help='File patterns for batch processing. Defaults to *.jpg *.JPG *.jpeg *.JPEG.')
+@click.option('--file-patterns', type=str, default="*.jpg *.JPG *.jpeg *.JPEG", help='File patterns for batch processing. Defaults to *.jpg *.JPG *.jpeg *.JPEG. Should be quoted.')
 @click.option('--annotate', is_flag=True, help='Produce also annotated image.')
 @click.option('--threshold', type=float, default=0.3, help='Threshold for object detection (0.0 to 1.0).')
 @click.option('--max-overlapping', type=float, default=0.5, help='Threshold for the formula of area of two overlapping'
