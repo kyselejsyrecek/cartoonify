@@ -169,7 +169,8 @@ def get_WebGui(workflow, cam_only):
             # sys.exit()
 
         def on_snap_pressed(self, *_):
-            self.app.capture_event()
+            # FIXME Seems to be sometimes still called with a delay when another print operation is in progress.
+            self.app.capture_event() 
 
         def on_open_pressed(self, *_):
             self.fileselectionDialog = gui.FileSelectionDialog('File Selection Dialog', 'Select an image file', False, '.')

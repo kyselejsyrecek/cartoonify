@@ -15,6 +15,7 @@ from app.sketch import SketchGizeh
 from app.io import Gpio
 from app.utils.attributedict import AttributeDict
 from app.debugging import profiling
+from app.utils.asynctask import *
 
 
 class Workflow(object):
@@ -52,6 +53,17 @@ class Workflow(object):
         self._next_image_number = 0
         self._last_original_image_number = -1
         self._lock = Lock()
+
+        # Initialize the AsyncExecutor decorator.
+        # We discard any operations requested when another operation is in progress.
+        # However, to make that possible at least 2 worker threads are required by current solution.
+        self._async_executor = AsyncExecutor(max_workers=2)
+
+
+    def __del__(self):
+        # Shut down the asynchronous task pool.
+        self._async_executor.shutdown()
+
 
     def setup(self, setup_gpio=True):
         # TODO aplay -D plughw:CARD=Device,DEV=0 -t raw -c 1 -r 22050 -f S16_LE /tmp/file.pcm
@@ -162,12 +174,13 @@ class Workflow(object):
         self._web_gui = web_gui
 
 
+    @async_task
     def capture_event(self, e=None):
         """Capture a photo, convert it to cartoon and then print it if possible.
 
         :param SmartButton e: Originator of the event (gpiozero object). None if called from WebGUI.
         """
-        if not self._lock.acquire(blocking=True, timeout=0):
+        if not self._lock.acquire(blocking=False):
             self._logger.info('Capture event ignored because another operation is in progress.')
             return
         try:
@@ -177,11 +190,12 @@ class Workflow(object):
             self._lock.release()
 
 
+    @async_task
     def print_previous_original(self, e=None):
         """Print previous original. 
            When called multiple times, prints originals in backward order.
         """
-        if not self._lock.acquire(blocking=True, timeout=0):
+        if not self._lock.acquire(blocking=False):
             self._logger.info('Not printing previous original because another operation is in progress.')
             return
         try:
