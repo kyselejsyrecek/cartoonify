@@ -32,6 +32,7 @@ class Gpio:
         self.elements = None
 
         # State objects
+        self.initialized = False
         self.led_alive = None
         self.led_recording = None
         self.led_printing = None
@@ -62,7 +63,7 @@ class Gpio:
 
         :return:
         """
-        if not self.available():
+        if self.gpio is None:
             return
             
         # Hook-up all objects.
@@ -81,6 +82,7 @@ class Gpio:
         # Initial state
         # The LED is connected to two GPIO pins. Disable heartbeat blinking so that the LED is not overpowered.
         call(['sudo', 'sh', '-c', 'echo none > /sys/class/leds/power_led/trigger && echo 0 > /sys/class/leds/power_led/brightness'])
+        self.initialized = True
         # Set power LED state.
         self.led_alive.on()
         # Just in case.
@@ -231,7 +233,7 @@ class Gpio:
 
         :return:
         """
-        return self.gpio is not None
+        return self.gpio is not None and self.initialized
 
     def close(self):
         if self.available():
@@ -241,3 +243,4 @@ class Gpio:
           self.led_big_eye.close()
           self.led_small_eye.close()
           self.button_capture.close()
+          self.initialized = False
