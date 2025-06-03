@@ -151,7 +151,7 @@ def run(**kwargs):
 
             elif config.batch_process:
                 path = Path(input("enter the path to the directory to process: "))
-                for file in flatten([list(path.glob(pattern)) for pattern in config.file_patterns]):
+                for file in flatten(sorted([list(path.glob(pattern)) for pattern in config.file_patterns])):
                     print('processing {}'.format(str(file)))
                     app.process(str(file))
                     app.save_results(debug=config.debug_detection)
