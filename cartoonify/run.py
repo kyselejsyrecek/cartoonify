@@ -31,6 +31,8 @@ def flatten(xss):
 @click.option('--web-server', is_flag=True, help='Enables web interface, without starting a browser.')
 @click.option('--ip', default='0.0.0.0', help='IP address to listen on if switch --gui or --web-server is provided. Listening on all interfaces by default.')
 @click.option('--port', type=int, default=8081, help='Port to listen on if switch --gui or --web-server is provided. Defaults to 8081.')
+@click.option('--cert-file', type=str, default='/etc/ssl/certs/ssl-cert-snakeoil.pem', help='SSL certificate file.')
+@click.option('--key-file', type=str, default='/etc/ssl/private/ssl-cert-snakeoil.key', help='SSL key file (private).')
 @click.option('--icr-daemon', is_flag=True, help='Set Advantech ICR compatible mode.')
 @click.option('--image-url', type=str, default="", help='Set image URL to download capture from in ICR mode (IP camera).')
 @click.option('--offline-image', type=str, default="", help='Path to image to be copied to images/cartoon0.png when image from URL given by parameter --image-url cannot be retrieved.')
@@ -104,7 +106,8 @@ def run(**kwargs):
         else:
             print('starting HTTP server on address {}:{}...'.format(config.ip, config.port))
         web_gui = get_WebGui(app, cam_only=config.raspi_headless)
-        start(web_gui, address=config.ip, port=config.port, start_browser=config.gui, dynamic_web_address=True)
+        start(web_gui, address=config.ip, port=config.port, start_browser=config.gui, dynamic_web_address=True,
+              certfile=config.cert_file, keyfile=config.key_file)
         profiling.evaluation_point("web server started")
         print("done")
     
