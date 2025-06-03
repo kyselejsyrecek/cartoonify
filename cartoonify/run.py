@@ -106,7 +106,7 @@ def run(**kwargs):
         else:
             print('starting HTTP server on address {}:{}...'.format(config.ip, config.port))
         web_gui = get_WebGui(app, cam_only=config.raspi_headless)
-        start(web_gui, address=config.ip, port=config.port, start_browser=config.gui, dynamic_web_address=True,
+        start(web_gui, address=config.ip, port=config.port, start_browser=config.gui,
               certfile=config.cert_file, keyfile=config.key_file)
         profiling.evaluation_point("web server started")
         print("done")
