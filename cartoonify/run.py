@@ -22,13 +22,6 @@ if not logging_path.exists():
     logging_path.mkdir()
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG, filename=str(Path(__file__).parent / 'logs' / logging_filename))
 
-# Redirect standard error output prematurely. Broken TensorFlow library and its
-# CUDA-related dependencies generate a bunch of error output which is irrelevant
-# for the user. This block and two-step import workaround can be discarded when
-# they are fixed.
-redirect_file = open(str(Path(__file__).parent / 'logs' / logging_filename), 'w')
-os.dup2(redirect_file.fileno(), sys.stderr.fileno())
-
 def flatten(xss):
     return [x for xs in xss for x in xs]
 
@@ -60,6 +53,13 @@ def flatten(xss):
 @click.option('--max-image-number', type=int, default=10000, help='Maximal number of images to be stored. Numbering will be restarted from zero when the limit is reached. Defaults to 10,000.')
 @click.option('--debug-detection', is_flag=True, help='Save a list of all detected object scores.')
 def run(**kwargs):
+    # Redirect standard error output prematurely. Broken TensorFlow library and its
+    # CUDA-related dependencies generate a bunch of error output which is irrelevant
+    # for the user. This block and two-step import workaround can be discarded when
+    # they are fixed.
+    redirect_file = open(str(Path(__file__).parent / 'logs' / logging_filename), 'w')
+    os.dup2(redirect_file.fileno(), sys.stderr.fileno())
+
     # Import the rest of the application including external libraries like TensorFlow
     # or CUDA-related libraries.
     from app.workflow import Workflow
