@@ -72,7 +72,7 @@ class Gpio:
         self.led_printing = self.gpio.LED(PRINTING_LED)
         self.led_big_eye = self.gpio.LED(EYE_BIG_LED)
         self.led_small_eye = self.gpio.LED(EYE_SMALL_LED)
-        self.button_capture = self.elements.SmartButton(CAPTURE_BUTTON, hold_time=trigger_hold_time)
+        self.button_capture = self.elements.SmartButton(CAPTURE_BUTTON, hold_time=trigger_hold_time, bounce_time=0.1)
         if trigger_release_callback:
             self.button_capture.when_released = trigger_release_callback
         if trigger_held_callback:
