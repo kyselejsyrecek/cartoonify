@@ -34,13 +34,14 @@ class PILImageViewerWidget(gui.Image):
         return [self._buf.read(), headers]
 
 
-def get_WebGui(workflow):
+def get_WebGui(workflow, cam_only):
     class WebGui(App):
         """
         gui for the app
         """
 
         app = workflow
+        full_capabilities = not cam_only
         _logger = logging.getLogger("WebGui")
 
         def __init__(self, *args):
@@ -51,29 +52,14 @@ def get_WebGui(workflow):
             pass
 
         def main(self):
-            self.app.setup(setup_gpio=False)
-            self.setup_gpio()
             self.display_original = False
             #self.display_tagged = False # TODO Not yet implemented.
-            return self.construct_ui()
-
-        def setup_gpio(self):
-            """configure GPIO
-            trigger image capture and processing when pin 4 goes low
-
-            :return:
-            """
-            try:
-                pin = 4
-                gpio = importlib.import_module('RPi.GPIO')
-                gpio.setmode(gpio.BCM)
-                gpio.setup(pin, gpio.IN, pull_up_down=gpio.PUD_UP)
-                gpio.add_event_detect(pin, gpio.FALLING, callback=self.on_snap_pressed, bouncetime=200)
-            except ImportError as e:
-                self._logger.exception(e)
-                self._logger.info('raspi gpio module not found, continuing...')
+            ui = self.construct_ui()
+            self.app.connect_web_gui(self)
+            return ui
 
         def construct_ui(self):
+            # layout
             self.main_container = gui.VBox()
             self.main_container.style['top'] = "0px"
             self.main_container.style['display'] = "flex"
@@ -106,12 +92,13 @@ def get_WebGui(workflow):
             button_snap.style['width'] = "200px"
             button_snap.style['height'] = "30px"
             hbox_snap.append(button_snap, 'button_snap')
-            button_open = gui.Button('open image from file')
-            button_open.style['margin'] = "0px"
-            button_open.style['overflow'] = "auto"
-            button_open.style['width'] = "200px"
-            button_open.style['height'] = "30px"
-            hbox_snap.append(button_open, 'button_open')
+            if self.full_capabilities:
+                button_open = gui.Button('open image from file')
+                button_open.style['margin'] = "0px"
+                button_open.style['overflow'] = "auto"
+                button_open.style['width'] = "200px"
+                button_open.style['height'] = "30px"
+                hbox_snap.append(button_open, 'button_open')
             vbox_settings = gui.VBox()
             vbox_settings.style['order'] = "4349486136"
             vbox_settings.style['display'] = "flex"
@@ -141,11 +128,12 @@ def get_WebGui(workflow):
             #checkbox_display_tagged.style['height'] = "30px"
             #vbox_settings.append(checkbox_display_tagged, 'checkbox_display_tagged')
             hbox_snap.append(vbox_settings, 'vbox_settings')
-            button_close = gui.Button('close')
-            button_close.style['background-color'] = 'red'
-            button_close.style['width'] = "200px"
-            button_close.style['height'] = '30px'
-            hbox_snap.append(button_close, 'button_close')
+            if self.full_capabilities:
+                button_close = gui.Button('close')
+                button_close.style['background-color'] = 'red'
+                button_close.style['width'] = "200px"
+                button_close.style['height'] = '30px'
+                hbox_snap.append(button_close, 'button_close')
             self.main_container.append(hbox_snap, 'hbox_snap')
             height = 300
             self.image_original = PILImageViewerWidget(height=height)
@@ -153,14 +141,16 @@ def get_WebGui(workflow):
             self.main_container.append(self.image_original, 'image_original')
             self.image_result = PILImageViewerWidget(height=height)
             self.main_container.append(self.image_result, 'image_result')
-            self.image_label = gui.Label('', width=400, height=30, margin='10px')
-            self.image_label.style['text-align'] = "center"
-            self.main_container.append(self.image_label, 'image_label')
+            if self.full_capabilities:
+                self.image_label = gui.Label('', width=400, height=30, margin='10px')
+                self.image_label.style['text-align'] = "center"
+                self.main_container.append(self.image_label, 'image_label')
 
-            button_close.set_on_click_listener(self.on_close_pressed)
+            # event handlers
             button_snap.set_on_click_listener(self.on_snap_pressed)
-            button_open.set_on_click_listener(self.on_open_pressed)
-
+            if self.full_capabilities:
+                button_open.set_on_click_listener(self.on_open_pressed)
+                button_close.set_on_click_listener(self.on_close_pressed)
             checkbox_display_original.set_on_change_listener(self.on_display_original_change)
             #checkbox_display_tagged.set_on_change_listener(self.on_display_tagged_change)
 
@@ -179,11 +169,7 @@ def get_WebGui(workflow):
             # sys.exit()
 
         def on_snap_pressed(self, *_):
-            path = Path(__file__).parent / '..' / '..' / 'images' / 'image.jpg'
-            if not path.parent.exists():
-                path.parent.mkdir()
-            self.app.capture(str(path))
-            self.process_image(None, [path])
+            self.app.capture_event()
 
         def on_open_pressed(self, *_):
             self.fileselectionDialog = gui.FileSelectionDialog('File Selection Dialog', 'Select an image file', False, '.')
@@ -197,11 +183,16 @@ def get_WebGui(workflow):
         def process_image(self, widget, file_list):
             if len(file_list) != 1:
                 return
-            self.app.process(file_list[0])
-            annotated, cartoon = self.app.save_results()
-            self.image_original.load(file_list[0])
+            original = file_list[0]
+            self.app.process(original)
+            annotated, cartoon = self.app.save_results() # TODO Refactor.
+            self.show_image(original, annotated, cartoon)
+
+        def show_image(self, original, annotated, cartoon, image_labels):
+            self.image_original.load(str(original))
             self.image_result.load(str(cartoon))
-            self.image_label.set_text(', '.join(self.app.image_labels))
+            if self.full_capabilities:
+                self.image_label.set_text(', '.join(image_labels))
             self.set_root_widget(self.main_container)
 
         def on_dialog_cancel(self, widget):

@@ -75,6 +75,7 @@ def run(**kwargs):
     root = Path(__file__).parent
     config = AttributeDict(kwargs)
     config.file_patterns = config.file_patterns.split()
+    error = False
 
     # init objects
     dataset = DrawingDataset(str(root / 'downloads/drawing_dataset'), str(root / 'app/label_mapping.jsonl'),
@@ -93,83 +94,83 @@ def run(**kwargs):
         cam = picam.Picamera2()
     else:
         cam = None
+    
     app = Workflow(dataset, imageprocessor, cam, config)
+    app.setup(setup_gpio=config.raspi_headless)
 
     if config.gui or config.web_server:
         if config.gui:
             print('starting gui...')
         else:
             print('starting HTTP server on address {}:{}...'.format(config.ip, config.port))
-        web_gui = get_WebGui(app)
+        web_gui = get_WebGui(app, cam_only=config.raspi_headless)
         start(web_gui, address=config.ip, port=config.port, start_browser=config.gui)
         profiling.evaluation_point("web server started")
         print("done")
-    else:
-        app.setup(setup_gpio=config.raspi_headless)
-        error = False
-        while True:
-            if config.raspi_headless:
-                while True:
-                    # From now on, app takes care of itself and waits for button press event from GPIO driver.
-                    # This thread's only responsibility is not to die so that the program is not terminated.
-                    time.sleep(1)
-
-            elif config.camera:
-                if click.confirm('would you like to capture an image? '):
-                    if not path.parent.exists():
-                        path.parent.mkdir()
-                    app.capture(str(path))
-                    app.process(str(path))
-                    app.save_results(debug=config.debug_detection)
-                else:
-                    break
-
-            elif config.icr_daemon: # TODO Convert to IP camera.
-                import subprocess
-                import time
-                import traceback
-                from app.urllib import urlretrieve as urlretrieve
-
-                def get_cmd_output(command):
-                    return subprocess.run(command, shell=True, text=True, capture_output=True).stdout.rstrip()
-                    
-                if get_cmd_output('io get out1') == '1':
-                    logging.info('downloading image: {}'.format(config.image_url))
-                    try:
-                        urlretrieve(config.image_url, "camera0.jpg")
-                        error = False
-                        app.process("camera0.jpg")
-                        app.save_results(debug=config.debug_detection)
-                    except:
-                        if not error:
-                            error = True
-                            from shutil import copy
-                            copy(config.offline_image, "cartoon0.png")
-                            logging.error('error downloading image: {}.\nSuppresing this message until first successful retrieval.'.format(traceback.format_exc()))
+    
+    while True:
+        if config.raspi_headless:
+            while True:
+                # From now on, app takes care of itself and waits for button press event from GPIO driver.
+                # This thread's only responsibility is not to die so that the program is not terminated.
                 time.sleep(1)
 
-            elif config.batch_process:
-                path = Path(input("enter the path to the directory to process: "))
-                for file in flatten(sorted([list(path.glob(pattern)) for pattern in config.file_patterns])):
-                    print('processing {}'.format(str(file)))
-                    app.process(str(file))
-                    annotated_path, cartoon_path = app.save_results(debug=config.debug_detection)
-                    app.increment()
-                    print(f'cartoon saved to {cartoon_path}')
-                print('finished processing files, closing app.')
+        elif config.camera:
+            if click.confirm('would you like to capture an image? '):
+                if not path.parent.exists():
+                    path.parent.mkdir()
+                app.capture(str(path))
+                app.process(str(path))
+                app.save_results(debug=config.debug_detection)
+            else:
                 break
 
+        elif config.icr_daemon: # TODO Convert to IP camera.
+            import subprocess
+            import time
+            import traceback
+            from app.urllib import urlretrieve as urlretrieve
+
+            def get_cmd_output(command):
+                return subprocess.run(command, shell=True, text=True, capture_output=True).stdout.rstrip()
+                
+            if get_cmd_output('io get out1') == '1':
+                logging.info('downloading image: {}'.format(config.image_url))
+                try:
+                    urlretrieve(config.image_url, "camera0.jpg")
+                    error = False
+                    app.process("camera0.jpg")
+                    app.save_results(debug=config.debug_detection)
+                except:
+                    if not error:
+                        error = True
+                        from shutil import copy
+                        copy(config.offline_image, "cartoon0.png")
+                        logging.error('error downloading image: {}.\nSuppresing this message until first successful retrieval.'.format(traceback.format_exc()))
+            time.sleep(1)
+
+        elif config.batch_process:
+            path = Path(input("enter the path to the directory to process: "))
+            for file in flatten(sorted([list(path.glob(pattern)) for pattern in config.file_patterns])):
+                print('processing {}'.format(str(file)))
+                app.process(str(file))
+                annotated_path, cartoon_path = app.save_results(debug=config.debug_detection)
+                app.increment()
+                print(f'cartoon saved to {cartoon_path}')
+            print('finished processing files, closing app.')
+            break
+
+        else:
+            path = Path(input("enter the filepath of the image to process: "))
+            if str(path) in ('', '.', 'exit'):
+                print("exiting on user request.")
+                break
             else:
-                path = Path(input("enter the filepath of the image to process: "))
-                if str(path) in ('', '.', 'exit'):
-                    print("exiting on user request.")
-                    break
-                else:
-                    app.process(str(path))
-                    annotated_path, cartoon_path = app.save_results(debug=config.debug_detection)
-                    app.increment()
-                    print(f'cartoon saved to {cartoon_path}')
-        app.close()
+                app.process(str(path))
+                annotated_path, cartoon_path = app.save_results(debug=config.debug_detection)
+                app.increment()
+                print(f'cartoon saved to {cartoon_path}')
+    app.close()
 
 if __name__=='__main__':
     run()

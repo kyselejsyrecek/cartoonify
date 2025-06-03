@@ -1,13 +1,15 @@
+
 from __future__ import division
-import png
-import numpy as np
-from pathlib import Path
 import logging
-from libcamera import controls
-from csv import writer
-from tempfile import NamedTemporaryFile
+import numpy as np
+import png
 import os
 import time
+from csv import writer
+from libcamera import controls
+from pathlib import Path
+from tempfile import NamedTemporaryFile
+from threading import Lock
 
 from app.sketch import SketchGizeh
 from app.io import Gpio
@@ -39,6 +41,7 @@ class Workflow(object):
         self._sketcher = None
         self._cam = camera
         self._gpio = Gpio()
+        self._web_gui = None
         self._logger = logging.getLogger(self.__class__.__name__)
         self._image = None
         self._annotated_image = None
@@ -48,6 +51,7 @@ class Workflow(object):
         self._scores = None
         self._next_image_number = 0
         self._last_original_image_number = -1
+        self._lock = Lock()
 
     def setup(self, setup_gpio=True):
         # TODO aplay -D plughw:CARD=Device,DEV=0 -t raw -c 1 -r 22050 -f S16_LE /tmp/file.pcm
@@ -153,38 +157,56 @@ class Workflow(object):
         self._gpio.set_initial_state()
         self._logger.info('setup finished.')
 
+    def connect_web_gui(self, web_gui):
+        # Must be hooked up later since Web GUI requires GPIO to be already initialized.
+        self._web_gui = web_gui
 
-    def capture_event(self, e):
+
+    def capture_event(self, e=None):
         """Capture a photo, convert it to cartoon and then print it if possible.
+
+        :param SmartButton e: Originator of the event (gpiozero object). None if called from WebGUI.
         """
-        self._logger.info('Capture button pressed.')
-        self.run(print_cartoon=True)
+        if not self._lock.acquire(blocking=True, timeout=0):
+            self._logger.info('Capture event ignored because another operation is in progress.')
+            return
+        try:
+            self._logger.info('Capture button pressed.')
+            self.run(print_cartoon=True)
+        finally:
+            self._lock.release()
 
 
-    def print_previous_original(self, e):
+    def print_previous_original(self, e=None):
         """Print previous original. 
            When called multiple times, prints originals in backward order.
         """
-        start_num = self._last_original_image_number
-        if self._last_original_image_number <= 0:
-            self._logger.info(f'Refusing to print previous original as no previous photo is available. Original image number: {self._last_original_image_number}.')
-        else:
-            self._logger.info('Capture button held - printing original photo.')
-            while True:
-                path = self._path / ('image' + str(self._last_original_image_number) + '.jpg')
-                if Path(path).is_file():
-                    break
-                else:
-                    # Not all cartoons must have originated from a camera capture.  We could create symlinks
-                    # when images from non-standard paths are processed but that would bring its own drawbacks.
-                    # For now, skip photos that do not exist.
-                    self._last_original_image_number = (self._last_original_image_number - 1) % self._next_image_number
-                    if self._last_original_image_number == start_num:
-                        self._logger.info('No original photo found.')
-                        return
+        if not self._lock.acquire(blocking=True, timeout=0):
+            self._logger.info('Not printing previous original because another operation is in progress.')
+            return
+        try:
+            start_num = self._last_original_image_number
+            if self._last_original_image_number <= 0:
+                self._logger.info(f'Refusing to print previous original as no previous photo is available. Original image number: {self._last_original_image_number}.')
+            else:
+                self._logger.info('Capture button held - printing original photo.')
+                while True:
+                    path = self._path / ('image' + str(self._last_original_image_number) + '.jpg')
+                    if Path(path).is_file():
+                        break
+                    else:
+                        # Not all cartoons must have originated from a camera capture.  We could create symlinks
+                        # when images from non-standard paths are processed but that would bring its own drawbacks.
+                        # For now, skip photos that do not exist.
+                        self._last_original_image_number = (self._last_original_image_number - 1) % self._next_image_number
+                        if self._last_original_image_number == start_num:
+                            self._logger.info('No original photo found.')
+                            return
 
-            self._gpio.print(str(path))
-            self._last_original_image_number = (self._last_original_image_number - 1) % self._next_image_number
+                self._gpio.print(str(path))
+                self._last_original_image_number = (self._last_original_image_number - 1) % self._next_image_number
+        finally:
+            self._lock.release()
 
 
     def run(self, print_cartoon=False): # TODO Refactor. This code must be unified.
@@ -194,9 +216,9 @@ class Workflow(object):
         """
         try:
             self._logger.info('capturing and processing image.')
-            self.capture()
+            original = self.capture()
             self.process()
-            annotated, cartoon = self.save_results()
+            annotated, cartoon, image_labels = self.save_results()
             if print_cartoon:
                 self._gpio.print(str(cartoon))
         except Exception as e:
@@ -204,6 +226,8 @@ class Workflow(object):
         
         self.increment()
         self._gpio.set_ready()
+        if self._web_gui:
+            self._web_gui.show_image(original, annotated, cartoon, image_labels)
 
     def capture(self, path=None):
         if self._cam is not None:
@@ -256,11 +280,11 @@ class Workflow(object):
                 sorted_scores = sorted(self._scores.flatten())
                 threshold = sorted_scores[-min([max_objects, self._scores.size])]
             self._image_labels = self._sketcher.draw_object_recognition_results(self._boxes,
-                                   self._classes.astype(np.int32),
-                                   self._scores,
-                                   self._image_processor.labels,
-                                   self._dataset,
-                                   threshold=threshold)
+                                 self._classes.astype(np.int32),
+                                 self._scores,
+                                 self._image_processor.labels,
+                                 self._dataset,
+                                 threshold=threshold)
         except (ValueError, IOError) as e:
             self._logger.exception(e)
 
@@ -275,7 +299,7 @@ class Workflow(object):
         cartoon_path = self._image_path.with_name('cartoon' + str(self._next_image_number) + '.png')
         labels_path = self._image_path.with_name('labels' + str(self._next_image_number) + '.txt')
         with open(str(labels_path), 'w') as f:
-            f.write(','.join(self.image_labels))
+            f.write(','.join(self._image_labels))
         if debug:
             scores_path = self._image_path.with_name('scores' + str(self._next_image_number) + '.txt')
             with open(str(scores_path), 'w') as f:
@@ -284,7 +308,7 @@ class Workflow(object):
         if self._config.annotate:
             self._save_3d_numpy_array_as_png(self._annotated_image, annotated_path)
         self._sketcher.save_png(cartoon_path)
-        return annotated_path, cartoon_path
+        return annotated_path, cartoon_path, self._image_labels
 
     def _save_3d_numpy_array_as_png(self, image, path):
         """saves a NxNx3 8 bit numpy array as a png image
@@ -309,7 +333,3 @@ class Workflow(object):
     def increment(self):
         self._next_image_number = (self._next_image_number + 1) % self._config.max_image_number
         self._last_original_image_number = self._next_image_number - 1
-
-    @property
-    def image_labels(self):
-        return self._image_labels
