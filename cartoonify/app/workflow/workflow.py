@@ -3,6 +3,7 @@ import png
 import numpy as np
 from pathlib import Path
 import logging
+from libcamera import controls
 from csv import writer
 from tempfile import NamedTemporaryFile
 import os
@@ -74,6 +75,7 @@ class Workflow(object):
             capture_config = self._cam.create_still_configuration()
             # TODO resolution = (640, 480)
             self._cam.configure(capture_config)
+            self._cam.controls.AfMode = controls.AfModeEnum.Continuous
             self._cam.start()
             time.sleep(2) # FIXME Replace with lazy sleep instead? Is that even needed?
         self._gpio.set_initial_state()
