@@ -116,7 +116,6 @@ def run(**kwargs):
 
             elif config.camera:
                 if click.confirm('would you like to capture an image? '):
-                    path = root / 'images' / 'image.jpg' # FIXME Overwrites each image. Should be managed by Workflow which does this for Raspberry Pi anyway.
                     if not path.parent.exists():
                         path.parent.mkdir()
                     app.capture(str(path))
@@ -154,8 +153,9 @@ def run(**kwargs):
                 for file in flatten(sorted([list(path.glob(pattern)) for pattern in config.file_patterns])):
                     print('processing {}'.format(str(file)))
                     app.process(str(file))
-                    app.save_results(debug=config.debug_detection)
+                    annotated_path, cartoon_path = app.save_results(debug=config.debug_detection)
                     app.increment()
+                    print(f'cartoon saved to {cartoon_path}')
                 print('finished processing files, closing app.')
                 break
 
@@ -166,7 +166,9 @@ def run(**kwargs):
                     break
                 else:
                     app.process(str(path))
-                    app.save_results(debug=config.debug_detection)
+                    annotated_path, cartoon_path = app.save_results(debug=config.debug_detection)
+                    app.increment()
+                    print(f'cartoon saved to {cartoon_path}')
         app.close()
 
 if __name__=='__main__':

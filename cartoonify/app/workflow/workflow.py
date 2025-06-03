@@ -45,10 +45,11 @@ class Workflow(object):
         self._boxes = None
         self._classes = None
         self._scores = None
-        self._image_number = 0
-        self._original_image_number = -1
+        self._next_image_number = 0
+        self._last_original_image_number = -1
 
     def setup(self, setup_gpio=True):
+        # TODO aplay -D plughw:CARD=Device,DEV=0 -t raw -c 1 -r 22050 -f S16_LE /tmp/file.pcm
         if setup_gpio:
             self._logger.info('setting up GPIO...')
             self._gpio.setup(trigger_release_callback=self.capture_event, trigger_held_callback=self.print_previous_original)
@@ -64,9 +65,11 @@ class Workflow(object):
         self._path = Path(__file__).parent / '..' / '..' / 'images'
         if not self._path.exists():
             self._path.mkdir()
-        image_numbers = sorted(list(map(lambda x: int(os.path.basename(x).split('image')[1].split('.')[0]), self._path.glob('image?*.jpg'))))
-        self._image_number = image_numbers[-1] + 1 if len(image_numbers) > 0 else 0
-        self._original_image_number = self._image_number - 1
+        # The number of cartoon*.png files should be greater than or equal to that of image*.jpg files.
+        # Cartoons originate also from other sources than just the camera (which is what produces image*.jpg files).
+        image_numbers = sorted(list(map(lambda x: int(os.path.basename(x).split('cartoon')[1].split('.')[0]), self._path.glob('cartoon?*.png'))))
+        self._next_image_number = image_numbers[-1] + 1 if len(image_numbers) > 0 else 0
+        self._last_original_image_number = self._next_image_number - 1
         if self._cam is not None:
             capture_config = self._cam.create_still_configuration()
             # TODO resolution = (640, 480)
@@ -80,7 +83,7 @@ class Workflow(object):
     def capture_event(self, e):
         """Capture a photo, convert it to cartoon and then print it if possible.
         """
-        print('capture button pressed.')
+        self._logger.info('Capture button pressed.')
         self.run(print_cartoon=True)
 
 
@@ -88,13 +91,26 @@ class Workflow(object):
         """Print previous original. 
            When called multiple times, prints originals in backward order.
         """
-        if self._original_image_number <= 0:
-            self._logger.info(f'Refusing to print previous original as no previous photo is available. Original image number: {self._original_image_number}.')
+        start_num = self._last_original_image_number
+        if self._last_original_image_number <= 0:
+            self._logger.info(f'Refusing to print previous original as no previous photo is available. Original image number: {self._last_original_image_number}.')
         else:
-            print('printing original photo.')
-            path = self._path / ('image' + str(self._original_image_number) + '.jpg')
+            self._logger.info('Capture button held - printing original photo.')
+            while True:
+                path = self._path / ('image' + str(self._last_original_image_number) + '.jpg')
+                if Path(path).is_file():
+                    break
+                else:
+                    # Not all cartoons must have originated from a camera capture.  We could create symlinks
+                    # when images from non-standard paths are processed but that would bring its own drawbacks.
+                    # For now, skip photos that do not exist.
+                    self._last_original_image_number = (self._last_original_image_number - 1) % self._next_image_number
+                    if self._last_original_image_number == start_num:
+                        self._logger.info('No original photo found.')
+                        return
+
             self._gpio.print(str(path))
-            self._original_image_number = self._original_image_number - 1
+            self._last_original_image_number = (self._last_original_image_number - 1) % self._next_image_number
 
 
     def run(self, print_cartoon=False): # TODO Refactor. This code must be unified.
@@ -104,20 +120,21 @@ class Workflow(object):
         """
         try:
             self._logger.info('capturing and processing image.')
-            self.increment()
-            path = self._path / ('image' + str(self._image_number) + '.jpg')
-            self.capture(path)
-            self.process(path)
+            self.capture()
+            self.process()
             annotated, cartoon = self.save_results()
             if print_cartoon:
                 self._gpio.print(str(cartoon))
         except Exception as e:
             self._logger.exception(e)
-
+        
+        self.increment()
         self._gpio.set_ready()
 
-    def capture(self, path):
+    def capture(self, path=None):
         if self._cam is not None:
+            if path is None:
+                path = self._path / ('image' + str(self._next_image_number) + '.jpg')
             self._logger.info('capturing image')
             self._cam.capture_file(str(path))
             self._gpio.blink_eyes()
@@ -125,7 +142,7 @@ class Workflow(object):
             raise AttributeError("app wasn't started with --camera flag, so you can't use the camera to capture images.")
         return path
 
-    def process(self, image_path, threshold=None, max_objects=None):
+    def process(self, image_path=None, threshold=None, max_objects=None):
         """processes an image. If no path supplied, then capture from camera
 
         :param float threshold: threshold for object detection (0.0 to 1.0)
@@ -141,6 +158,8 @@ class Workflow(object):
             threshold = self._config.threshold
         if max_objects is None:
             max_objects = self._config.max_objects
+        if image_path is None:
+            image_path = self._path / ('image' + str(self._next_image_number) + '.jpg')
 
         try:
             self._image_path = Path(image_path)
@@ -179,12 +198,12 @@ class Workflow(object):
         """
         self._logger.info('saving results...')
         annotated_path = self._image_path.parent / (self._image_path.name + '.annotated.png')
-        cartoon_path = self._image_path.with_name('cartoon' + str(self._image_number) + '.png')
-        labels_path = self._image_path.with_name('labels' + str(self._image_number) + '.txt')
+        cartoon_path = self._image_path.with_name('cartoon' + str(self._next_image_number) + '.png')
+        labels_path = self._image_path.with_name('labels' + str(self._next_image_number) + '.txt')
         with open(str(labels_path), 'w') as f:
             f.write(','.join(self.image_labels))
         if debug:
-            scores_path = self._image_path.with_name('scores' + str(self._image_number) + '.txt')
+            scores_path = self._image_path.with_name('scores' + str(self._next_image_number) + '.txt')
             with open(str(scores_path), 'w') as f:
                 fcsv = writer(f)
                 fcsv.writerow(map(str, self._scores.flatten()))
@@ -214,8 +233,8 @@ class Workflow(object):
         self._gpio.close()
 
     def increment(self):
-        self._image_number = (self._image_number + 1) % self._config.max_image_number
-        self._original_image_number = self._image_number - 1
+        self._next_image_number = (self._next_image_number + 1) % self._config.max_image_number
+        self._last_original_image_number = self._next_image_number - 1
 
     @property
     def image_labels(self):
