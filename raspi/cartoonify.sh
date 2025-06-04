@@ -18,16 +18,30 @@ get_phy() {
     '/^phy/ {sub("#", ""); phy = $1} \
      /Interface / && $2 == wifname {print phy; exit}'
 }
-wiphy=$( get_phy wlan0 )
 
-start_daemon() {
-  stop_daemon
-
+gpio_init() {
   # Initialize GPIOs.
   # We need to set drive strength here since Python package gpiozero does not provide that functionality.
   # Python package pigpio is able to do that.
   # Either way, we want the green LED to have constant brightness throughout the entire life-cycle of the app.
-  gpio drive 0 7 # group 0 is GPIO 0..27, 7 is 16mA (max is 16 mA, 50 mA total for all GPIOs)
+
+  # Group 0 is GPIO 0..27, 7 is 16mA (max is 16 mA, 50 mA total for all GPIOs).
+  gpio drive 0 7
+  # Pin 7 (WiringPi's numbering, i.e., BCM 4) is connected to the power LED. So does pin 22 (BCM 6).
+  # Let's set the former one to the low state just in case the aplication crashed so that we don't overpower the LED.
+  gpio write 7 0
+  echo heartbeat > /sys/class/leds/power_led/trigger
+}
+
+gpio_reset() {
+  gpio_init
+  # Revert GPIO state back to its initial state.
+  gpio drive 0 0
+}
+
+start_daemon() {
+  stop_daemon
+  gpio_init
   # Disable swapping to protect the storage from excessive usage and application from slowing down.
   swapoff -a
   # Enable job control so that all processes handle SIGINT and exit gracefully.
@@ -54,17 +68,22 @@ stop_daemon() {
     pgid=$( ps -o pgid= $pid | xargs echo -n )
     kill -INT -$pgid 2> /dev/null
   fi
+
+  gpio_release
 }
 
 daemon() {
-  trap "exit 1" SIGINT
+  trap "gpio_init; exit 1" SIGINT
   cd "$CARTOONIFY_DIR"
   while true; do
     ./raspi-run.sh
+    gpio_init
     # Wait a bit if something is broken so that we don't overload the CPU.
     sleep 1
   done
 }
+
+wiphy=$( get_phy wlan0 )
 
 # Carry out specific functions when asked to by the system
 case "$1" in
@@ -75,9 +94,8 @@ case "$1" in
   stop)
     echo "Stopping cartoonify"
     stop_daemon
+    gpio_reset
     # It is not desired to re-enable swapping if the system is being shut down.
-    # Revert GPIO state back to its initial state.
-    gpio drive 0 0
     ;;
   restart)
     echo "Restarting cartoonify"
