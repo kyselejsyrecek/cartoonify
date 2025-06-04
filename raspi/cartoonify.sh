@@ -38,14 +38,14 @@ start_daemon() {
   # Initialize Wi-Fi hotspot
   if [ ! -d /sys/class/net/wlan0s1 ]; then
     iw phy $wiphy interface add wlan0s1 type __ap
-    nmcli conn up Hotspot &
+    nmcli conn up Hotspot > /dev/null &
   fi
 }
 
 stop_daemon() {
   # Shut down Wi-Fi hotspot
   if [ -d /sys/class/net/wlan0s1 ]; then
-    nmcli conn down Hotspot &
+    nmcli conn down Hotspot > /dev/null &
   fi
 
   # Stop daemon
