@@ -69,7 +69,9 @@ class Workflow(object):
         # TODO aplay -D plughw:CARD=Device,DEV=0 -t raw -c 1 -r 22050 -f S16_LE /tmp/file.pcm
         if setup_gpio:
             self._logger.info('setting up GPIO...')
-            self._gpio.setup(trigger_release_callback=self.capture_event, trigger_held_callback=self.print_previous_original)
+            self._gpio.setup(trigger_release_callback=self.capture_event,
+                             trigger_held_callback=self.print_previous_original,
+                             approach_callback=self.someone_approached)
             self._logger.info('done')
         self._logger.info('loading cartoon dataset...')
         self._dataset.setup()
@@ -219,6 +221,22 @@ class Workflow(object):
 
                 self._gpio.print(str(path))
                 self._last_original_image_number = (self._last_original_image_number - 1) % self._next_image_number
+        finally:
+            self._lock.release()
+
+    
+    @async_task
+    def someone_approached(self, e=None):
+        """React to detected proximity of an object.
+
+        :param DigitalInputDevice e: Originator of the event (gpiozero object).
+        """
+        if not self._lock.acquire(blocking=False):
+            self._logger.info('Approach event ignored because another operation is in progress.')
+            return
+        try:
+            self._logger.info('Someone approached.')
+            self._gpio.blink_eyes()
         finally:
             self._lock.release()
 

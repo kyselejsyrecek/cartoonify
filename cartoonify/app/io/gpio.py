@@ -8,8 +8,6 @@ import atexit
 
 
 # GPIO PINS
-#HALT_BUTTON = 6
-CAPTURE_BUTTON = 5
 ALIVE_LED = 4
 RECORDING_LED = 27
 PRINTING_LED = 17
@@ -17,14 +15,18 @@ PRINTING_LED = 17
 EYE_BIG_LED = 18
 EYE_SMALL_LED = 22
 
+CAPTURE_BUTTON = 5
+#HALT_BUTTON = 6
+
+PROXIMITY_SENSOR = 13 # Or 29
+
 
 class Gpio:
     """
-    interface to raspi GPIO
+    interface to Rapberry Pi GPIO
     """
 
     def __init__(self):
-        self._status_pin = 2
         self._logger = logging.getLogger(self.__class__.__name__)
 
         # References to imported libraries
@@ -39,6 +41,7 @@ class Gpio:
         self.led_big_eye = None
         self.led_small_eye = None
         self.button_capture = None
+        self.proximity_sensor = None
 
         try:
             self.gpio = importlib.import_module('gpiozero')
@@ -58,7 +61,7 @@ class Gpio:
             pass
         call(['sudo', 'sh', '-c', 'echo heartbeat > /sys/class/leds/power_led/trigger'])
 
-    def setup(self, trigger_release_callback=None, trigger_held_callback=None, trigger_hold_time=1.5):
+    def setup(self, trigger_release_callback=None, trigger_held_callback=None, trigger_hold_time=1.5, approach_callback=None):
         """setup GPIO pin to trigger callback function when capture pin goes low
 
         :return:
@@ -74,10 +77,13 @@ class Gpio:
         self.led_big_eye = self.gpio.LED(EYE_BIG_LED)
         self.led_small_eye = self.gpio.LED(EYE_SMALL_LED)
         self.button_capture = self.elements.SmartButton(CAPTURE_BUTTON, hold_time=trigger_hold_time, bounce_time=0.1)
+        self.proximity_sensor = self.gpio.DigitalInputDevice(PROXIMITY_SENSOR, pull_up=True)
         if trigger_release_callback:
             self.button_capture.when_released = trigger_release_callback
         if trigger_held_callback:
             self.button_capture.when_held = trigger_held_callback
+        if approach_callback:
+            self.proximity_sensor.when_activated = approach_callback
 
         # Initial state
         # The LED is connected to two GPIO pins. Disable heartbeat blinking so that the LED is not overpowered.
