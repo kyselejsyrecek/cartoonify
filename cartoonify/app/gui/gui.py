@@ -47,7 +47,6 @@ def get_WebGui(workflow, i18n, cam_only):
 
         def __init__(self, *args):
             super().__init__(*args)
-            
 
         def idle(self):
             # idle function called every update cycle

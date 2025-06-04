@@ -69,7 +69,7 @@ stop_daemon() {
     kill -INT -$pgid 2> /dev/null
   fi
 
-  gpio_release
+  gpio_reset
 }
 
 daemon() {

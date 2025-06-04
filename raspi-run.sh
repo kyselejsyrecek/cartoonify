@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
 
-# Enable job control so that all processes handle SIGINT and exit gracefully.
-set -m
-
 MAX_INFERENCE_DIMENSION=640
 MAX_OUTPUT_DIMENSTION=1280
 
@@ -19,17 +16,8 @@ MAX_OUTPUT_DIMENSTION=1280
 # -w /cartoonify \
 # cartoonify
 
-interrupt_handler(){
-  kill -INT $pid 2> /dev/null
-}
-
-pid=
-trap 'interrupt_handler' SIGINT
-
 source ./virtualenv/bin/activate
 cd cartoonify/images/
-python3 ../run.py --raspi-headless --web-server --port 80 --max-inference-dimension $MAX_INFERENCE_DIMENSION --fit-width $MAX_OUTPUT_DIMENSTION --fit-height $MAX_OUTPUT_DIMENSTION --force-download --camera "$@" &
-pid=$!
-wait $pid
+python3 ../run.py --raspi-headless --web-server --port 80 --max-inference-dimension $MAX_INFERENCE_DIMENSION --fit-width $MAX_OUTPUT_DIMENSTION --fit-height $MAX_OUTPUT_DIMENSTION --force-download --camera "$@"
 cd ..
 deactivate
