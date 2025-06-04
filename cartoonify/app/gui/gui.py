@@ -105,7 +105,7 @@ def get_WebGui(workflow, i18n, cam_only):
             vbox_settings = gui.VBox()
             vbox_settings.style['order'] = "4349486136"
             vbox_settings.style['display'] = "flex"
-            vbox_settings.style['overflow'] = "auto"
+            #vbox_settings.style['overflow'] = "auto"
             vbox_settings.style['width'] = "250px"
             vbox_settings.style['flex-direction'] = "column"
             vbox_settings.style['position'] = "static"
@@ -117,6 +117,7 @@ def get_WebGui(workflow, i18n, cam_only):
             vbox_settings.style['height'] = "80px"
             checkbox_display_original = gui.CheckBoxLabel(_(' Display original image'), False, '')
             checkbox_display_original.style['margin'] = "0px"
+            checkbox_display_original.style['margin-left'] = "35px"
             checkbox_display_original.style['align-items'] = "center"
             checkbox_display_original.style['width'] = "200px"
             checkbox_display_original.style['top'] = "135.734375px"
