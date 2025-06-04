@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
 
-requirements="git" # GPIO management and thermal printer
-requirements+="cups libcups2-dev cmake" # thermal printer
-requirements+="dnsmasq" # Wi-Fi hotspot
+requirements=()
+requirements+=( git ) # GPIO management and thermal printer
+requirements+=( cups libcups2-dev cmake ) # thermal printer
+requirements+=( dnsmasq ) # Wi-Fi hotspot
 
 # FIXME Package python3-picamera2 installs 600 MB of requirements, incl. NumPy! That may not be the best means to gather photos and videos.
-requirements+="libcairo2 python3-virtualenv libcap-dev python3-picamera2"
+requirements+=( libcairo2 python3-virtualenv libcap-dev python3-picamera2 )
 
 if [ ! -z "$DEBUG" ]; then
-  requirements+="tk-dev" # Development requirements
+  requirements+=( tk-dev ) # Development requirements
 fi
 
 echo "Installing requirements..."
 sudo apt update
-sudo apt install $requirements
+sudo apt install "${requirements[@]}"
 
 # GPIO management
 if [ ! -d "WiringPi" ]; then
