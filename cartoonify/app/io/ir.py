@@ -46,6 +46,14 @@ class IrReceiver:
         self.thread.start()
 
 
+    def close(self):
+        if dev:
+            try:
+                self.dev.close()
+            except:
+                pass
+
+
     def get_ir_device(self):
         """Get evdev.InputDevice corresponding to an IR receiver device if any.
         """

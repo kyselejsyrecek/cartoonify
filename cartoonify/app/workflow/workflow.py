@@ -63,6 +63,10 @@ class Workflow(object):
         self._async_executor = AsyncExecutor(max_workers=2)
 
 
+    def close(self):
+        self._ir_receiver.close()
+
+
     def __del__(self):
         # Shut down the asynchronous task pool.
         self._async_executor.shutdown()

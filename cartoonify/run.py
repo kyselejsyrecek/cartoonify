@@ -118,9 +118,11 @@ def run(**kwargs):
         #profiling.evaluation_point("web server started") # The start() function blocks forever.
         # We never get there during the life of the instance.
         print("done")
+        app.close()
     else:
         while True:
             if config.raspi_headless:
+                signal.signal(signal.SIGINT, app.close)
                 while True:
                     # From now on, app takes care of itself and waits for button press event from GPIO driver.
                     # This thread's only responsibility is not to die so that the program is not terminated.
