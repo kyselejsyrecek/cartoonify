@@ -77,13 +77,16 @@ class Gpio:
         self.led_big_eye = self.gpio.LED(EYE_BIG_LED)
         self.led_small_eye = self.gpio.LED(EYE_SMALL_LED)
         self.button_capture = self.elements.SmartButton(CAPTURE_BUTTON, hold_time=trigger_hold_time, bounce_time=0.1)
-        self.proximity_sensor = self.gpio.DigitalInputDevice(PROXIMITY_SENSOR, pull_up=True)
         if trigger_release_callback:
             self.button_capture.when_released = trigger_release_callback
         if trigger_held_callback:
             self.button_capture.when_held = trigger_held_callback
-        if approach_callback:
-            self.proximity_sensor.when_activated = approach_callback
+        try:
+            self.proximity_sensor = self.gpio.DigitalInputDevice(PROXIMITY_SENSOR, pull_up=True)
+            if approach_callback:
+                self.proximity_sensor.when_activated = approach_callback
+        except:
+            self._logger.info('proximity sensor not found, continuing...')
 
         # Initial state
         # The LED is connected to two GPIO pins. Disable heartbeat blinking so that the LED is not overpowered.
