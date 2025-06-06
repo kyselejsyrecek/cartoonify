@@ -32,7 +32,8 @@ class Workflow(object):
             "max_inference_dimension": 1024,
             "fit_width": None,
             "fit_height": None,
-            "max_image_number": 10000
+            "max_image_number": 10000,
+            "fast_init": False
         })
         self._lock = Lock()
         self._logger = logging.getLogger(self.__class__.__name__)
@@ -71,7 +72,8 @@ class Workflow(object):
         # TODO aplay -D plughw:CARD=Device,DEV=0 -t raw -c 1 -r 22050 -f S16_LE /tmp/file.pcm
         if setup_gpio:
             self._logger.info('setting up GPIO...')
-            self._gpio.setup(trigger_release_callback=self.capture,
+            self._gpio.setup(fast_init=self._config.fast_init,
+                             trigger_release_callback=self.capture,
                              trigger_held_callback=self.print_previous_original,
                              approach_callback=self.someone_approached)
             self._ir_receiver.setup(trigger_callback=self.capture,

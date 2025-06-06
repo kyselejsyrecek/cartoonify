@@ -56,6 +56,7 @@ def flatten(xss):
 @click.option('--fit-height', type=int, default=2048, help='Height of output rectangle in pixels which the resulting image is made to fit.')
 @click.option('--max-image-number', type=int, default=10000, help='Maximal number of images to be stored. Numbering will be restarted from zero when the limit is reached. Defaults to 10,000.')
 @click.option('--debug-detection', is_flag=True, help='Save a list of all detected object scores.')
+@click.option('--fast-init', is_flag=True, help='Skip awakening animation to speed up initialization.')
 def run(**kwargs):
     # Redirect standard error output prematurely. Broken TensorFlow library and its
     # CUDA-related dependencies generate a bunch of error output which is irrelevant

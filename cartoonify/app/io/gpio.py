@@ -35,6 +35,7 @@ class Gpio:
 
         # State objects
         self.initialized = False
+        self.fast_init = False
         self.led_alive = None
         self.led_recording = None
         self.led_printing = None
@@ -61,7 +62,7 @@ class Gpio:
             pass
         call(['sudo', 'sh', '-c', 'echo heartbeat > /sys/class/leds/power_led/trigger'])
 
-    def setup(self, trigger_release_callback=None, trigger_held_callback=None, trigger_hold_time=1.5, approach_callback=None):
+    def setup(self, fast_init=False, trigger_release_callback=None, trigger_held_callback=None, trigger_hold_time=1.5, approach_callback=None):
         """setup GPIO pin to trigger callback function when capture pin goes low
 
         :return:
@@ -71,6 +72,7 @@ class Gpio:
             
         # Hook-up all objects.
         atexit.register(self.__del__)
+        self.fast_init = fast_init
         self.led_alive = self.gpio.LED(ALIVE_LED)
         self.led_recording = self.gpio.LED(RECORDING_LED)
         self.led_printing = self.gpio.LED(PRINTING_LED)
@@ -101,24 +103,25 @@ class Gpio:
         self.led_small_eye.off()
 
         # Awakening animation
-        time.sleep(4)
-        self.led_small_eye.on()
-        time.sleep(2)
-        self.led_small_eye.off()
-        time.sleep(4)
-        self.led_small_eye.on()
-        time.sleep(6)
-        self.led_small_eye.off()
-        time.sleep(3)
-        self.led_small_eye.on()
-        time.sleep(0.1)
-        self.led_small_eye.off()
-        time.sleep(0.1)
-        self.led_small_eye.on()
-        time.sleep(0.1)
-        self.led_small_eye.off()
-        time.sleep(0.5)
-        self.led_small_eye.on()
+        if not self.fast_init:
+            time.sleep(4)
+            self.led_small_eye.on()
+            time.sleep(2)
+            self.led_small_eye.off()
+            time.sleep(4)
+            self.led_small_eye.on()
+            time.sleep(6)
+            self.led_small_eye.off()
+            time.sleep(3)
+            self.led_small_eye.on()
+            time.sleep(0.1)
+            self.led_small_eye.off()
+            time.sleep(0.1)
+            self.led_small_eye.on()
+            time.sleep(0.1)
+            self.led_small_eye.off()
+            time.sleep(0.5)
+            self.led_small_eye.on()
 
 
     def set_ready(self):
@@ -135,10 +138,16 @@ class Gpio:
 
 
     def set_initial_state(self):
-
-        self.set_ready()
-        time.sleep(3)
-        self.blink_eyes()
+        if not self.available():
+            return
+            
+        if not self.fast_init:
+            self.set_ready()
+            time.sleep(3)
+            self.blink_eyes()
+        else:
+            self.led_big_eye.on()
+            self.led_small_eye.on()
 
 
     def flash_eyes_individually(self):
