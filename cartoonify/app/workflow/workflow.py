@@ -64,10 +64,13 @@ class Workflow(object):
 
 
     def close(self):
+        print("Workflow close().")
         self._ir_receiver.close()
+        print("Workflow close() end.")
 
 
     def __del__(self):
+        print("Workflow __del__().")
         # Shut down the asynchronous task pool.
         self._async_executor.shutdown()
 
