@@ -2,6 +2,7 @@
 click # ==8.2.1
 gizeh # ==0.1.11
 jsonlines # ==4.0.0
+evdev # ==1.9.2
 matplotlib # ==3.10.3
 picamera2 # ==0.3.27
 pillow # ==11.2.1

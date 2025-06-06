@@ -12,7 +12,7 @@ from tempfile import NamedTemporaryFile
 from threading import Lock
 
 from app.sketch import SketchGizeh
-from app.io import Gpio
+from app.io import Gpio, IrReceiver
 from app.utils.attributedict import AttributeDict
 from app.debugging import profiling
 from app.utils.asynctask import *
@@ -34,16 +34,18 @@ class Workflow(object):
             "fit_height": None,
             "max_image_number": 10000
         })
+        self._lock = Lock()
+        self._logger = logging.getLogger(self.__class__.__name__)
         self._config.update(config)
         self._path = Path('')
         self._image_path = Path('')
         self._dataset = dataset
         self._image_processor = imageprocessor
-        self._sketcher = None
         self._cam = camera
         self._gpio = Gpio()
+        self._ir_receiver = IrReceiver()
+        self._sketcher = None
         self._web_gui = None
-        self._logger = logging.getLogger(self.__class__.__name__)
         self._image = None
         self._annotated_image = None
         self._image_labels = []
@@ -52,7 +54,7 @@ class Workflow(object):
         self._scores = None
         self._next_image_number = 0
         self._last_original_image_number = -1
-        self._lock = Lock()
+        self._is_recording = False
 
         # Initialize the AsyncExecutor decorator.
         # We discard any operations requested when another operation is in progress.
@@ -69,9 +71,13 @@ class Workflow(object):
         # TODO aplay -D plughw:CARD=Device,DEV=0 -t raw -c 1 -r 22050 -f S16_LE /tmp/file.pcm
         if setup_gpio:
             self._logger.info('setting up GPIO...')
-            self._gpio.setup(trigger_release_callback=self.capture_event,
+            self._gpio.setup(trigger_release_callback=self.capture,
                              trigger_held_callback=self.print_previous_original,
                              approach_callback=self.someone_approached)
+            self._ir_receiver.setup(trigger_callback=self.capture,
+                                    trigger_2s_callback = self.delayed_capture,
+                                    recording_callback=self.toggle_recording,
+                                    wink_callback=self.wink)
             self._logger.info('done')
         self._logger.info('loading cartoon dataset...')
         self._dataset.setup()
@@ -177,7 +183,7 @@ class Workflow(object):
 
 
     @async_task
-    def capture_event(self, e=None):
+    def capture(self, e=None):
         """Capture a photo, convert it to cartoon and then print it if possible.
 
         :param SmartButton e: Originator of the event (gpiozero object). None if called from WebGUI.
@@ -187,6 +193,30 @@ class Workflow(object):
             return
         try:
             self._logger.info('Capture button pressed.')
+            self.run(print_cartoon=True)
+        finally:
+            self._lock.release()
+
+
+    @async_task
+    def delayed_capture(self, e=None):
+        """Capture a photo after 2 seconds, convert it to cartoon and then print it if possible.
+
+        :param SmartButton e: Originator of the event (gpiozero object). None if called from IrReceiver.
+        """
+        if not self._lock.acquire(blocking=False):
+            self._logger.info('Delayed capture event ignored because another operation is in progress.')
+            return
+        try:
+            self._logger.info('Button for delayed capture pressed.')
+            self._gpio.set_recording_state(not self._is_recording)
+            time.sleep(0.2)
+            self._gpio.set_recording_state(self._is_recording)
+            time.sleep(0.8)
+            self._gpio.set_recording_state(not self._is_recording)
+            time.sleep(0.2)
+            self._gpio.set_recording_state(self._is_recording)
+            time.sleep(0.8)
             self.run(print_cartoon=True)
         finally:
             self._lock.release()
@@ -221,6 +251,40 @@ class Workflow(object):
 
                 self._gpio.print(str(path))
                 self._last_original_image_number = (self._last_original_image_number - 1) % self._next_image_number
+        finally:
+            self._lock.release()
+
+
+    # TODO Not implemented.
+    @async_task
+    def toggle_recording(self, e=None):
+        """Toggle video recording.
+
+        :param SmartButton e: Originator of the event (gpiozero object). None if called from IrReceiver.
+        """
+        if not self._lock.acquire(blocking=False):
+            self._logger.info('Event toggle recording ignored because another operation is in progress.')
+            return
+        try:
+            self._logger.info('Button toggling video recording pressed.')
+            self._is_recording = not self._is_recording
+            self._gpio.set_recording_state(self._is_recording)
+        finally:
+            self._lock.release()
+
+
+    @async_task
+    def wink(self, e=None):
+        """Wink the bigger eye.
+
+        :param SmartButton e: Originator of the event (gpiozero object). None if called from IrReceiver.
+        """
+        if not self._lock.acquire(blocking=False):
+            self._logger.info('Event wink ignored because another operation is in progress.')
+            return
+        try:
+            self._logger.info('Wink button pressed.')
+            self._gpio.wink()
         finally:
             self._lock.release()
 

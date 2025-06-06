@@ -7,7 +7,7 @@ from subprocess import *
 import atexit
 
 
-# GPIO PINS
+# GPIO PINS (BCM numbering)
 ALIVE_LED = 4
 RECORDING_LED = 27
 PRINTING_LED = 17
@@ -122,7 +122,7 @@ class Gpio:
 
 
     def set_ready(self):
-        """set status LEDs
+        """Set status LEDs.
 
         :param bool ready:
         :return:
@@ -133,6 +133,7 @@ class Gpio:
         self.flash_eyes_individually()
         self.led_printing.off()
 
+
     def set_initial_state(self):
 
         self.set_ready()
@@ -141,7 +142,7 @@ class Gpio:
 
 
     def flash_eyes_individually(self):
-        """Flash the eye LEDs in a pattern
+        """Flash the eye LEDs in a pattern.
         """
         if not self.available():
             return
@@ -168,7 +169,7 @@ class Gpio:
 
 
     def blink_eyes(self):
-        """Flash the eye LEDs in a pattern
+        """Flash the eye LEDs in a pattern.
         """
         if not self.available():
             return
@@ -184,6 +185,26 @@ class Gpio:
         time.sleep(0.1)
         self.led_big_eye.on()
         self.led_small_eye.on()
+
+
+    def wink(self):
+        """Wink the bigger eye.
+        """
+        if not self.available():
+            return
+
+        self.led_big_eye.off()
+        time.sleep(0.8)
+        self.led_big_eye.on()
+
+
+    def set_recording_state(self, enabled):
+        """Indicate whether the device is recording video.
+        """
+        if enabled:
+            self.led_recording.on()
+        else:
+            self.led_recording.off()
 
 
     def set_error_state(self, error_msg):

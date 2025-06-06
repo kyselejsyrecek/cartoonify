@@ -46,13 +46,16 @@ deliver 1.2V each, as well as enough current to drive the raspi and thermal prin
     Note you will need to use the printer TTL serial interface as per the wiring diagram above, rather than USB.
 
 - set up and enable the raspi camera through `raspi-config`
-- add the following text to the global section of `/boot/firmware/config.txt` to configure power LED and shutdown button:
+- add the following text to the global section of `/boot/firmware/config.txt` to configure power LED, shutdown button and IR receiver:
 ```
 # Set up LEDs
 dtoverlay=gpio-led,gpio=13,label=power_led,trigger=heartbeat
 
 # Set power-down button
 dtoverlay=gpio-shutdown,gpio_pin=6
+
+# Set IR receiver
+dtoverlay=gpio-ir,gpio_pin=23
 ```
 - run `sudo raspi-config`, navigate under *Advanced settings* and change the power-off behaviour to suspend the device to enable the functionality of a power-on button. # FIXME Not working.
 - clone the source code from this repo
