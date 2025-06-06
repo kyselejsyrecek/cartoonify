@@ -47,11 +47,11 @@ class IrReceiver:
 
 
     def close(self):
-        if dev:
-            try:
-                self.dev.close()
-            except:
-                pass
+        print("Closing dev.")
+        if self.dev is not None:
+            self.dev.close()
+            print("Dev closed.")
+        print("End of close().")
 
 
     def get_ir_device(self):

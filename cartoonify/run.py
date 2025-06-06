@@ -117,8 +117,8 @@ def run(**kwargs):
               certfile=config.cert_file, keyfile=config.key_file)
         #profiling.evaluation_point("web server started") # The start() function blocks forever.
         # We never get there during the life of the instance.
+        os.close(app._ir_receiver.dev.fd)
         print("done")
-        app.close()
     else:
         while True:
             if config.raspi_headless:
