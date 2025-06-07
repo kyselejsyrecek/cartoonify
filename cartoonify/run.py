@@ -41,6 +41,7 @@ def flatten(xss):
 @click.option('--force-download', is_flag=True,help='Download data if missing, suppressing confirmation prompt.')
 @click.option('--raspi-headless', is_flag=True, help='Run on Raspberry Pi with camera, trigger, printer and an IR receiver sensor (without GUI).')
 @click.option('--no-ir-receiver', is_flag=True, help='Disable IR receiver sensor (only used when switch --raspi-headless is given).')
+@click.option('--no-clap-detector', is_flag=True, help='Disable clap detector (only used when switch --raspi-headless is given).')
 @click.option('--batch-process', is_flag=True, help='Process all images in current directory matching --file-pattern.')
 @click.option('--file-patterns', type=str, default="*.jpg *.JPG *.jpeg *.JPEG", help='File patterns for batch processing. Defaults to *.jpg *.JPG *.jpeg *.JPEG. Should be quoted.')
 @click.option('--annotate', is_flag=True, help='Produce also annotated image.')

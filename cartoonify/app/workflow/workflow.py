@@ -12,7 +12,7 @@ from tempfile import NamedTemporaryFile
 from threading import Lock
 
 from app.sketch import SketchGizeh
-from app.io import Gpio, IrReceiver
+from app.io import Gpio, IrReceiver, ClapDetector
 from app.utils.attributedict import AttributeDict
 from app.debugging import profiling
 from app.utils.asynctask import *
@@ -33,7 +33,9 @@ class Workflow(object):
             "fit_width": None,
             "fit_height": None,
             "max_image_number": 10000,
-            "fast_init": False
+            "fast_init": False,
+            "no_ir_sensor": False,
+            "clap_detector": False
         })
         self._lock = Lock()
         self._logger = logging.getLogger(self.__class__.__name__)
@@ -46,6 +48,7 @@ class Workflow(object):
         self._gpio = Gpio()
         if not self._config.no_ir_receiver:
             self._ir_receiver = IrReceiver()
+        self._clap_detector = ClapDetector()
         self._sketcher = None
         self._web_gui = None
         self._image = None
@@ -90,6 +93,10 @@ class Workflow(object):
                                         trigger_2s_callback = self.delayed_capture,
                                         recording_callback=self.toggle_recording,
                                         wink_callback=self.wink)
+            if not self._config.no_clap_detector:
+                self._clap_detector.setup(trigger_callback=self.capture,
+                                          trigger_2s_callback = self.delayed_capture,
+                                          wink_callback=self.wink)
             self._logger.info('done')
         self._logger.info('loading cartoon dataset...')
         self._dataset.setup()
