@@ -44,7 +44,8 @@ class Workflow(object):
         self._image_processor = imageprocessor
         self._cam = camera
         self._gpio = Gpio()
-        self._ir_receiver = IrReceiver()
+        if not self._config.no_ir_receiver:
+            self._ir_receiver = IrReceiver()
         self._sketcher = None
         self._web_gui = None
         self._image = None
@@ -65,7 +66,8 @@ class Workflow(object):
 
     def close(self):
         print("Workflow close().")
-        self._ir_receiver.close()
+        if not self._config.no_ir_receiver:
+            self._ir_receiver.close()
         print("Workflow close() end.")
 
 
@@ -83,10 +85,11 @@ class Workflow(object):
                              trigger_release_callback=self.capture,
                              trigger_held_callback=self.print_previous_original,
                              approach_callback=self.someone_approached)
-            self._ir_receiver.setup(trigger_callback=self.capture,
-                                    trigger_2s_callback = self.delayed_capture,
-                                    recording_callback=self.toggle_recording,
-                                    wink_callback=self.wink)
+            if not self._config.no_ir_receiver:
+                self._ir_receiver.setup(trigger_callback=self.capture,
+                                        trigger_2s_callback = self.delayed_capture,
+                                        recording_callback=self.toggle_recording,
+                                        wink_callback=self.wink)
             self._logger.info('done')
         self._logger.info('loading cartoon dataset...')
         self._dataset.setup()
