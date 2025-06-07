@@ -1,6 +1,7 @@
 import asyncio
 import evdev
 import logging
+import signal
 from threading import Thread
 
 
@@ -42,6 +43,9 @@ class IrReceiver:
         if wink_callback:
             self.wink_callback = wink_callback
         self.dev = self.get_ir_device()
+        # Attempt to do a nasty fix of the blocking read which blocks interrupt.
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        signal.siginterrupt(signal.SIGINT, True)
         self.thread = Thread(target = self._worker)
         self.thread.start()
 
