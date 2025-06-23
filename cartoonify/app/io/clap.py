@@ -53,6 +53,14 @@ class ClapDetector:
         self.trigger_2s_callback = noop
         self.wink_callback = noop
 
+
+    @staticmethod
+    def hook_up(event_service, *args, **kwargs):
+        clap_detector = ClapDetector()
+        clap_detector.setup(trigger_callback=event_service.capture,
+                            trigger_2s_callback = event_service.delayed_capture,
+                            wink_callback=event_service.wink)
+
     
     def setup(self, trigger_callback=None, trigger_2s_callback=None, wink_callback=None):
         """Set the clap detector interface up and initiate detection.
@@ -65,11 +73,12 @@ class ClapDetector:
             self.wink_callback = wink_callback
         self.config = Config(trigger_callback, trigger_2s_callback, wink_callback)
         self.listener = Listener(config=self.config, calibrate=False)
-        self.thread = Thread(target = self._worker)
-        self.thread.start()
+        #self.thread = Thread(target = self._worker)
+        #self.thread.start()
+        self._worker()
 
 
-    def _worker(self):
+    def _worker(self): # TODO Inline.
         """Worker thread.
         """
         self._logger.debug('Worker thread of clap detector started.')

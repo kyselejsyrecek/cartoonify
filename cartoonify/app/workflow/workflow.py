@@ -1,9 +1,13 @@
 
 from __future__ import division
+import importlib
 import logging
+import multiprocessing
 import numpy as np
 import png
 import os
+import signal
+import sys
 import time
 from csv import writer
 from libcamera import controls
@@ -15,14 +19,21 @@ from app.sketch import SketchGizeh
 from app.io import Gpio, IrReceiver, ClapDetector
 from app.utils.attributedict import AttributeDict
 from app.debugging import profiling
+from app.workflow.multiprocessing import *
 from app.utils.asynctask import *
+
+
+def signal_handler(signum, frame):
+    print(f"Parent Process: Received signal {signum}, signaling children to exit.")
+    exit_event.set() # Set the event to signal all processes to exit
+    #workflow.terminate()
 
 
 class Workflow(object):
     """controls execution of app
     """
 
-    def __init__(self, dataset, imageprocessor, camera, config):
+    def __init__(self, dataset, imageprocessor, config):
         self._config = AttributeDict({
             "annotate": False,
             "threshold": 0.3,
@@ -34,21 +45,42 @@ class Workflow(object):
             "fit_height": None,
             "max_image_number": 10000,
             "fast_init": False,
+            "camera": False,
+            "clap_detector": False,
             "no_ir_sensor": False,
-            "clap_detector": False
         })
         self._lock = Lock()
         self._logger = logging.getLogger(self.__class__.__name__)
         self._config.update(config)
+
+        # Initialize the AsyncExecutor decorator.
+        # We discard any operations requested when another operation is in progress.
+        # However, to make that possible at least 2 worker threads are required by current solution.
+        self._async_executor = AsyncExecutor(max_workers=2)
+
         self._path = Path('')
         self._image_path = Path('')
+        self._event_manager_address = ('127.0.0.1', 50000)
+        self._event_manager_authkey = b'489r4gs/r2*!-B.u'
+        self._event_manager = None
+        self._event_manager_server = None
+        self._event_manager_process = None
         self._dataset = dataset
         self._image_processor = imageprocessor
-        self._cam = camera
+        if self._config.camera:
+            try:
+                picam = importlib.import_module('picamera2')
+            except ImportError as e:
+                print('picamera2 module missing, please install using:\n     pip install picamera2')
+                logging.exception(e)
+                sys.exit()
+            self._cam = picam.Picamera2()
+        else:
+            self._cam = None
         self._gpio = Gpio()
         if not self._config.no_ir_receiver:
             self._ir_receiver = IrReceiver()
-        self._clap_detector = ClapDetector()
+        self._clap_detector = None
         self._sketcher = None
         self._web_gui = None
         self._image = None
@@ -61,17 +93,27 @@ class Workflow(object):
         self._last_original_image_number = -1
         self._is_recording = False
 
-        # Initialize the AsyncExecutor decorator.
-        # We discard any operations requested when another operation is in progress.
-        # However, to make that possible at least 2 worker threads are required by current solution.
-        self._async_executor = AsyncExecutor(max_workers=2)
+        # Register this instance as the event handler service.
+        EventManager.register('event_service', callable=lambda: self)
+        self._process_manager = ProcessManager(self._event_manager_address, self._event_manager_authkey)
 
 
-    def close(self):
-        print("Workflow close().")
-        if not self._config.no_ir_receiver:
-            self._ir_receiver.close()
-        print("Workflow close() end.")
+    def terminate(self):
+        print("Workflow terminate().") # FIXME Remove.
+        self._process_manager.terminate()
+
+        # Terminate the manager process
+        if self._event_manager_process.is_alive():
+            self._logger.debug('Terminating event manager...')
+            self._event_manager_process.terminate()
+            self._event_manager_process.join(timeout=1)
+            if self._event_manager_process.is_alive():
+                self._logger.warning(f"Manager process {self._event_manager_process.pid} did not terminate gracefully, killing.")
+                os.kill(self._event_manager_process.pid, signal.SIGKILL)
+        
+        #if not self._config.no_ir_receiver:
+        #    self._ir_receiver.close()
+        print("Workflow terminate() end.") # FIXME Remove.
 
 
     def __del__(self):
@@ -81,6 +123,18 @@ class Workflow(object):
 
 
     def setup(self, setup_gpio=True):
+        # Set up the SIGINT handler for the parent process
+        signal.signal(signal.SIGINT, signal_handler)
+
+        # Initialize event manager
+        self._event_manager = EventManager(self._event_manager_address, self._event_manager_authkey)
+        self._event_manager_server = self._event_manager.get_server()
+        # Start the manager server in a separate process
+        # This prevents the parent's main loop from being blocked by the manager.
+        self._event_manager_process = multiprocessing.Process(target=self._event_manager_server.serve_forever)
+        self._event_manager_process.daemon = True # Ensures the manager process terminates with the parent
+        self._event_manager_process.start()
+
         # TODO aplay -D plughw:CARD=Device,DEV=0 -t raw -c 1 -r 22050 -f S16_LE /tmp/file.pcm
         if setup_gpio:
             self._logger.info('setting up GPIO...')
@@ -94,9 +148,7 @@ class Workflow(object):
                                         recording_callback=self.toggle_recording,
                                         wink_callback=self.wink)
             if not self._config.no_clap_detector:
-                self._clap_detector.setup(trigger_callback=self.capture,
-                                          trigger_2s_callback = self.delayed_capture,
-                                          wink_callback=self.wink)
+                self._clap_detector = self._process_manager.start_process(ClapDetector.hook_up)
             self._logger.info('done')
         self._logger.info('loading cartoon dataset...')
         self._dataset.setup()

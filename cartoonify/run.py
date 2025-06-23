@@ -1,7 +1,6 @@
 import logging
 import datetime
 from pathlib import Path
-import signal
 import sys
 import os
 import click
@@ -69,14 +68,13 @@ def run(**kwargs):
 
     # Import the rest of the application including external libraries like TensorFlow
     # or CUDA-related libraries.
-    from app.workflow import Workflow
+    from app.workflow import Workflow, exit_event
     from app.drawing_dataset import DrawingDataset
     from app.image_processor import ImageProcessor, tensorflow_model_name, model_path
     from app.sketch import SketchGizeh
     from os.path import join
     from app.gui import get_WebGui
     from remi import start
-    import importlib
     import time
 
     root = Path(__file__).parent
@@ -95,19 +93,30 @@ def run(**kwargs):
                                     str(root / 'app' / 'object_detection' / 'data' / 'mscoco_label_map.pbtxt'),
                                     tensorflow_model_name, config.force_download)
 
-    if config.camera or config.raspi_headless:
-        try:
-            picam = importlib.import_module('picamera2')
-        except ImportError as e:
-            print('picamera2 module missing, please install using:\n     pip install picamera2')
-            logging.exception(e)
-            sys.exit()
-        cam = picam.Picamera2()
-    else:
-        cam = None
+    if config.raspi_headless:
+        config.camera = True
     
-    app = Workflow(dataset, imageprocessor, cam, config)
+    app = Workflow(dataset, imageprocessor, config)
     app.setup(setup_gpio=config.raspi_headless)
+
+
+    import multiprocessing
+    import time
+
+    # Main loop of the parent process.
+    # It now simply waits for the exit_event to be set.
+    try:
+        while not exit_event.is_set():
+            time.sleep(0.1) # Short pause to reduce CPU usage
+    except KeyboardInterrupt:
+        # This block might not be strictly necessary due to signal handler
+        # implemented within Workflow, but it's good practice for robustness.
+        print("Parent Process: KeyboardInterrupt caught, exiting.")
+        exit_event.set()
+    finally:
+        print("Parent Process: All processes and manager terminated.")
+
+
 
     if config.gui or config.web_server:
         if config.gui:
@@ -124,7 +133,6 @@ def run(**kwargs):
     else:
         while True:
             if config.raspi_headless:
-                signal.signal(signal.SIGINT, app.close)
                 while True:
                     # From now on, app takes care of itself and waits for button press event from GPIO driver.
                     # This thread's only responsibility is not to die so that the program is not terminated.
