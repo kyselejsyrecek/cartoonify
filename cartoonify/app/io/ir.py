@@ -30,7 +30,17 @@ class IrReceiver:
         self.recording_callback = noop
         self.wink_callback = noop
 
+
+    @staticmethod
+    def hook_up(event_service, *args, **kwargs):
+        ir_receiver = IrReceiver()
+        ir_receiver.setup(trigger_callback=event_service.capture,
+                            trigger_2s_callback = event_service.delayed_capture,
+                            recording_callback=event_service.toggle_recording,
+                            wink_callback=event_service.wink)
+        ir_receiver.start()
     
+
     def setup(self, trigger_callback=None, trigger_2s_callback = None, recording_callback=None, wink_callback=None):
         """Set the IR receiver interface up and initiate scanning.
         """
@@ -46,11 +56,9 @@ class IrReceiver:
         # Attempt to do a nasty fix of the blocking read which blocks interrupt.
         signal.signal(signal.SIGINT, signal.SIG_DFL)
         signal.siginterrupt(signal.SIGINT, True)
-        self.thread = Thread(target = self._worker)
-        self.thread.start()
 
 
-    def close(self):
+    def close(self): # FIXME Unused, not functional.
         print("Closing dev.")
         if self.dev is not None:
             self.dev.close()
@@ -69,7 +77,7 @@ class IrReceiver:
         self._logger.warning('No IR device found!')
 
 
-    def _worker(self):
+    def start(self):
         """Worker thread.
         """
         asyncio.run(self._processing_loop())

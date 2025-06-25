@@ -78,8 +78,7 @@ class Workflow(object):
         else:
             self._cam = None
         self._gpio = Gpio()
-        if not self._config.no_ir_receiver:
-            self._ir_receiver = IrReceiver()
+        self._ir_receiver = None
         self._clap_detector = None
         self._sketcher = None
         self._web_gui = None
@@ -143,10 +142,7 @@ class Workflow(object):
                              trigger_held_callback=self.print_previous_original,
                              approach_callback=self.someone_approached)
             if not self._config.no_ir_receiver:
-                self._ir_receiver.setup(trigger_callback=self.capture,
-                                        trigger_2s_callback = self.delayed_capture,
-                                        recording_callback=self.toggle_recording,
-                                        wink_callback=self.wink)
+                self._ir_receiver = self._process_manager.start_process(IrReceiver.hook_up)
             if not self._config.no_clap_detector:
                 self._clap_detector = self._process_manager.start_process(ClapDetector.hook_up)
             self._logger.info('done')
