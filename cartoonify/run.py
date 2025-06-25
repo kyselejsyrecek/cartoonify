@@ -99,25 +99,6 @@ def run(**kwargs):
     app = Workflow(dataset, imageprocessor, config)
     app.setup(setup_gpio=config.raspi_headless)
 
-
-    import multiprocessing
-    import time
-
-    # Main loop of the parent process.
-    # It now simply waits for the exit_event to be set.
-    try:
-        while not exit_event.is_set():
-            time.sleep(0.1) # Short pause to reduce CPU usage
-    except KeyboardInterrupt:
-        # This block might not be strictly necessary due to signal handler
-        # implemented within Workflow, but it's good practice for robustness.
-        print("Parent Process: KeyboardInterrupt caught, exiting.")
-        exit_event.set()
-    finally:
-        print("Parent Process: All processes and manager terminated.")
-
-
-
     if config.gui or config.web_server:
         if config.gui:
             print('starting gui...')
@@ -134,9 +115,20 @@ def run(**kwargs):
         while True:
             if config.raspi_headless:
                 while True:
+                    # Main loop of the parent process.
                     # From now on, app takes care of itself and waits for button press event from GPIO driver.
                     # This thread's only responsibility is not to die so that the program is not terminated.
-                    time.sleep(1)
+                    # It now simply waits for the exit_event to be set.
+                    try:
+                        while not exit_event.is_set():
+                            time.sleep(0.5) # Short pause to reduce CPU usage
+                    except KeyboardInterrupt:
+                        # This block might not be strictly necessary due to signal handler
+                        # implemented within Workflow, but it's good practice for robustness.
+                        print("Parent Process: KeyboardInterrupt caught, exiting.")
+                        exit_event.set()
+                    finally:
+                        print("Parent Process: All processes and manager terminated.")
 
             elif config.camera:
                 if click.confirm('would you like to capture an image? '):
