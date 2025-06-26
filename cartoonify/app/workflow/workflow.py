@@ -16,7 +16,7 @@ from tempfile import NamedTemporaryFile
 from threading import Lock
 
 from app.sketch import SketchGizeh
-from app.io import Gpio, IrReceiver, ClapDetector, PlaySound
+from app.io import Gpio, IrReceiver, ClapDetector, PlaySound, Camera
 from app.utils.attributedict import AttributeDict
 from app.debugging import profiling
 from app.workflow.multiprocessing import *
@@ -69,16 +69,7 @@ class Workflow(object):
         self._event_manager_process = None
         self._dataset = dataset
         self._image_processor = imageprocessor
-        if self._config.camera:
-            try:
-                picam = importlib.import_module('picamera2')
-            except ImportError as e:
-                print('picamera2 module missing, please install using:\n     pip install picamera2')
-                logging.exception(e)
-                sys.exit()
-            self._cam = picam.Picamera2()
-        else:
-            self._cam = None
+        self._camera = Camera() if self._config.camera else None
         self._gpio = Gpio()
         self._ir_receiver = None
         self._clap_detector = None
@@ -148,6 +139,12 @@ class Workflow(object):
                 self._ir_receiver = self._process_manager.start_process(IrReceiver.hook_up)
             if not self._config.no_clap_detector:
                 self._clap_detector = self._process_manager.start_process(ClapDetector.hook_up)
+            self._logger.info('done')
+        
+        # Setup camera system
+        if self._camera is not None:
+            self._logger.info('setting up camera...')
+            self._camera.setup(rotate_180deg=self._config.rotate_180deg)
             self._logger.info('done')
         
         # Setup sound system
@@ -436,11 +433,11 @@ class Workflow(object):
             self._web_gui.show_image(original, annotated, cartoon, image_labels)
 
     def capture(self, path=None):
-        if self._cam is not None:
+        if self._camera is not None:
             if path is None:
                 path = self._path / ('image' + str(self._next_image_number) + '.jpg')
             self._logger.info('capturing image')
-            self._cam.capture_file(str(path))
+            self._camera.capture_file(str(path))
             self._gpio.blink_eyes()
         else:
             raise AttributeError("app wasn't started with --camera flag, so you can't use the camera to capture images.")
@@ -531,8 +528,8 @@ class Workflow(object):
         os.replace(f.name, str(path))
 
     def close(self):
-        if self._cam is not None:
-            self._cam.close()
+        if self._camera is not None:
+            self._camera.close()
         self._image_processor.close()
         self._gpio.close()
         self._sound.close()
