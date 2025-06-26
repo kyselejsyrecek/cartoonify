@@ -15,7 +15,7 @@ from tempfile import NamedTemporaryFile
 from threading import Lock
 
 from app.sketch import SketchGizeh
-from app.io import Gpio, IrReceiver, ClapDetector
+from app.io import Gpio, IrReceiver, ClapDetector, PlaySound
 from app.utils.attributedict import AttributeDict
 from app.debugging import profiling
 from app.workflow.multiprocessing import *
@@ -80,6 +80,7 @@ class Workflow(object):
         self._gpio = Gpio()
         self._ir_receiver = None
         self._clap_detector = None
+        self._sound = PlaySound()
         self._sketcher = None
         self._web_gui = None
         self._image = None
@@ -146,6 +147,11 @@ class Workflow(object):
             if not self._config.no_clap_detector:
                 self._clap_detector = self._process_manager.start_process(ClapDetector.hook_up)
             self._logger.info('done')
+        
+        # Setup sound system
+        self._logger.info('setting up sound system...')
+        self._sound.setup()
+        self._logger.info('done')
         self._logger.info('loading cartoon dataset...')
         self._dataset.setup()
         self._logger.info('Done')
@@ -498,6 +504,7 @@ class Workflow(object):
             self._cam.close()
         self._image_processor.close()
         self._gpio.close()
+        self._sound.close()
 
     def increment(self):
         self._next_image_number = (self._next_image_number + 1) % self._config.max_image_number
