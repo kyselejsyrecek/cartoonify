@@ -1,4 +1,5 @@
 from __future__ import division
+import concurrent.futures
 import importlib
 import logging
 import multiprocessing
@@ -255,6 +256,35 @@ class Workflow(object):
             #request.release()
         self._gpio.set_initial_state()
         self._logger.info('setup finished.')
+
+    def _execute_concurrent_tasks(self, *tasks):
+        """Execute multiple tasks concurrently and wait for completion
+        
+        :param tasks: Functions to execute concurrently
+        """
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(tasks)) as executor:
+            # Submit all tasks
+            futures = [executor.submit(task) for task in tasks]
+            
+            # Wait for all to complete
+            concurrent.futures.wait(futures)
+
+    @async_task
+    def set_initial_state(self):
+        """Set initial state for GPIO and play awake sound simultaneously"""
+        if not self._lock.acquire(blocking=False):
+            self._logger.info('Set initial state ignored because another operation is in progress.')
+            return
+        try:
+            self._logger.info('Setting initial state...')
+            # Run both operations concurrently
+            self._execute_concurrent_tasks(
+                self._gpio.set_initial_state,
+                self._sound.awake
+            )
+            self._logger.info('Initial state set.')
+        finally:
+            self._lock.release()
 
     def connect_web_gui(self, web_gui):
         # Must be hooked up later since Web GUI requires GPIO to be already initialized.
