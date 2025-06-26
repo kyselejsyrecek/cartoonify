@@ -10,7 +10,7 @@ import atexit
 # GPIO PINS (BCM numbering)
 ALIVE_LED = 4
 RECORDING_LED = 27
-PRINTING_LED = 17
+BUSY_LED = 17
 
 EYE_BIG_LED = 18
 EYE_SMALL_LED = 22
@@ -38,7 +38,7 @@ class Gpio:
         self.fast_init = False
         self.led_alive = None
         self.led_recording = None
-        self.led_printing = None
+        self.led_busy = None
         self.led_big_eye = None
         self.led_small_eye = None
         self.button_capture = None
@@ -75,7 +75,7 @@ class Gpio:
         self.fast_init = fast_init
         self.led_alive = self.gpio.LED(ALIVE_LED)
         self.led_recording = self.gpio.LED(RECORDING_LED)
-        self.led_printing = self.gpio.LED(PRINTING_LED)
+        self.led_busy = self.gpio.LED(BUSY_LED)
         self.led_big_eye = self.gpio.LED(EYE_BIG_LED)
         self.led_small_eye = self.gpio.LED(EYE_SMALL_LED)
         self.button_capture = self.elements.SmartButton(CAPTURE_BUTTON, hold_time=trigger_hold_time, bounce_time=0.1)
@@ -98,7 +98,7 @@ class Gpio:
         self.led_alive.on()
         # Just in case.
         self.led_recording.off()
-        self.led_printing.off()
+        self.led_busy.off()
         self.led_big_eye.off()
         self.led_small_eye.off()
 
@@ -134,7 +134,7 @@ class Gpio:
             return
         
         self.flash_eyes_individually()
-        self.led_printing.off()
+        self.led_busy.off()
 
 
     def set_initial_state(self):
@@ -217,22 +217,22 @@ class Gpio:
 
 
     def set_error_state(self, error_msg):
-        self.led_printing.off()
+        self.led_busy.off()
 
         # The "recordng" LED is red, wink, wink ;-).
         self.led_recording.on()
         time.sleep(0.5)
-        self.led_printing.on()
+        self.led_busy.on()
         self.led_recording.off()
         time.sleep(0.5)
-        self.led_printing.off()
+        self.led_busy.off()
         self.led_recording.on()
         time.sleep(0.5)
-        self.led_printing.on()
+        self.led_busy.on()
         self.led_recording.off()
         time.sleep(0.5)
         self.led_recording.on()
-        self.led_printing.on()
+        self.led_busy.on()
         time.sleep(2)
         
         if e != "":
@@ -249,12 +249,12 @@ class Gpio:
         if not self.available():
             return
         
-        self.led_printing.on()
+        self.led_busy.on()
         # Media dimensions come from width of printable area (for 58mm paper) and cartoon width
         # which appears as height of the print when printed in landscape orientation.
         output = check_output(['lp', '-o', 'orientation-requested=5', '-o', 'media=Custom.57.86x102.87mm', '-o', 'fit-to-page', image_file])
         self._wait_for_print_job(output)
-        self.led_printing.off()
+        self.led_busy.off()
     
 
     def _wait_for_print_job(self, lp_output):
@@ -278,7 +278,7 @@ class Gpio:
         if self.available():
           self.led_alive.close()
           self.led_recording.close()
-          self.led_printing.close()
+          self.led_busy.close()
           self.led_big_eye.close()
           self.led_small_eye.close()
           self.button_capture.close()
