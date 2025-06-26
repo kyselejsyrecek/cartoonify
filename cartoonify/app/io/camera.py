@@ -95,6 +95,12 @@ class Camera(object):
             capture_config = self._cam.create_still_configuration() # This param can be added: controls={"AeExposureMode":2}
             # video_capture_config = self._cam.create_video_configuration(main, lores=lores, display='lores',controls={"FrameRate": 30, "FrameDurationLimits": (33333, 33333)}, transform=Transform(hflip=1, vflip=1))
             
+            # Enable raw capture for DNG files alongside JPEG
+            capture_config = self._cam.create_still_configuration(
+                main={"size": self._cam.sensor_resolution},
+                raw={"size": self._cam.sensor_resolution}
+            )
+            
             # Apply 180-degree rotation if requested
             if rotate_180deg:
                 from libcamera import Transform
@@ -120,13 +126,30 @@ class Camera(object):
             #request.release()
 
     def capture_file(self, path):
-        """Capture image to file
+        """Capture image to file (JPEG + DNG raw)
         
-        :param path: Path to save the image
+        :param path: Path to save the JPEG image (DNG will have same name with .dng extension)
         """
         if self._cam is not None:
             self._logger.info('capturing image')
-            self._cam.capture_file(str(path))
+            
+            # Generate paths for both JPEG and DNG
+            jpeg_path = Path(path)
+            dng_path = jpeg_path.with_suffix('.dng')
+            
+            # Capture both JPEG and raw DNG
+            request = self._cam.capture_request()
+            try:
+                # Save JPEG from main stream
+                request.save("main", str(jpeg_path))
+                
+                # Save DNG from raw stream
+                request.save_dng(str(dng_path))
+                
+                self._logger.info(f'Saved JPEG: {jpeg_path}')
+                self._logger.info(f'Saved DNG: {dng_path}')
+            finally:
+                request.release()
         else:
             raise AttributeError("Camera not initialized")
 
