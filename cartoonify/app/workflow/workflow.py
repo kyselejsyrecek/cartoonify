@@ -49,6 +49,7 @@ class Workflow(object):
             "rotate_180deg": False,
             "clap_detector": False,
             "no_ir_sensor": False,
+            "audio_backend": None,
         })
         self._lock = Lock()
         self._logger = logging.getLogger(self.__class__.__name__)
@@ -151,7 +152,7 @@ class Workflow(object):
         
         # Setup sound system
         self._logger.info('setting up sound system...')
-        self._sound.setup()
+        self._sound.setup(audio_backend=self._config.audio_backend)
         self._logger.info('done')
         self._logger.info('loading cartoon dataset...')
         self._dataset.setup()

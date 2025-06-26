@@ -13,8 +13,11 @@ class PlaySound(object):
         self._audio_backend = None  # Will be set in setup()
         self._pydub_available = False
 
-    def setup(self):
-        """Setup audio system"""
+    def setup(self, audio_backend=None):
+        """Setup audio system
+        
+        :param audio_backend: Preferred audio backend ('pulseaudio', 'alsa', 'native')
+        """
         self._logger.info('Setting up audio system...')
         
         # Import audio libraries
@@ -40,33 +43,61 @@ class PlaySound(object):
         # Detect and set preferred audio backend
         self._audio_backend = None
         
-        # Test PulseAudio availability (highest priority)
-        try:
-            subprocess.run(['pulseaudio', '--check'], check=True, capture_output=True)
-            self._logger.info('PulseAudio is available')
-            self._audio_backend = 'pulseaudio'
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            self._logger.warning('PulseAudio not available or not running')
-            
-        # Test ALSA availability (second priority)
-        if self._audio_backend is None:
+        # Define backend detection functions
+        def try_pulseaudio():
+            try:
+                subprocess.run(['pulseaudio', '--check'], check=True, capture_output=True)
+                self._logger.info('PulseAudio is available')
+                return True
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                self._logger.warning('PulseAudio not available or not running')
+                return False
+        
+        def try_alsa():
             try:
                 subprocess.run(['aplay', '--version'], check=True, capture_output=True)
                 self._logger.info('ALSA is available')
-                self._audio_backend = 'alsa'
+                return True
             except (subprocess.CalledProcessError, FileNotFoundError):
                 self._logger.warning('ALSA not available')
+                return False
         
-        # Try PyAudio for native playback (lowest priority)
-        if self._audio_backend is None:
+        def try_native():
             try:
                 pyaudio_module = importlib.import_module('pyaudio')
                 self._pa = pyaudio_module.PyAudio()
                 self._logger.info('PyAudio initialized successfully')
-                self._audio_backend = 'native'
+                return True
             except (ImportError, Exception) as e:
                 self._logger.warning(f'PyAudio initialization failed: {e}')
                 self._pa = None
+                return False
+        
+        # Try backends in order based on preference
+        backends_to_try = []
+        if audio_backend:
+            # If specific backend requested, try that first
+            backends_to_try.append(audio_backend)
+            # Add remaining backends in default priority order
+            default_order = ['pulseaudio', 'alsa', 'native']
+            for backend in default_order:
+                if backend != audio_backend:
+                    backends_to_try.append(backend)
+        else:
+            # Use default priority order
+            backends_to_try = ['pulseaudio', 'alsa', 'native']
+        
+        # Try each backend until one works
+        for backend in backends_to_try:
+            if backend == 'pulseaudio' and try_pulseaudio():
+                self._audio_backend = 'pulseaudio'
+                break
+            elif backend == 'alsa' and try_alsa():
+                self._audio_backend = 'alsa'
+                break
+            elif backend == 'native' and try_native():
+                self._audio_backend = 'native'
+                break
         
         if self._audio_backend is None:
             self._logger.error('No audio backend available')

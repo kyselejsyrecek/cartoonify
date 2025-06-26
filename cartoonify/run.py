@@ -59,6 +59,8 @@ def flatten(xss):
 @click.option('--debug-detection', is_flag=True, help='Save a list of all detected object scores.')
 @click.option('--fast-init', is_flag=True, help='Skip awakening animation to speed up initialization.')
 @click.option('--rotate-180deg', is_flag=True, help='Rotate camera image by 180 degrees')
+@click.option('--audio-backend', choices=['pulseaudio', 'alsa', 'native'], 
+              help='Specify audio backend to use')
 def run(**kwargs):
     # Redirect standard error output prematurely. Broken TensorFlow library and its
     # CUDA-related dependencies generate a bunch of error output which is irrelevant
