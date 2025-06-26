@@ -58,6 +58,7 @@ def flatten(xss):
 @click.option('--max-image-number', type=int, default=10000, help='Maximal number of images to be stored. Numbering will be restarted from zero when the limit is reached. Defaults to 10,000.')
 @click.option('--debug-detection', is_flag=True, help='Save a list of all detected object scores.')
 @click.option('--fast-init', is_flag=True, help='Skip awakening animation to speed up initialization.')
+@click.option('--rotate-180deg', is_flag=True, help='Rotate camera image by 180 degrees')
 def run(**kwargs):
     # Redirect standard error output prematurely. Broken TensorFlow library and its
     # CUDA-related dependencies generate a bunch of error output which is irrelevant
@@ -87,7 +88,7 @@ def run(**kwargs):
     _.install()
 
     # init objects
-    dataset = DrawingDataset(str(root / 'downloads/drawing_dataset'), str(root / 'app/label_mapping.jsonl'),
+    dataset = DrawingDataset(str(root / 'downloads/drawing_dataset'), str(root / 'app' / 'label_mapping.jsonl'),
                              config.force_download)
     imageprocessor = ImageProcessor(str(model_path),
                                     str(root / 'app' / 'object_detection' / 'data' / 'mscoco_label_map.pbtxt'),

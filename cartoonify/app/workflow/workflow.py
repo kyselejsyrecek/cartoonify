@@ -1,4 +1,3 @@
-
 from __future__ import division
 import importlib
 import logging
@@ -46,6 +45,7 @@ class Workflow(object):
             "max_image_number": 10000,
             "fast_init": False,
             "camera": False,
+            "rotate_180deg": False,
             "clap_detector": False,
             "no_ir_sensor": False,
         })
@@ -226,6 +226,12 @@ class Workflow(object):
             #picam2 = picam2.Picamera2(tuning=tuningfile)
             capture_config = self._cam.create_still_configuration() # This param can be added: controls={"AeExposureMode":2}
             # video_capture_config = self._cam.create_video_configuration(main, lores=lores, display='lores',controls={"FrameRate": 30, "FrameDurationLimits": (33333, 33333)}, transform=Transform(hflip=1, vflip=1))
+            
+            # Apply 180-degree rotation if requested
+            if self._config.rotate_180deg:
+                from libcamera import Transform
+                capture_config["transform"] = Transform(hflip=True, vflip=True)
+                
             self._logger.info(f"AnalogueGain control limits: {self._cam.camera_controls['AnalogueGain']}")
             # TODO resolution = (640, 480)
             self._cam.configure(capture_config)
