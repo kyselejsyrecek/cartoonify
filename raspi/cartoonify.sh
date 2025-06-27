@@ -77,6 +77,15 @@ daemon() {
   cd "$CARTOONIFY_DIR"
   while true; do
     ./raspi-run.sh
+    EXIT_CODE=$?
+    
+    # Check for shutdown exit code
+    if [ $EXIT_CODE -eq 42 ]; then
+        echo "Halt button pressed - shutting down system..."
+        sudo poweroff
+        exit 0
+    fi
+    
     gpio_init
     # Wait a bit if something is broken so that we don't overload the CPU.
     sleep 1

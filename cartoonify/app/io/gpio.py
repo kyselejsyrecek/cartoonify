@@ -16,7 +16,7 @@ EYE_BIG_LED = 18
 EYE_SMALL_LED = 22
 
 CAPTURE_BUTTON = 5
-#HALT_BUTTON = 6
+HALT_BUTTON = 6
 
 PROXIMITY_SENSOR = 13 # Or 29
 
@@ -43,6 +43,7 @@ class Gpio:
         self.led_small_eye = None
         self.button_capture = None
         self.proximity_sensor = None
+        self.halt_button = None
 
         try:
             self.gpio = importlib.import_module('gpiozero')
@@ -62,7 +63,7 @@ class Gpio:
             pass
         call(['sudo', 'sh', '-c', 'echo heartbeat > /sys/class/leds/power_led/trigger'])
 
-    def setup(self, fast_init=False, trigger_release_callback=None, trigger_held_callback=None, trigger_hold_time=1.5, approach_callback=None):
+    def setup(self, fast_init=False, trigger_release_callback=None, trigger_held_callback=None, trigger_hold_time=1.5, approach_callback=None, halt_callback=None):
         """setup GPIO pin to trigger callback function when capture pin goes low
 
         :return:
@@ -89,6 +90,11 @@ class Gpio:
                 self.proximity_sensor.when_activated = approach_callback
         except:
             self._logger.info('proximity sensor not found, continuing...')
+
+        # Setup halt button
+        self.button_halt = self.gpio.Button(self.HALT_BUTTON, pull_up=True, bounce_time=0.2)
+        if halt_callback:
+            self.button_halt.when_activated = halt_callback
 
         # Initial state
         # The LED is connected to two GPIO pins. Disable heartbeat blinking so that the LED is not overpowered.
@@ -275,6 +281,7 @@ class Gpio:
         return self.gpio is not None and self.initialized
 
     def close(self):
+        """Cleanup GPIO resources"""
         if self.available():
           self.led_alive.close()
           self.led_recording.close()
@@ -282,4 +289,5 @@ class Gpio:
           self.led_big_eye.close()
           self.led_small_eye.close()
           self.button_capture.close()
+          self.button_halt.close()
           self.initialized = False

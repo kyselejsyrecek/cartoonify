@@ -51,8 +51,7 @@ deliver 1.2V each, as well as enough current to drive the raspi and thermal prin
 # Set up LEDs
 dtoverlay=gpio-led,gpio=13,label=power_led,trigger=heartbeat
 
-# Set power-down button
-dtoverlay=gpio-shutdown,gpio_pin=6
+
 
 # Set IR receiver
 dtoverlay=gpio-ir,gpio_pin=23
@@ -77,4 +76,9 @@ LC_MESSAGES=cs_CZ.UTF-8
 - The most common issue when running on a raspi is not having the camera plugged in correctly.
 - If nothing is printing, check the logs then check whether images are being saved to `cartoonify/images`.
 - Check that you can manually print something from the thermal printer from the command line.
+
+## Halt Button (Pin 6 BCM)
+- **Purpose**: System shutdown button
+- **Behavior**: When pressed, initiates graceful application shutdown and system poweroff
+- **Connection**: Connect button between GPIO pin 6 and ground with internal pull-up resistor
 

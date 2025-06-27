@@ -137,7 +137,8 @@ class Workflow(object):
             self._gpio.setup(fast_init=self._config.fast_init,
                              trigger_release_callback=self.capture,
                              trigger_held_callback=self.print_previous_original,
-                             approach_callback=self.someone_approached)
+                             approach_callback=self.someone_approached,
+                             halt_callback=self.system_halt)
             if not self._config.no_ir_receiver:
                 self._ir_receiver = self._process_manager.start_process(IrReceiver.hook_up)
             if not self._config.no_clap_detector:
@@ -421,6 +422,29 @@ class Workflow(object):
         try:
             self._logger.info('Someone approached.')
             self._gpio.blink_eyes()
+        finally:
+            self._lock.release()
+
+
+    @async_task
+    def system_halt(self, e=None):
+        """Handle system halt button press
+        
+        :param Button e: Originator of the event (gpiozero object).
+        """
+        self._logger.info('System halt button pressed - waiting for current operation to finish...')
+        # Wait for any current operation to finish (blocking acquire)
+        self._lock.acquire()
+        try:
+            self._logger.info('Initiating system shutdown.')
+            # Set exit event to signal all processes to stop
+            exit_event.set()
+            # Close all resources
+            self.close()
+            # Wait a moment before shutdown
+            time.sleep(2)
+            # Exit with special code 42 for shutdown
+            sys.exit(42)
         finally:
             self._lock.release()
 
