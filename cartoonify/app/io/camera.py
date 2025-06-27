@@ -144,10 +144,14 @@ class Camera(object):
             
             # Import controls for camera setup
             from libcamera import controls
+            # Ensure continuous autofocus is active after start
             self._cam.controls.AfMode = controls.AfModeEnum.Continuous
+            self._cam.controls.AfTrigger = controls.AfTriggerEnum.Start
             #self._cam.controls.AnalogueGain = 1.0
             #self._cam.controls.ExposureTime = 0
             self._cam.controls.AeEnable = True
+            
+            # Start camera and give it time to initialize autofocus
             self._cam.start()
             time.sleep(2) # FIXME Replace with lazy sleep instead? Is that even needed?
 
