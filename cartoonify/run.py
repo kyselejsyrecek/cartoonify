@@ -61,6 +61,12 @@ def flatten(xss):
 @click.option('--rotate-180deg', is_flag=True, help='Rotate camera image by 180 degrees')
 @click.option('--audio-backend', choices=['pulseaudio', 'alsa', 'native'], 
               help='Specify audio backend to use')
+@click.option('--video-format', choices=['h264', 'mjpeg'], default='h264',
+              help='Video recording format')
+@click.option('--video-resolution', choices=['480p', '720p', '1080p', 'max'], default='1080p',
+              help='Video recording resolution')
+@click.option('--video-fps', choices=[30, 50, 60, 100, 120], type=int, default=30,
+              help='Video recording frame rate')
 def run(**kwargs):
     # Redirect standard error output prematurely. Broken TensorFlow library and its
     # CUDA-related dependencies generate a bunch of error output which is irrelevant

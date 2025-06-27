@@ -50,6 +50,9 @@ class Workflow(object):
             "clap_detector": False,
             "no_ir_sensor": False,
             "audio_backend": None,
+            "video_format": "h264",
+            "video_resolution": "1080p", 
+            "video_fps": 30,
         })
         self._lock = Lock()
         self._logger = logging.getLogger(self.__class__.__name__)
@@ -144,7 +147,12 @@ class Workflow(object):
         # Setup camera system
         if self._camera is not None:
             self._logger.info('setting up camera...')
-            self._camera.setup(rotate_180deg=self._config.rotate_180deg)
+            self._camera.setup(
+                rotate_180deg=self._config.rotate_180deg,
+                video_format=self._config.video_format,
+                video_resolution=self._config.video_resolution,
+                video_fps=self._config.video_fps
+            )
             self._logger.info('done')
         
         # Setup sound system
@@ -362,7 +370,6 @@ class Workflow(object):
             self._lock.release()
 
 
-    # TODO Not implemented.
     @async_task
     def toggle_recording(self, e=None):
         """Toggle video recording.
@@ -376,6 +383,12 @@ class Workflow(object):
             self._logger.info('Button toggling video recording pressed.')
             self._is_recording = not self._is_recording
             self._gpio.set_recording_state(self._is_recording)
+            
+            if self._camera is not None:
+                if self._is_recording:
+                    self._camera.start_recording()
+                else:
+                    self._camera.stop_recording()
         finally:
             self._lock.release()
 
@@ -529,6 +542,9 @@ class Workflow(object):
 
     def close(self):
         if self._camera is not None:
+            # Ensure video recording is stopped before closing
+            if self._is_recording:
+                self._camera.stop_recording()
             self._camera.close()
         self._image_processor.close()
         self._gpio.close()
