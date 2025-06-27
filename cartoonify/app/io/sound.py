@@ -12,13 +12,18 @@ class PlaySound(object):
         self._resources_path = Path(__file__).parent.parent.parent / 'sound'
         self._audio_backend = None  # Will be set in setup()
         self._pydub_available = False
+        self._max_volume = 1.0
 
-    def setup(self, audio_backend=None):
+    def setup(self, audio_backend=None, volume=1.0):
         """Setup audio system
         
         :param audio_backend: Preferred audio backend ('pulseaudio', 'alsa', 'native')
+        :param volume: Maximum volume level (0.0 to 1.0)
         """
         self._logger.info('Setting up audio system...')
+        
+        # Store volume settings
+        self._max_volume = max(0.0, min(1.0, volume))  # Clamp between 0.0 and 1.0
         
         # Import audio libraries
         import importlib
@@ -103,16 +108,28 @@ class PlaySound(object):
             self._logger.error('No audio backend available')
         else:
             self._logger.info(f'Using audio backend: {self._audio_backend}')
+            self._logger.info(f'Maximum volume set to: {self._max_volume:.1%}')
+            
+            # Set system volume if using PulseAudio or ALSA
+            self._set_system_volume(self._max_volume)
 
-    def play(self, audio_file):
+    def play(self, audio_file, volume=1.0):
         """Play audio file using available method
         
         :param audio_file: Path to audio file
+        :param volume: Relative volume (0.0 to 1.0, relative to max volume)
         """
         # Check if file exists
         if not Path(audio_file).exists():
             self._logger.warning(f'Audio file not found: {audio_file}')
             return
+        
+        # Calculate final volume
+        final_volume = self._max_volume * max(0.0, min(1.0, volume))
+        
+        # Set temporary volume if different from max
+        if volume != 1.0 and self._audio_backend in ['pulseaudio', 'alsa']:
+            self._set_system_volume(final_volume)
         
         # Use the detected backend
         if self._audio_backend == 'pulseaudio':
@@ -120,9 +137,34 @@ class PlaySound(object):
         elif self._audio_backend == 'alsa':
             self._play_alsa(audio_file)
         elif self._audio_backend == 'native':
-            self._play_native(audio_file)
+            self._play_native(audio_file, volume)
         else:
             self._logger.error('No audio backend available for playback')
+            
+        # Restore max volume if it was temporarily changed
+        if volume != 1.0 and self._audio_backend in ['pulseaudio', 'alsa']:
+            self._set_system_volume(self._max_volume)
+
+    def _set_system_volume(self, volume):
+        """Set system volume using appropriate method
+        
+        :param volume: Volume level (0.0 to 1.0)
+        """
+        try:
+            # Convert to percentage for system commands
+            volume_percent = int(volume * 100)
+            
+            if self._audio_backend == 'pulseaudio':
+                # Use pactl to set PulseAudio volume
+                subprocess.run(['pactl', 'set-sink-volume', '@DEFAULT_SINK@', f'{volume_percent}%'], 
+                             check=True, capture_output=True)
+            elif self._audio_backend == 'alsa':
+                # Use amixer to set ALSA volume
+                subprocess.run(['amixer', 'set', 'Master', f'{volume_percent}%'], 
+                             check=True, capture_output=True)
+                             
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            self._logger.warning(f'Failed to set system volume: {e}')
 
     def _play_alsa(self, audio_file):
         """Play audio file using ALSA
@@ -186,10 +228,11 @@ class PlaySound(object):
         except FileNotFoundError:
             self._logger.error('paplay command not found')
 
-    def _play_native(self, audio_file):
+    def _play_native(self, audio_file, volume=1.0):
         """Play audio file using native Python PyAudio
         
-        :param audio_file: Path to audio file (.pcm, .wav, or .mp3, 44kHz)
+        :param audio_file: Path to audio file (.pcm, .wav, .mp3, or .ogg, 44kHz)
+        :param volume: Relative volume (0.0 to 1.0, relative to max volume)
         """
         if self._pa is None:
             self._logger.error('PyAudio not available for native playback')
@@ -199,26 +242,29 @@ class PlaySound(object):
             file_path = Path(audio_file)
             extension = file_path.suffix.lower()
             
+            # Calculate final volume for native playback
+            final_volume = self._max_volume * max(0.0, min(1.0, volume))
+            
             if extension == '.pcm':
                 self._logger.info(f'Playing PCM file natively: {audio_file}')
-                self._play_pcm_native(audio_file)
+                self._play_pcm_native(audio_file, final_volume)
             elif extension == '.wav':
                 self._logger.info(f'Playing WAV file natively: {audio_file}')
-                self._play_wav_native(audio_file)
+                self._play_wav_native(audio_file, final_volume)
             elif extension == '.mp3':
                 self._logger.info(f'Playing MP3 file natively: {audio_file}')
-                self._play_mp3_native(audio_file)
+                self._play_mp3_native(audio_file, final_volume)
             elif extension == '.ogg':
                 self._logger.info(f'Playing OGG file natively: {audio_file}')
-                self._play_ogg_native(audio_file)
+                self._play_ogg_native(audio_file, final_volume)
             else:
                 self._logger.error(f'Unsupported audio format: {extension}')
             
         except Exception as e:
             self._logger.error(f'Native playback failed: {e}')
 
-    def _play_pcm_native(self, pcm_file):
-        """Play PCM file using PyAudio"""
+    def _play_pcm_native(self, pcm_file, volume=1.0):
+        """Play PCM file using PyAudio with volume control"""
         chunk = 1024
         
         stream = self._pa.open(
@@ -232,14 +278,16 @@ class PlaySound(object):
             with open(pcm_file, 'rb') as f:
                 data = f.read(chunk)
                 while data:
-                    stream.write(data)
+                    # Scale volume
+                    scaled_data = bytes(int(sample * volume) for sample in data)
+                    stream.write(scaled_data)
                     data = f.read(chunk)
         finally:
             stream.stop_stream()
             stream.close()
 
-    def _play_wav_native(self, wav_file):
-        """Play WAV file using PyAudio"""
+    def _play_wav_native(self, wav_file, volume=1.0):
+        """Play WAV file using PyAudio with volume control"""
         if self._wave is None:
             self._logger.error('wave module not available for WAV playback')
             return
@@ -257,14 +305,16 @@ class PlaySound(object):
             try:
                 data = wf.readframes(chunk)
                 while data:
-                    stream.write(data)
+                    # Scale volume
+                    scaled_data = bytes(int(sample * volume) for sample in data)
+                    stream.write(scaled_data)
                     data = wf.readframes(chunk)
             finally:
                 stream.stop_stream()
                 stream.close()
 
-    def _play_mp3_native(self, mp3_file):
-        """Play MP3 file using PyAudio via pydub"""
+    def _play_mp3_native(self, mp3_file, volume=1.0):
+        """Play MP3 file using PyAudio via pydub with volume control"""
         if not self._pydub_available:
             self._logger.error('pydub not available for MP3 playback')
             return
@@ -298,8 +348,8 @@ class PlaySound(object):
         except Exception as e:
             self._logger.error(f'MP3 playback failed: {e}')
 
-    def _play_ogg_native(self, ogg_file):
-        """Play OGG file using PyAudio via pydub"""
+    def _play_ogg_native(self, ogg_file, volume=1.0):
+        """Play OGG file using PyAudio via pydub with volume control"""
         if not self._pydub_available:
             self._logger.error('pydub not available for OGG playback')
             return

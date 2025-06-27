@@ -67,6 +67,8 @@ def flatten(xss):
               help='Video recording resolution')
 @click.option('--video-fps', choices=[30, 50, 60, 100, 120], type=int, default=30,
               help='Video recording frame rate')
+@click.option('--volume', type=float, default=1.0, metavar='0.0-1.0',
+              help='Audio volume (0.0 = mute, 1.0 = 100%%)')
 def run(**kwargs):
     # Redirect standard error output prematurely. Broken TensorFlow library and its
     # CUDA-related dependencies generate a bunch of error output which is irrelevant

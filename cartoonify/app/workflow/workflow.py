@@ -53,6 +53,7 @@ class Workflow(object):
             "video_format": "h264",
             "video_resolution": "1080p", 
             "video_fps": 30,
+            "volume": 1.0,
         })
         self._lock = Lock()
         self._logger = logging.getLogger(self.__class__.__name__)
@@ -158,7 +159,7 @@ class Workflow(object):
         
         # Setup sound system
         self._logger.info('setting up sound system...')
-        self._sound.setup(audio_backend=self._config.audio_backend)
+        self._sound.setup(audio_backend=self._config.audio_backend, volume=self._config.volume)
         self._logger.info('done')
         self._logger.info('loading cartoon dataset...')
         self._dataset.setup()
