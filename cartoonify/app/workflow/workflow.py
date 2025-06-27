@@ -55,6 +55,7 @@ class Workflow(object):
             "video_fps": 30,
             "volume": 1.0,
             "no_accelerometer": False,
+            "alsa_numid": 4,
         })
         self._lock = Lock()
         self._logger = logging.getLogger(self.__class__.__name__)
@@ -162,7 +163,7 @@ class Workflow(object):
         
         # Setup sound system
         self._logger.info('setting up sound system...')
-        self._sound.setup(audio_backend=self._config.audio_backend, volume=self._config.volume)
+        self._sound.setup(audio_backend=self._config.audio_backend, volume=self._config.volume, alsa_numid=self._config.alsa_numid)
         self._logger.info('done')
         self._logger.info('loading cartoon dataset...')
         self._dataset.setup()

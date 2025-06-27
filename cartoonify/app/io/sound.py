@@ -13,17 +13,20 @@ class PlaySound(object):
         self._audio_backend = None  # Will be set in setup()
         self._pydub_available = False
         self._max_volume = 1.0
+        self._alsa_numid = 4
 
-    def setup(self, audio_backend=None, volume=1.0):
+    def setup(self, audio_backend=None, volume=1.0, alsa_numid=4):
         """Setup audio system
         
         :param audio_backend: Preferred audio backend ('pulseaudio', 'alsa', 'native')
         :param volume: Maximum volume level (0.0 to 1.0)
+        :param alsa_numid: ALSA mixer control numid for volume adjustment
         """
         self._logger.info('Setting up audio system...')
         
         # Store volume settings
         self._max_volume = max(0.0, min(1.0, volume))  # Clamp between 0.0 and 1.0
+        self._alsa_numid = alsa_numid
         
         # Import audio libraries
         import importlib
@@ -159,8 +162,8 @@ class PlaySound(object):
                 subprocess.run(['pactl', 'set-sink-volume', '@DEFAULT_SINK@', f'{volume_percent}%'], 
                              check=True, capture_output=True)
             elif self._audio_backend == 'alsa':
-                # Use amixer to set ALSA volume
-                subprocess.run(['amixer', 'set', 'Master', f'{volume_percent}%'], 
+                # Use amixer cset with configurable numid to set ALSA volume
+                subprocess.run(['amixer', 'cset', f'numid={self._alsa_numid}', f'{volume_percent}%'], 
                              check=True, capture_output=True)
                              
         except (subprocess.CalledProcessError, FileNotFoundError) as e:

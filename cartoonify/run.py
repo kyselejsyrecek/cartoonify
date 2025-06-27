@@ -69,6 +69,8 @@ def flatten(xss):
               help='Video recording frame rate')
 @click.option('--volume', type=float, default=1.0, metavar='0.0-1.0',
               help='Audio volume (0.0 = mute, 1.0 = 100%%)')
+@click.option('--alsa-numid', type=int, default=4,
+              help='ALSA mixer control numid for volume adjustment')
 @click.option('--no-accelerometer', is_flag=True, help='Disable accelerometer motion detection')
 def run(**kwargs):
     # Redirect standard error output prematurely. Broken TensorFlow library and its
