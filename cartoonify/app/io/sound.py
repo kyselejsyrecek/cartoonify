@@ -183,7 +183,7 @@ class PlaySound(object):
                 self._logger.info(f'Playing PCM file via ALSA: {audio_file}')
                 subprocess.run([
                     'aplay', 
-                    '-r', '44000',
+                    '-r', '44100',
                     '-f', 'S16_LE',
                     '-c', '1',
                     str(audio_file)
@@ -234,7 +234,7 @@ class PlaySound(object):
     def _play_native(self, audio_file, volume=1.0):
         """Play audio file using native Python PyAudio
         
-        :param audio_file: Path to audio file (.pcm, .wav, .mp3, or .ogg, 44kHz)
+        :param audio_file: Path to audio file (.pcm, .wav, .mp3, or .ogg, 44.1kHz)
         :param volume: Relative volume (0.0 to 1.0, relative to max volume)
         """
         if self._pa is None:
@@ -270,10 +270,11 @@ class PlaySound(object):
         """Play PCM file using PyAudio with volume control"""
         chunk = 1024
         
+        # Open audio stream for 44.1kHz playback
         stream = self._pa.open(
             format=pyaudio.paInt16,
             channels=1,
-            rate=44000,
+            rate=44100,  # 44.1kHz
             output=True
         )
         
