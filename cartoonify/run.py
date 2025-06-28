@@ -59,13 +59,13 @@ def flatten(xss):
 @click.option('--debug-detection', is_flag=True, help='Save a list of all detected object scores.')
 @click.option('--fast-init', is_flag=True, help='Skip awakening animation to speed up initialization.')
 @click.option('--rotate-180deg', is_flag=True, help='Rotate camera image by 180 degrees')
-@click.option('--audio-backend', choices=['pulseaudio', 'alsa', 'native'], 
+@click.option('--audio-backend', type=click.Choice(['pulseaudio', 'alsa', 'native']), 
               help='Specify audio backend to use')
-@click.option('--video-format', choices=['h264', 'mjpeg'], default='h264',
+@click.option('--video-format', type=click.Choice(['h264', 'mjpeg']), default='h264',
               help='Video recording format')
-@click.option('--video-resolution', choices=['480p', '720p', '1080p', 'max'], default='1080p',
+@click.option('--video-resolution', type=click.Choice(['480p', '720p', '1080p', 'max']), default='1080p',
               help='Video recording resolution')
-@click.option('--video-fps', choices=[30, 50, 60, 100, 120], type=int, default=30,
+@click.option('--video-fps', type=click.Choice(['30', '50', '60', '100', '120']), default='30',
               help='Video recording frame rate')
 @click.option('--volume', type=float, default=1.0, metavar='0.0-1.0',
               help='Audio volume (0.0 = mute, 1.0 = 100%%)')
