@@ -92,7 +92,7 @@ class Gpio:
             self._logger.info('proximity sensor not found, continuing...')
 
         # Setup halt button
-        self.button_halt = self.gpio.Button(self.HALT_BUTTON, pull_up=True, bounce_time=0.2)
+        self.button_halt = self.gpio.Button(HALT_BUTTON, pull_up=True, bounce_time=0.2)
         if halt_callback:
             self.button_halt.when_activated = halt_callback
 
