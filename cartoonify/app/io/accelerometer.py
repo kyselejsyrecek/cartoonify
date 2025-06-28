@@ -2,7 +2,7 @@ import logging
 import time
 import threading
 import importlib
-from app.workflow.multiprocessing import AsyncExecutor, async_task
+from app.utils.asynctask import *
 
 
 class Accelerometer(object):
