@@ -1,8 +1,7 @@
-import asyncio
 import evdev
 import logging
 import signal
-from threading import Thread
+import time
 
 
 BUTTON_IMMEDIATE_TRIGGER = [ 0x7fbfffff, 0xcab11f  ]
@@ -24,7 +23,6 @@ class IrReceiver:
         self._logger = logging.getLogger(self.__class__.__name__)
 
         self.dev = None
-        self.thread = None
         self.trigger_callback = noop
         self.trigger_2s_callback = noop
         self.recording_callback = noop
@@ -80,37 +78,44 @@ class IrReceiver:
     def start(self):
         """Worker thread.
         """
-        asyncio.run(self._processing_loop())
+        self._processing_loop()
         
 
-    async def _processing_loop(self):
-        try:
-            cmd = None
-            async for event in self.dev.async_read_loop():
-                self._logger.debug(f'Received IR command: 0x{event.value:08x}')
-                if cmd is None:
-                    cmd = event.value
-                else:
-                    if event.value == 0:
-                        if cmd is not None and cmd > 0:
-                            self._logger.debug('Received terminating IR string. Processing command.')
-                            if cmd in BUTTON_IMMEDIATE_TRIGGER:
-                                self._logger.debug('Invoking immediate trigger.')
-                                self.trigger_callback()
-                            elif cmd in BUTTON_2S_TRIGGER:
-                                self._logger.debug('Invoking 2-second trigger.')
-                                self.trigger_2s_callback()
-                            elif cmd in BUTTON_TOGGLE_RECORDING:
-                                self._logger.debug('Toggling recording.')
-                                self.recording_callback()
-                            elif cmd in BUTTON_WINK:
-                                self._logger.debug('Invoking wink trigger.')
-                                self.wink_callback()
-                            else:
-                                self._logger.debug('Unknown IR command, ignoring.')
-                            cmd = None
+    def _processing_loop(self):
+        """Main processing loop for IR commands (synchronous)"""
+        self._logger.info('Starting IR receiver processing loop...')
+        
+        cmd = None
+        while True:
+            try:
+                for event in self.dev.read():
+                    self._logger.debug(f'Received IR command: 0x{event.value:08x}')
+                    if cmd is None:
+                        cmd = event.value
                     else:
-                        self._logger.debug('Received unsupported multi-integer command. Ignoring.')
-                        cmd = -1
-        except asyncio.exceptions.CancelledError:
-            self._logger.debug('Worker thread of IR receiver terminated.')
+                        if event.value == 0:
+                            if cmd is not None and cmd > 0:
+                                self._logger.debug('Received terminating IR string. Processing command.')
+                                if cmd in BUTTON_IMMEDIATE_TRIGGER:
+                                    self._logger.debug('Invoking immediate trigger.')
+                                    self.trigger_callback()
+                                elif cmd in BUTTON_2S_TRIGGER:
+                                    self._logger.debug('Invoking 2-second trigger.')
+                                    self.trigger_2s_callback()
+                                elif cmd in BUTTON_TOGGLE_RECORDING:
+                                    self._logger.debug('Toggling recording.')
+                                    self.recording_callback()
+                                elif cmd in BUTTON_WINK:
+                                    self._logger.debug('Invoking wink trigger.')
+                                    self.wink_callback()
+                                else:
+                                    self._logger.debug('Unknown IR command, ignoring.')
+                                cmd = None
+                        else:
+                            self._logger.debug('Received unsupported multi-integer command. Ignoring.')
+                            cmd = -1
+                time.sleep(0.1)  # Small delay to prevent busy waiting
+                        
+            except Exception as e:
+                self._logger.error(f'Error in IR processing: {e}')
+                time.sleep(1)  # Wait before retrying
