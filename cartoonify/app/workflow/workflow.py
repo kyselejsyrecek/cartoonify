@@ -181,7 +181,7 @@ class Workflow(object):
         image_numbers = sorted(list(map(lambda x: int(os.path.basename(x).split('cartoon')[1].split('.')[0]), self._path.glob('cartoon?*.png'))))
         self._next_image_number = image_numbers[-1] + 1 if len(image_numbers) > 0 else 0
         self._last_original_image_number = self._next_image_number - 1
-        self._gpio.set_initial_state()
+        self._set_initial_state()
         self._logger.info('setup finished.')
 
     def _execute_concurrent_tasks(self, *tasks):
@@ -326,13 +326,11 @@ class Workflow(object):
         self._next_image_number = (self._next_image_number + 1) % self._config.max_image_number
         self._last_original_image_number = self._next_image_number - 1
 
-    # Event handlers
-    @async_task
-    def set_initial_state(self):
+    def _set_initial_state(self):
         """Set initial state for GPIO and play awake sound simultaneously"""
-        if not self._lock.acquire(blocking=False):
-            self._logger.info('Set initial state ignored because another operation is in progress.')
-            return
+        if not self._lock.acquire(blocking=True):
+            self._logger.error('Error setting initial state.')
+            self.close()
         try:
             self._logger.info('Setting initial state...')
             # Run both operations concurrently
@@ -348,7 +346,7 @@ class Workflow(object):
         # Must be hooked up later since Web GUI requires GPIO to be already initialized.
         self._web_gui = web_gui
 
-
+    # Event handlers
     @async_task
     def system_halt(self, e=None):
         """Handle system halt button press
