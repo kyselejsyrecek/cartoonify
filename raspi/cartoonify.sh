@@ -27,7 +27,7 @@ gpio_init() {
 
   # Group 0 is GPIO 0..27, 7 is 16mA (max is 16 mA, 50 mA total for all GPIOs).
   gpio drive 0 7
-  # Pin 7 (WiringPi's numbering, i.e., BCM 4) is connected to the power LED. So does pin 22 (BCM 6).
+  # Pin 7 (WiringPi's numbering, i.e., BCM 4) is connected to the power LED. So does pin 23 (BCM 13).
   # Let's set the former one to the low state just in case the aplication crashed so that we don't overpower the LED.
   gpio write 7 0
   echo heartbeat > /sys/class/leds/power_led/trigger
