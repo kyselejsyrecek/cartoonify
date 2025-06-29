@@ -146,7 +146,7 @@ class Camera(object):
             from libcamera import controls
             # Ensure continuous autofocus is active after start
             self._cam.controls.AfMode = controls.AfModeEnum.Continuous
-            self._cam.controls.AfTrigger = controls.AfTriggerEnum.Start
+            #self._cam.controls.AfTrigger = controls.AfTriggerEnum.Start
             #self._cam.controls.AnalogueGain = 1.0
             #self._cam.controls.ExposureTime = 0
             self._cam.controls.AeEnable = True
