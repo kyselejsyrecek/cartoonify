@@ -204,7 +204,7 @@ class Workflow(object):
         """
         try:
             self._logger.info('capturing and processing image.')
-            original = self.capture()
+            original = self._capture()
             self.process()
             annotated, cartoon, image_labels = self.save_results()
             if print_cartoon:
@@ -217,7 +217,7 @@ class Workflow(object):
         if self._web_gui:
             self._web_gui.show_image(original, annotated, cartoon, image_labels)
 
-    def capture(self, path=None):
+    def _capture(self, path=None):
         if self._camera is not None:
             if path is None:
                 path = self._path / ('image' + str(self._next_image_number) + '.jpg')
