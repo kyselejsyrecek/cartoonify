@@ -18,6 +18,8 @@ class PlaySound(object):
         self._pydub_available = False
         self._max_volume = 1.0
         self._alsa_numid = 4
+        self._mp3_player = None
+        self._ogg_player = None
 
     def setup(self, audio_backend=None, volume=1.0, alsa_numid=4):
         """Setup audio system
@@ -116,6 +118,10 @@ class PlaySound(object):
             
             # Set system volume if using PulseAudio or ALSA
             self._set_system_volume(self._max_volume)
+            
+            # Detect available audio players for ALSA backend
+            if self._audio_backend == 'alsa':
+                self._detect_audio_players()
 
     def close(self):
         """Cleanup audio resources"""
@@ -238,17 +244,36 @@ class PlaySound(object):
                     '-c', '1',
                     str(audio_file)
                 ], check=True)
-            elif extension in ['.wav', '.mp3', '.ogg']:
-                # Play audio file with aplay (requires format support)
-                self._logger.info(f'Playing {extension.upper()} file via ALSA: {audio_file}')
+            elif extension == '.wav':
+                # Play WAV file with aplay
+                self._logger.info(f'Playing WAV file via ALSA: {audio_file}')
                 subprocess.run(['aplay', str(audio_file)], check=True)
+            elif extension == '.mp3':
+                # Play MP3 file with detected player
+                if self._mp3_player == 'mpg123':
+                    self._logger.info(f'Playing MP3 file via mpg123: {audio_file}')
+                    subprocess.run(['mpg123', '-q', str(audio_file)], check=True)
+                elif self._mp3_player == 'ffplay':
+                    self._logger.info(f'Playing MP3 file via ffplay: {audio_file}')
+                    subprocess.run(['ffplay', '-nodisp', '-autoexit', str(audio_file)], check=True)
+                else:
+                    self._logger.error('No MP3 player available')
+            elif extension == '.ogg':
+                # Play OGG file with detected player
+                if self._ogg_player == 'ogg123':
+                    self._logger.info(f'Playing OGG file via ogg123: {audio_file}')
+                    subprocess.run(['ogg123', '-q', str(audio_file)], check=True)
+                elif self._ogg_player == 'ffplay':
+                    self._logger.info(f'Playing OGG file via ffplay: {audio_file}')
+                    subprocess.run(['ffplay', '-nodisp', '-autoexit', str(audio_file)], check=True)
+                else:
+                    self._logger.error('No OGG player available')
             else:
                 self._logger.error(f'Unsupported audio format for ALSA: {extension}')
-                
         except subprocess.CalledProcessError as e:
             self._logger.error(f'ALSA playback failed: {e}')
-        except FileNotFoundError:
-            self._logger.error('aplay command not found')
+        except Exception as e:
+            self._logger.error(f'ALSA playback error: {e}')
 
     def _play_pulseaudio(self, audio_file):
         """Play audio file using PulseAudio
@@ -437,6 +462,34 @@ class PlaySound(object):
         except Exception as e:
             self._logger.error(f'OGG playback failed: {e}')
 
+    def _detect_audio_players(self):
+        """Detect available audio players for different formats"""
+        # Detect MP3 player
+        try:
+            subprocess.run(['mpg123', '--version'], capture_output=True, check=True)
+            self._mp3_player = 'mpg123'
+            self._logger.info('Detected MP3 player: mpg123')
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            try:
+                subprocess.run(['ffplay', '-version'], capture_output=True, check=True)
+                self._mp3_player = 'ffplay'
+                self._logger.info('Detected MP3 player: ffplay')
+            except (FileNotFoundError, subprocess.CalledProcessError):
+                self._logger.warning('No MP3 player found (install mpg123 or ffmpeg)')
+        
+        # Detect OGG player
+        try:
+            subprocess.run(['ogg123', '--version'], capture_output=True, check=True)
+            self._ogg_player = 'ogg123'
+            self._logger.info('Detected OGG player: ogg123')
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            try:
+                subprocess.run(['ffplay', '-version'], capture_output=True, check=True)
+                self._ogg_player = 'ffplay'
+                self._logger.info('Detected OGG player: ffplay')
+            except (FileNotFoundError, subprocess.CalledProcessError):
+                self._logger.warning('No OGG player found (install vorbis-tools or ffmpeg)')
+
     # Sound definitions
     def awake(self):
         """Play awake sound"""
@@ -462,6 +515,6 @@ class PlaySound(object):
         """Play sad sound"""
         self.play('sad*.*')
 
-    def shutter(self):
-        """Play shutter sound"""
-        self.play('shutter*.*')
+    def capture(self):
+        """Play sound of a capture"""
+        self.play('capture*.*')
