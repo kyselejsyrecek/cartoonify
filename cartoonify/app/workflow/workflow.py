@@ -335,8 +335,8 @@ class Workflow(object):
             self._logger.info('Setting initial state...')
             # Run both operations concurrently
             self._execute_concurrent_tasks(
-                self._gpio.set_initial_state,
-                self._sound.awake
+                self._sound.awake,
+                self._gpio.set_initial_state
             )
             self._logger.info('Initial state set.')
         finally:
@@ -381,7 +381,10 @@ class Workflow(object):
             return
         try:
             self._logger.info('Capture button pressed.')
-            self.run(print_cartoon=True)
+            self._execute_concurrent_tasks(
+                self._sound.capture,
+                lambda: self.run(print_cartoon=True)
+            )
         finally:
             self._lock.release()
 
@@ -405,7 +408,10 @@ class Workflow(object):
             time.sleep(0.2)
             self._gpio.set_recording_state(self._is_recording)
             time.sleep(0.8)
-            self.run(print_cartoon=True)
+            self._execute_concurrent_tasks(
+                self._sound.capture,
+                lambda: self.run(print_cartoon=True)
+            )
         finally:
             self._lock.release()
 
@@ -437,7 +443,10 @@ class Workflow(object):
                             self._logger.info('No original photo found.')
                             return
 
-                self._gpio.print(str(path))
+                self._execute_concurrent_tasks(
+                    self._sound.capture,
+                    lambda: self._gpio.print(str(path))
+                )
                 self._last_original_image_number = (self._last_original_image_number - 1) % self._next_image_number
         finally:
             self._lock.release()
@@ -493,7 +502,10 @@ class Workflow(object):
             return
         try:
             self._logger.info('Someone approached.')
-            self._gpio.blink_eyes()
+            self._execute_concurrent_tasks(
+                self._sound.greeting,
+                self._gpio.blink_eyes
+            )
         finally:
             self._lock.release()
 
