@@ -1,4 +1,5 @@
 import logging
+import random
 import subprocess
 from pathlib import Path
 
@@ -119,12 +120,22 @@ class PlaySound(object):
     def play(self, audio_file, volume=1.0):
         """Play audio file using available method
         
-        :param audio_file: Path to audio file
+        :param audio_file: Path to audio file or list of paths for random selection
         :param volume: Relative volume (0.0 to 1.0, relative to max volume)
         """
+        # Handle random selection from list
+        if isinstance(audio_file, (list, tuple)):
+            if not audio_file:
+                self._logger.warning('Empty audio file list provided')
+                return
+            selected_file = random.choice(audio_file)
+            self._logger.info(f'Randomly selected: {selected_file} from {len(audio_file)} options')
+        else:
+            selected_file = audio_file
+        
         # Check if file exists
-        if not Path(audio_file).exists():
-            self._logger.warning(f'Audio file not found: {audio_file}')
+        if not Path(selected_file).exists():
+            self._logger.warning(f'Audio file not found: {selected_file}')
             return
         
         # Calculate final volume
@@ -136,11 +147,11 @@ class PlaySound(object):
         
         # Use the detected backend
         if self._audio_backend == 'pulseaudio':
-            self._play_pulseaudio(audio_file)
+            self._play_pulseaudio(selected_file)
         elif self._audio_backend == 'alsa':
-            self._play_alsa(audio_file)
+            self._play_alsa(selected_file)
         elif self._audio_backend == 'native':
-            self._play_native(audio_file, volume)
+            self._play_native(selected_file, volume)
         else:
             self._logger.error('No audio backend available for playback')
             
@@ -387,6 +398,7 @@ class PlaySound(object):
         except Exception as e:
             self._logger.error(f'OGG playback failed: {e}')
 
+    # Sound definitions
     def awake(self):
         """Play awake sound"""
         self.play(self._resources_path / 'awake.wav')
