@@ -1,6 +1,9 @@
 import logging
+import glob
+import importlib
 import random
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -28,9 +31,6 @@ class PlaySound(object):
         # Store volume settings
         self._max_volume = max(0.0, min(1.0, volume))  # Clamp between 0.0 and 1.0
         self._alsa_numid = alsa_numid
-        
-        # Import audio libraries
-        import importlib
         
         # Try to import pydub
         try:
@@ -117,25 +117,64 @@ class PlaySound(object):
             # Set system volume if using PulseAudio or ALSA
             self._set_system_volume(self._max_volume)
 
+    def close(self):
+        """Cleanup audio resources"""
+        if self._pa is not None:
+            self._pa.terminate()
+            self._pa = None
+        self._logger.info('Audio system closed')
+
+    def _resolve_audio_file(self, audio_file):
+        """Resolve audio file pattern to actual file path
+        
+        :param audio_file: Single file path/pattern or list of patterns
+        :return: Path object of selected file or None if not found
+        """
+        all_files = []
+        
+        # Convert single item to list for uniform processing
+        items = audio_file if isinstance(audio_file, (list, tuple)) else [audio_file]
+        
+        if not items:
+            self._logger.warning('Empty audio file list provided')
+            return None
+        
+        # Process each item (file or pattern)
+        for item in items:
+            if '*' in item or '?' in item:
+                # Wildcard pattern - convert to full path and glob
+                pattern = str(self._resources_path / item) if not Path(item).is_absolute() else item
+                matched_files = glob.glob(pattern)
+                all_files.extend(matched_files)
+            else:
+                # Regular file - convert to full path
+                full_path = self._resources_path / item if not Path(item).is_absolute() else Path(item)
+                all_files.append(str(full_path))
+        
+        if not all_files:
+            self._logger.warning(f'No files found matching: {audio_file}')
+            return None
+        
+        # Select random file
+        selected_file = random.choice(all_files)
+        file_count = len(all_files)
+        
+        if file_count > 1:
+            self._logger.info(f'Randomly selected: {Path(selected_file).name} from {file_count} matching files')
+        
+        return Path(selected_file)
+
     def play(self, audio_file, volume=1.0):
         """Play audio file using available method
         
-        :param audio_file: Path to audio file or list of paths for random selection
+        :param audio_file: Path to audio file, filename with wildcards, or list of paths/filenames for random selection
         :param volume: Relative volume (0.0 to 1.0, relative to max volume)
         """
-        # Handle random selection from list
-        if isinstance(audio_file, (list, tuple)):
-            if not audio_file:
-                self._logger.warning('Empty audio file list provided')
-                return
-            selected_file = random.choice(audio_file)
-            self._logger.info(f'Randomly selected: {selected_file} from {len(audio_file)} options')
-        else:
-            selected_file = audio_file
-        
-        # Check if file exists
-        if not Path(selected_file).exists():
-            self._logger.warning(f'Audio file not found: {selected_file}')
+        # Resolve file pattern to actual file
+        full_path = self._resolve_audio_file(audio_file)
+        if not full_path or not full_path.exists():
+            if full_path:
+                self._logger.warning(f'Audio file not found: {full_path}')
             return
         
         # Calculate final volume
@@ -147,11 +186,11 @@ class PlaySound(object):
         
         # Use the detected backend
         if self._audio_backend == 'pulseaudio':
-            self._play_pulseaudio(selected_file)
+            self._play_pulseaudio(str(full_path))
         elif self._audio_backend == 'alsa':
-            self._play_alsa(selected_file)
+            self._play_alsa(str(full_path))
         elif self._audio_backend == 'native':
-            self._play_native(selected_file, volume)
+            self._play_native(str(full_path), volume)
         else:
             self._logger.error('No audio backend available for playback')
             
@@ -401,31 +440,28 @@ class PlaySound(object):
     # Sound definitions
     def awake(self):
         """Play awake sound"""
-        self.play(self._resources_path / 'awake.wav')
+        self.play('awake*.*')
 
     def dizzy(self):
         """Play dizzy sound"""
-        self.play(self._resources_path / 'dizzy.wav')
+        self.play('dizzy*.*')
+
+    def error(self):
+        """Play error sound"""
+        self.play('error*.*')
 
     def greeting(self):
         """Play greeting sound"""
-        self.play(self._resources_path / 'greeting.wav')
+        self.play('greeting*.*')
 
     def ready(self):
         """Play ready sound"""
-        self.play(self._resources_path / 'ready.wav')
+        self.play('ready*.*')
 
     def sad(self):
         """Play sad sound"""
-        self.play(self._resources_path / 'sad.wav')
+        self.play('sad*.*')
 
     def shutter(self):
         """Play shutter sound"""
-        self.play(self._resources_path / 'shutter.wav')
-
-    def close(self):
-        """Cleanup audio resources"""
-        if self._pa is not None:
-            self._pa.terminate()
-            self._pa = None
-        self._logger.info('Audio system closed')
+        self.play('shutter*.*')
