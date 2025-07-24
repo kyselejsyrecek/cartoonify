@@ -19,5 +19,7 @@ MAX_OUTPUT_DIMENSTION=1280
 source ./virtualenv/bin/activate
 cd cartoonify/images/
 python3 ../run.py --raspi-headless --web-server --port 80 --max-inference-dimension $MAX_INFERENCE_DIMENSION --fit-width $MAX_OUTPUT_DIMENSTION --fit-height $MAX_OUTPUT_DIMENSTION --force-download --camera --rotate-180deg --volume 0.5 "$@"
+EXIT_CODE=$?
 cd ..
 deactivate
+exit $EXIT_CODE

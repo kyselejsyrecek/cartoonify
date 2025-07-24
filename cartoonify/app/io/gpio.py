@@ -43,7 +43,7 @@ class Gpio:
         self.led_small_eye = None
         self.button_capture = None
         self.proximity_sensor = None
-        self.halt_button = None
+        self.button_halt = None
 
         try:
             self.gpio = importlib.import_module('gpiozero')
@@ -79,7 +79,7 @@ class Gpio:
         self.led_busy = self.gpio.LED(BUSY_LED)
         self.led_big_eye = self.gpio.LED(EYE_BIG_LED)
         self.led_small_eye = self.gpio.LED(EYE_SMALL_LED)
-        self.button_capture = self.elements.SmartButton(CAPTURE_BUTTON, hold_time=trigger_hold_time, bounce_time=0.1)
+        self.button_capture = self.elements.SmartButton(CAPTURE_BUTTON, hold_time=trigger_hold_time, bounce_time=0.05)
         if trigger_release_callback:
             self.button_capture.when_released = trigger_release_callback
         if trigger_held_callback:
@@ -92,9 +92,9 @@ class Gpio:
             self._logger.info('proximity sensor not found, continuing...')
 
         # Setup halt button
-        self.button_halt = self.gpio.Button(HALT_BUTTON, pull_up=True, bounce_time=0.2)
+        self.button_halt = self.gpio.Button(HALT_BUTTON, pull_up=True, bounce_time=0.05)
         if halt_callback:
-            self.button_halt.when_activated = halt_callback
+            self.button_halt.when_pressed = halt_callback
 
         # Initial state
         # The LED is connected to two GPIO pins. Disable heartbeat blinking so that the LED is not overpowered.

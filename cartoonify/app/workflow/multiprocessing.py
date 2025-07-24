@@ -8,6 +8,7 @@ from multiprocessing.managers import BaseManager
 
 # Global event for signaling processes to exit
 exit_event = multiprocessing.Event()
+halt_event = multiprocessing.Event()
 
 
 # Class whose methods will be called remotely

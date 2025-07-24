@@ -82,7 +82,7 @@ def run(**kwargs):
 
     # Import the rest of the application including external libraries like TensorFlow
     # or CUDA-related libraries.
-    from app.workflow import Workflow, exit_event
+    from app.workflow import Workflow, exit_event, halt_event
     from app.drawing_dataset import DrawingDataset
     from app.image_processor import ImageProcessor, tensorflow_model_name, model_path
     from app.sketch import SketchGizeh
@@ -134,15 +134,23 @@ def run(**kwargs):
                     # This thread's only responsibility is not to die so that the program is not terminated.
                     # It now simply waits for the exit_event to be set.
                     try:
-                        while not exit_event.is_set():
+                        while True:
+                            if halt_event.is_set():
+                                logger.info('Halt event detected - shutting down the system.')
+                                sys.exit(42)
+                            elif exit_event.is_set():
+                                logger.info('Exiting on exit event.')
+                                app.close()
+                                sys.exit(0)
                             time.sleep(0.5) # Short pause to reduce CPU usage
                     except KeyboardInterrupt:
                         # This block might not be strictly necessary due to signal handler
                         # implemented within Workflow, but it's good practice for robustness.
-                        print("Parent Process: KeyboardInterrupt caught, exiting.")
+                        print("KeyboardInterrupt caught, exiting.")
                         exit_event.set()
+                        app.close()
+                        sys.exit(0)
                     finally:
-                        print("Parent Process: All processes and manager terminated.")
 
             elif config.camera:
                 if click.confirm('would you like to capture an image? '):

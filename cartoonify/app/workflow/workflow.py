@@ -355,17 +355,16 @@ class Workflow(object):
         """
         self._logger.info('System halt button pressed - waiting for current operation to finish...')
         # Wait for any current operation to finish (blocking acquire)
-        self._lock.acquire()
+        self._lock.acquire(blocking=True)
         try:
             self._logger.info('Initiating system shutdown.')
-            # Set exit event to signal all processes to stop
+            # Set halt event to signal shutdown
+            halt_event.set()
+            # Set exit event to exit all sub-processes
             exit_event.set()
             # Close all resources
             self.close()
-            # Wait a moment before shutdown
-            time.sleep(2)
-            # Exit with special code 42 for shutdown
-            sys.exit(42)
+            sys.exit()
         finally:
             self._lock.release()
 
