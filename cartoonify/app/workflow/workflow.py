@@ -387,9 +387,8 @@ class Workflow(object):
             halt_event.set()
             # Set exit event to exit all sub-processes
             exit_event.set()
-            # Close all resources
-            self.close()
-            sys.exit()
+            # Block the event thread until the main thread stops the process.
+            time.sleep(5)
         finally:
             self._lock.release()
 
