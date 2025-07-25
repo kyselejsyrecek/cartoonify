@@ -102,7 +102,6 @@ class Workflow(object):
 
 
     def terminate(self):
-        print("Workflow terminate().") # FIXME Remove.
         self._process_manager.terminate()
 
         # Terminate the manager process
@@ -116,11 +115,9 @@ class Workflow(object):
         
         #if not self._config.no_ir_receiver:
         #    self._ir_receiver.close()
-        print("Workflow terminate() end.") # FIXME Remove.
 
 
     def __del__(self):
-        print("Workflow __del__().")
         # Shut down the asynchronous task pool.
         self._async_executor.shutdown()
 
