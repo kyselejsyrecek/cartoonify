@@ -72,11 +72,22 @@ class ClapDetector:
         if wink_callback:
             self.wink_callback = wink_callback
         self.config = Config(trigger_callback, trigger_2s_callback, wink_callback)
-        self.listener = Listener(config=self.config, calibrate=False)
+        try:
+            # Suppress interactive input by setting calibrate=False and using default settings
+            self.listener = Listener(config=self.config, calibrate=False)
+            self._logger.info('Clap detector initialized successfully')
+        except (EOFError, KeyboardInterrupt) as e:
+            self._logger.warning('Clap detector initialization failed - no interactive input available')
+            self.listener = None
+        except Exception as e:
+            self._logger.warning(f'Clap detector initialization failed: {e}')
+            self.listener = None
         #self.thread = Thread(target = self._worker)
         #self.thread.start()
-        self._worker()
-
+        if self.listener is not None:
+            self._worker()
+        else:
+            self._logger.warning('Clap detector not initialized - skipping worker thread')
 
     def _worker(self): # TODO Inline.
         """Worker thread.
