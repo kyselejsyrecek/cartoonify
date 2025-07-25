@@ -56,6 +56,9 @@ class Workflow(object):
             "volume": 1.0,
             "no_accelerometer": False,
             "alsa_numid": 4,
+            "raspi_headless": False,
+            "ip": "0.0.0.0",
+            "port": 8081
         })
         self._lock = Lock()
         self._logger = logging.getLogger(self.__class__.__name__)
@@ -149,31 +152,30 @@ class Workflow(object):
                 self._clap_detector = self._process_manager.start_process(ClapDetector.hook_up)
             if not self._config.no_accelerometer:
                 self._accelerometer = self._process_manager.start_process(Accelerometer.hook_up)
-            
-            # Start web GUI if requested
-            if self._config.gui or self._config.web_server:
-                from app.gui import WebGui
-                
-                if self._config.gui:
-                    self._logger.info('Starting GUI...')
-                elif self._config.web_server:
-                    self._logger.info(f'Starting HTTP server on address {self._config.ip}:{self._config.port}...')
-                
-                self._web_gui = self._process_manager.start_process(
-                    WebGui.hook_up, 
-                    self, 
-                    self._i18n,  # i18n object from run.py
-                    self._config.raspi_headless,  # cam_only mode - limits GUI features to camera operations only
-                    self._config.ip, 
-                    self._config.port
-                )
-                
-                if self._config.gui:
-                    self._logger.info('GUI started successfully')
-                elif self._config.web_server:
-                    self._logger.info('HTTP server started successfully')
-            
             self._logger.info('done')
+        
+        # Start web GUI if requested
+        if self._config.gui or self._config.web_server:
+            from app.gui import WebGui
+            
+            if self._config.gui:
+                self._logger.info('Starting GUI...')
+            elif self._config.web_server:
+                self._logger.info(f'Starting HTTP server on address {self._config.ip}:{self._config.port}...')
+            
+            self._web_gui = self._process_manager.start_process(
+                WebGui.hook_up, 
+                self, 
+                self._i18n,  # i18n object from run.py
+                self._config.raspi_headless,  # cam_only mode - limits GUI features to camera operations only
+                self._config.ip, 
+                self._config.port
+            )
+            
+            if self._config.gui:
+                self._logger.info('GUI started successfully')
+            elif self._config.web_server:
+                self._logger.info('HTTP server started successfully')
         
         # Setup camera system
         if self._camera is not None:
