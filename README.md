@@ -67,7 +67,7 @@ LC_MESSAGES=cs_CZ.UTF-8
 ```
     * Reboot, or restart all affected processes.
 - run `./raspi-build.sh`. This will download all required dependencies, the Google Quickdraw dataset and tensorflow model and install system services.
-- run `./raspi-run.sh`. This will start the application.
+- run `sudo ./raspi-run.sh`. This will start the application. Administrator privileges are required for setting power LED and starting HTTP on privileged ports.
 
 
 ### Troubleshooting

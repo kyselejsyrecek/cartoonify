@@ -6,6 +6,8 @@ requirements+=( cups libcups2-dev cmake ) # thermal printer
 requirements+=( dnsmasq ) # Wi-Fi hotspot
 requirements+=( portaudio19-dev ) # clap detector (Python library pi-clap)
 requirements+=( mpg123 ogg123 ) # MP3 and OGG playback with ALSA backend
+requirements+=( speech-dispatcher ) # Speech synthesis # piper
+# TODO Mozilla DeepSpeech for speech-to-text transcription: https://github.com/touchgadget/DeepSpeech
 
 # FIXME Package python3-picamera2 installs 600 MB of requirements, incl. NumPy! That may not be the best means to gather photos and videos.
 requirements+=( libcairo2 python3-virtualenv libcap-dev python3-picamera2 )

@@ -56,6 +56,7 @@ class Workflow(object):
             "volume": 1.0,
             "no_accelerometer": False,
             "alsa_numid": 4,
+            "tts_language": "cs",
             "raspi_headless": False,
             "ip": "0.0.0.0",
             "port": 8081
@@ -186,7 +187,7 @@ class Workflow(object):
         
         # Setup sound system
         self._logger.info('setting up sound system...')
-        self._sound.setup(audio_backend=self._config.audio_backend, volume=self._config.volume, alsa_numid=self._config.alsa_numid)
+        self._sound.setup(audio_backend=self._config.audio_backend, volume=self._config.volume, alsa_numid=self._config.alsa_numid, tts_language=self._config.tts_language)
         self._logger.info('done')
         self._logger.info('loading cartoon dataset...')
         self._dataset.setup()
@@ -542,5 +543,20 @@ class Workflow(object):
                 self._sound.dizzy,
                 self._gpio.blink_eyes
             )
+        finally:
+            self._lock.release()
+
+    @async_task
+    def say(self, text):
+        """Speak text using text-to-speech
+        
+        :param text: Text to speak
+        """
+        if not self._lock.acquire(blocking=False):
+            self._logger.info('TTS event ignored because another operation is in progress.')
+            return
+        try:
+            self._logger.info(f'TTS requested: "{text}"')
+            self._sound.say(text)
         finally:
             self._lock.release()

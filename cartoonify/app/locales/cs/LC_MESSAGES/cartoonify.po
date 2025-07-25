@@ -1,4 +1,4 @@
-# SOME DESCRIPTIVE TITLE.
+# Czech translation for cartoonify
 # Copyright (C) 2025 kyselejsyrecek
 # This file is distributed under the same license as the cartoonify package.
 # FIRST AUTHOR kyselejsyrecek, 2025.
@@ -40,3 +40,15 @@ msgstr "Nahrát soubor ke zpracování"
 #: gui/gui.py:179
 msgid "Select an image file"
 msgstr "Vyberte obrázek"
+
+msgid "Text-to-Speech"
+msgstr "Převod textu na řeč"
+
+msgid "Enter text to speak:"
+msgstr "Zadejte text k vyřčení:"
+
+msgid "Say"
+msgstr "Říci"
+
+msgid "Back to Main"
+msgstr "Zpět na hlavní stránku"
