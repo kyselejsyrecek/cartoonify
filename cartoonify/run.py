@@ -73,6 +73,7 @@ def flatten(xss):
 @click.option('--alsa-numid', type=int, default=4,
               help='ALSA mixer control numid for volume adjustment')
 @click.option('--no-accelerometer', is_flag=True, help='Disable accelerometer motion detection')
+@click.option('--tts-language', type=str, default='cs', help='Text-to-speech language code (default: cs for Czech)')
 def run(**kwargs):
     # Redirect standard error output prematurely. Broken TensorFlow library and its
     # CUDA-related dependencies generate a bunch of error output which is irrelevant

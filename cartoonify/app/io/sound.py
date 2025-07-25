@@ -21,18 +21,20 @@ class PlaySound(object):
         self._mp3_player = None
         self._ogg_player = None
 
-    def setup(self, audio_backend=None, volume=1.0, alsa_numid=4):
+    def setup(self, audio_backend=None, volume=1.0, alsa_numid=4, tts_language='cs'):
         """Setup audio system
         
         :param audio_backend: Preferred audio backend ('pulseaudio', 'alsa', 'native')
         :param volume: Maximum volume level (0.0 to 1.0)
         :param alsa_numid: ALSA mixer control numid for volume adjustment
+        :param tts_language: Text-to-speech language code
         """
         self._logger.info('Setting up audio system...')
         
         # Store volume settings
         self._max_volume = max(0.0, min(1.0, volume))  # Clamp between 0.0 and 1.0
         self._alsa_numid = alsa_numid
+        self._tts_language = tts_language
         
         # Try to import pydub
         try:
@@ -518,3 +520,24 @@ class PlaySound(object):
     def capture(self):
         """Play sound of a capture"""
         self.play('capture*.*')
+
+    def say(self, text):
+        """Speak text using text-to-speech
+        
+        :param text: Text to speak
+        """
+        if not text or not text.strip():
+            self._logger.warning('Empty text provided for TTS')
+            return
+            
+        try:
+            self._logger.info(f'Speaking text: "{text}"')
+            subprocess.run([
+                'spd-say', 
+                '-l', self._tts_language, 
+                text.strip()
+            ], check=True, capture_output=True)
+        except subprocess.CalledProcessError as e:
+            self._logger.error(f'Text-to-speech failed: {e}')
+        except FileNotFoundError:
+            self._logger.error('spd-say command not found - install speech-dispatcher package')
