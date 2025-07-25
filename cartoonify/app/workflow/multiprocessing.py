@@ -46,7 +46,7 @@ class ProcessManager:
         return p
 
     
-    def _task_wrapper(self, task, id, *args, **kwargs):
+    def _task_wrapper(self, task, id, args, kwargs):
         """
         The main task executed by each child process.
         """
