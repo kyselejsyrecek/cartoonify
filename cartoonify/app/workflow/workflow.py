@@ -162,7 +162,6 @@ class Workflow(object):
             
             self._web_gui = self._process_manager.start_process(
                 WebGui.hook_up, 
-                self, 
                 self._i18n,  # i18n object from run.py
                 self._config.raspi_headless,  # cam_only mode - limits GUI features to camera operations only
                 self._config.ip, 
@@ -365,10 +364,6 @@ class Workflow(object):
             self._logger.info('Initial state set.')
         finally:
             self._lock.release()
-
-    def connect_web_gui(self, web_gui):
-        # Must be hooked up later since Web GUI requires GPIO to be already initialized.
-        self._web_gui = web_gui
 
     # Event handlers
     @async_task

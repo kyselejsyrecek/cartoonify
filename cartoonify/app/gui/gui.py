@@ -47,13 +47,13 @@ class WebGui(App):
         self._logger = logging.getLogger("WebGui")
 
     @staticmethod
-    def hook_up(workflow, i18n, cam_only, web_host='0.0.0.0', web_port=8081):
+    def hook_up(event_service, i18n, cam_only, web_host='0.0.0.0', web_port=8081):
         """Static method for multiprocessing integration"""
         start(WebGui, 
               debug=False, 
               address=web_host, 
               port=web_port, 
-              userdata=(workflow, i18n, cam_only))
+              userdata=(event_service, i18n, cam_only))
 
     def idle(self):
         # idle function called every update cycle
@@ -67,15 +67,14 @@ class WebGui(App):
             self._logger.warning(f'Could not check exit_event: {e}')
         pass
 
-    def main(self, workflow, i18n, cam_only):
-        self._workflow = workflow
+    def main(self, event_service, i18n, cam_only):
+        self._workflow = event_service  # This is now the event service proxy
         self._i18n = i18n
         self._full_capabilities = not cam_only
         
         self.display_original = False
         #self.display_tagged = False # TODO Not yet implemented.
         ui = self.construct_ui()
-        self._workflow.connect_web_gui(self)
         return ui
 
     def construct_ui(self):
@@ -211,6 +210,8 @@ class WebGui(App):
         self.show_image(original, annotated, cartoon)
 
     def show_image(self, original, annotated, cartoon, image_labels):
+        # In multiprocessing mode, this method won't be called from workflow
+        # Image updates would need to be handled differently (e.g., via file watching)
         self.image_original.load(str(original))
         self.image_result.load(str(cartoon))
         if self._full_capabilities:
