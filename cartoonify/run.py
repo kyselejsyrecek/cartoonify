@@ -5,6 +5,7 @@ import sys
 import os
 import click
 import gettext
+import time
 
 from app.utils.attributedict import AttributeDict
 from app.debugging import profiling
@@ -82,14 +83,11 @@ def run(**kwargs):
 
     # Import the rest of the application including external libraries like TensorFlow
     # or CUDA-related libraries.
-    from app.workflow import Workflow, exit_event, halt_event
+    from app.workflow import Workflow
     from app.drawing_dataset import DrawingDataset
     from app.image_processor import ImageProcessor, tensorflow_model_name, model_path
     from app.sketch import SketchGizeh
     from os.path import join
-    from app.gui import get_WebGui
-    from remi import start
-    import time
 
     root = Path(__file__).parent
     config = AttributeDict(kwargs)
@@ -110,49 +108,18 @@ def run(**kwargs):
     if config.raspi_headless:
         config.camera = True
     
-    app = Workflow(dataset, imageprocessor, config)
+    app = Workflow(dataset, imageprocessor, config, i18n=_)
     app.setup(setup_gpio=config.raspi_headless)
 
-    if config.gui or config.web_server:
-        if config.gui:
-            print('starting gui...')
-        else:
-            print('starting HTTP server on address {}:{}...'.format(config.ip, config.port))
-        web_gui = get_WebGui(app, i18n=_, cam_only=config.raspi_headless)
-        start(web_gui, address=config.ip, port=config.port, start_browser=config.gui,
-              certfile=config.cert_file, keyfile=config.key_file)
-        #profiling.evaluation_point("web server started") # The start() function blocks forever.
-        # We never get there during the life of the instance.
-        #os.close(app._ir_receiver.dev.fd)
-        print("done")
+    # Create logger after workflow setup
+    logger = logging.getLogger(__name__)
+
+    # For headless mode or web GUI mode, use the same event waiting logic
+    if config.raspi_headless or config.gui or config.web_server:
+        wait_for_events(app, logger)
     else:
         while True:
-            if config.raspi_headless:
-                while True:
-                    # Main loop of the parent process.
-                    # From now on, app takes care of itself and waits for button press event from GPIO driver.
-                    # This thread's only responsibility is not to die so that the program is not terminated.
-                    # It now simply waits for the exit_event to be set.
-                    try:
-                        while True:
-                            if halt_event.is_set():
-                                logger.info('Halt event detected - shutting down the system.')
-                                sys.exit(42)
-                            elif exit_event.is_set():
-                                logger.info('Exiting on exit event.')
-                                app.close()
-                                sys.exit(0)
-                            time.sleep(0.5) # Short pause to reduce CPU usage
-                    except KeyboardInterrupt:
-                        # This block might not be strictly necessary due to signal handler
-                        # implemented within Workflow, but it's good practice for robustness.
-                        print("KeyboardInterrupt caught, exiting.")
-                        exit_event.set()
-                        app.close()
-                        sys.exit(0)
-                    finally:
-
-            elif config.camera:
+            if config.camera:
                 if click.confirm('would you like to capture an image? '):
                     if not path.parent.exists():
                         path.parent.mkdir()
@@ -208,6 +175,26 @@ def run(**kwargs):
                     app.increment()
                     print(f'cartoon saved to {cartoon_path}')
     app.close()
+
+def wait_for_events(app, logger):
+    """Wait for halt_event or exit_event and handle them appropriately"""
+    from app.workflow import Workflow, exit_event, halt_event
+    while True:
+        try:
+            if halt_event.is_set():
+                logger.info('Halt event detected - shutting down the system.')
+                app.close()
+                sys.exit(42)
+            elif exit_event.is_set():
+                logger.info('Exiting on exit event.')
+                app.close()
+                sys.exit(0)
+            time.sleep(0.5)  # Short pause to reduce CPU usage
+        except KeyboardInterrupt:
+            print("KeyboardInterrupt caught, exiting.")
+            exit_event.set()
+            app.close()
+            sys.exit(0)
 
 if __name__=='__main__':
     run()

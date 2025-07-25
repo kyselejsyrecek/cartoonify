@@ -33,7 +33,7 @@ class Workflow(object):
     """controls execution of app
     """
 
-    def __init__(self, dataset, imageprocessor, config):
+    def __init__(self, dataset, imageprocessor, config, i18n=None):
         self._config = AttributeDict({
             "annotate": False,
             "threshold": 0.3,
@@ -60,6 +60,7 @@ class Workflow(object):
         self._lock = Lock()
         self._logger = logging.getLogger(self.__class__.__name__)
         self._config.update(config)
+        self._i18n = i18n
 
         # Initialize the AsyncExecutor decorator.
         # We discard any operations requested when another operation is in progress.
@@ -148,6 +149,30 @@ class Workflow(object):
                 self._clap_detector = self._process_manager.start_process(ClapDetector.hook_up)
             if not self._config.no_accelerometer:
                 self._accelerometer = self._process_manager.start_process(Accelerometer.hook_up)
+            
+            # Start web GUI if requested
+            if self._config.gui or self._config.web_server:
+                from app.gui import WebGui
+                
+                if self._config.gui:
+                    self._logger.info('Starting GUI...')
+                elif self._config.web_server:
+                    self._logger.info(f'Starting HTTP server on address {self._config.ip}:{self._config.port}...')
+                
+                self._web_gui = self._process_manager.start_process(
+                    WebGui.hook_up, 
+                    self, 
+                    self._i18n,  # i18n object from run.py
+                    self._config.raspi_headless,  # cam_only mode - limits GUI features to camera operations only
+                    self._config.ip, 
+                    self._config.port
+                )
+                
+                if self._config.gui:
+                    self._logger.info('GUI started successfully')
+                elif self._config.web_server:
+                    self._logger.info('HTTP server started successfully')
+            
             self._logger.info('done')
         
         # Setup camera system

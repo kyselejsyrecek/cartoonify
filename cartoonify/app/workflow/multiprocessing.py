@@ -2,6 +2,7 @@ import logging
 import multiprocessing
 import os
 import signal
+import sys
 
 from multiprocessing.managers import BaseManager
 
