@@ -50,7 +50,7 @@ class WebGui(App):
     def hook_up(event_service, i18n, cam_only, web_host='0.0.0.0', web_port=8081):
         """Static method for multiprocessing integration"""
         # Register the /say route
-        from remi.server import remi_server
+        #from remi.server import remi_server
         
         def say_page_handler():
             app = WebGui()
@@ -60,7 +60,7 @@ class WebGui(App):
             return app.construct_say_ui()
         
         # Register the route before starting
-        remi_server.add_resource('/say', say_page_handler)
+        #remi_server.add_resource('/say', say_page_handler)
         
         start(WebGui, 
               debug=False, 
