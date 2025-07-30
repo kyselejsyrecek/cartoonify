@@ -52,22 +52,24 @@ class ProcessManager:
         The main task executed by each child process.
         """
         def signal_handler(signum, frame):
-            print(f"Child Process {id} ({task}): Received signal {signum}, exiting.")
             try:
-                # Try to access exit_event through event_proxy
+                # Try to access exit_event through event_proxy.
                 if 'event_proxy' in locals():
+                    if event_proxy.exit_event.is_set():
+                        return  # Already exiting, return immediately.
+                    print(f"Child Process {id} ({task}): Received signal {signum}, exiting.")
                     event_proxy.exit_event.set()
             except:
                 pass
             sys.exit(0)
 
-        # Set up the SIGINT handler for the child process
+        # Set up the SIGINT handler for the child process.
         signal.signal(signal.SIGINT, signal_handler)
 
         print(f"Child Process {id} ({task}): Starting. PID: {os.getpid()}")
 
-        # Connect to the parent process's manager
-        # Register the instance directly (without a callable) for client-side access
+        # Connect to the parent process's manager.
+        # Register the instance directly (without a callable) for client-side access.
         EventManager.register('event_service')
         event_manager = EventManager(address=self._manager_address, authkey=self._manager_authkey)
         try:
@@ -87,12 +89,12 @@ class ProcessManager:
         """Terminates all subprocesses.
         """
         self._logger.info('Terminating child processes...')
-        # Attempt to gracefully terminate all child processes
+        # Attempt to gracefully terminate all child processes.
         for p, task in self._subprocesses:
             if p.is_alive():
-                p.terminate() # Request child to terminate
-                p.join(timeout=1) # Wait for termination with a timeout
+                p.terminate() # Request child to terminate.
+                p.join(timeout=1) # Wait for termination with a timeout.
                 if p.is_alive():
-                    # If child hasn't terminated, forcibly kill it
+                    # If child hasn't terminated, forcibly kill it.
                     self._logger.warning(f"Subprocess {p.pid} ({task}) did not terminate gracefully, killing.")
                     os.kill(p.pid, signal.SIGKILL)

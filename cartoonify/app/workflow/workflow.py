@@ -24,8 +24,10 @@ from app.utils.asynctask import *
 
 
 def signal_handler(signum, frame):
+    if exit_event.is_set():
+        return  # Already exiting, return immediately.
     print(f"Parent Process: Received signal {signum}, signaling children to exit.")
-    exit_event.set() # Set the event to signal all processes to exit
+    exit_event.set() # Set the event to signal all processes to exit.
     #workflow._terminate()
 
 
