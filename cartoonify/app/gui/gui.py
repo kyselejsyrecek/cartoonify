@@ -41,7 +41,7 @@ class WebGui(App):
 
     def __init__(self, *args):
         super().__init__(*args)
-        self._workflow = None
+        self._event_service = None
         self._i18n = None
         self._full_capabilities = True
         self._logger = logging.getLogger("WebGui")
@@ -54,7 +54,7 @@ class WebGui(App):
         
         def say_page_handler():
             app = WebGui()
-            app._workflow = event_service
+            app._event_service = event_service
             app._i18n = i18n
             app._full_capabilities = not cam_only
             return app.construct_say_ui()
@@ -72,8 +72,7 @@ class WebGui(App):
         # idle function called every update cycle
         # Check for exit_event to gracefully shutdown WebGui
         try:
-            from app.workflow.multiprocessing import exit_event
-            if exit_event.is_set():
+            if hasattr(self._event_service, 'exit_event') and self._event_service.exit_event.is_set():
                 self._logger.info('Exit event detected in WebGui - closing application')
                 self.close()
         except Exception as e:
@@ -81,7 +80,7 @@ class WebGui(App):
         pass
 
     def main(self, event_service, i18n, cam_only):
-        self._workflow = event_service  # This is now the event service proxy
+        self._event_service = event_service  # This is now the event service proxy
         self._i18n = i18n
         self._full_capabilities = not cam_only
         
@@ -300,13 +299,13 @@ class WebGui(App):
     #    self.display_tagged = value
 
     def on_close_pressed(self, *_):
-        self._workflow.close()
+        self._event_service.close()
         self.close()  #closes the application
         # sys.exit()
 
     def on_snap_pressed(self, *_):
         # FIXME Seems to be sometimes still called with a delay when another print operation is in progress.
-        self._workflow.capture() 
+        self._event_service.capture() 
 
     def on_open_pressed(self, *_):
         self.fileselectionDialog = gui.FileSelectionDialog(_('File Selection Dialog'), _('Select an image file'), False, '.')
@@ -320,8 +319,8 @@ class WebGui(App):
         if len(file_list) != 1:
             return
         original = file_list[0]
-        self._workflow.process(original)
-        annotated, cartoon = self._workflow.save_results() # TODO Refactor.
+        self._event_service.process(original)
+        annotated, cartoon = self._event_service.save_results() # TODO Refactor.
         self.show_image(original, annotated, cartoon)
 
     def show_image(self, original, annotated, cartoon, image_labels):
@@ -340,7 +339,7 @@ class WebGui(App):
         """Handle Say button press"""
         text = self.text_input.get_value().strip()
         if text:
-            self._workflow.say(text)
+            self._event_service.say(text)
             self.text_input.set_value('')  # Clear the input field
         
     def on_back_pressed(self, *_):

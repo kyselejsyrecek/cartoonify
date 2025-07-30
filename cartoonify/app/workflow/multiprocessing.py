@@ -7,7 +7,8 @@ import sys
 from multiprocessing.managers import BaseManager
 
 
-# Global event for signaling processes to exit
+# Global event for signaling processes to exit.
+# Do not access directly from subprocesses! Must always be obtained from event_proxy.
 exit_event = multiprocessing.Event()
 halt_event = multiprocessing.Event()
 
@@ -52,7 +53,12 @@ class ProcessManager:
         """
         def signal_handler(signum, frame):
             print(f"Child Process {id} ({task}): Received signal {signum}, exiting.")
-            exit_event.set() # Set the event to signal the main loop to exit
+            try:
+                # Try to access exit_event through event_proxy
+                if 'event_proxy' in locals():
+                    event_proxy.exit_event.set()
+            except:
+                pass
             sys.exit(0)
 
         # Set up the SIGINT handler for the child process

@@ -26,7 +26,7 @@ from app.utils.asynctask import *
 def signal_handler(signum, frame):
     print(f"Parent Process: Received signal {signum}, signaling children to exit.")
     exit_event.set() # Set the event to signal all processes to exit
-    #workflow.terminate()
+    #workflow._terminate()
 
 
 class Workflow(object):
@@ -96,31 +96,92 @@ class Workflow(object):
         self._next_image_number = 0
         self._last_original_image_number = -1
         self._is_recording = False
+        self._is_initialized = False
 
         # Register this instance as the event handler service.
         EventManager.register('event_service', callable=lambda: self)
         self._process_manager = ProcessManager(self._event_manager_address, self._event_manager_authkey)
+        self._is_initialized = True
 
 
-    def terminate(self):
-        self._process_manager.terminate()
+    def _terminate(self):
+        """Terminate all resources safely. Can be called multiple times."""
+        if not self._is_initialized:
+            return  # Not fully initialized yet, nothing to terminate
+            
+        self._is_initialized = False  # Mark as no longer initialized
+        self._logger.info('Starting workflow termination...')
+        
+        try:
+            # Terminate process manager and child processes
+            if hasattr(self, '_process_manager') and self._process_manager:
+                self._process_manager.terminate()
+        except Exception as e:
+            self._logger.error(f'Error terminating process manager: {e}')
 
-        # Terminate the manager process
-        if self._event_manager_process.is_alive():
-            self._logger.debug('Terminating event manager...')
-            self._event_manager_process.terminate()
-            self._event_manager_process.join(timeout=1)
-            if self._event_manager_process.is_alive():
-                self._logger.warning(f"Manager process {self._event_manager_process.pid} did not terminate gracefully, killing.")
-                os.kill(self._event_manager_process.pid, signal.SIGKILL)
+        try:
+            # Terminate the event manager process
+            if hasattr(self, '_event_manager_process') and self._event_manager_process:
+                if self._event_manager_process.is_alive():
+                    self._logger.debug('Terminating event manager...')
+                    self._event_manager_process.terminate()
+                    self._event_manager_process.join(timeout=1)
+                    if self._event_manager_process.is_alive():
+                        self._logger.warning(f"Manager process {self._event_manager_process.pid} did not terminate gracefully, killing.")
+                        try:
+                            os.kill(self._event_manager_process.pid, signal.SIGKILL)
+                        except (OSError, ProcessLookupError):
+                            # Process may have already finished
+                            pass
+        except Exception as e:
+            self._logger.error(f'Error terminating event manager process: {e}')
+        
+        self._logger.info('Workflow termination completed.')
+
+    def close(self):
+        try:
+            if self._camera is not None:
+                # Ensure video recording is stopped before closing
+                if self._is_recording:
+                    self._camera.stop_recording()
+                self._camera.close()
+        except Exception as e:
+            self._logger.error(f'Error closing camera: {e}')
+        
+        try:
+            self._image_processor.close()
+        except Exception as e:
+            self._logger.error(f'Error closing image processor: {e}')
+        
+        try:
+            self._gpio.close()
+        except Exception as e:
+            self._logger.error(f'Error closing GPIO: {e}')
+        
+        try:
+            self._sound.close()
+        except Exception as e:
+            self._logger.error(f'Error closing sound: {e}')
         
         #if not self._config.no_ir_receiver:
         #    self._ir_receiver.close()
+        
+        self._terminate()
 
 
     def __del__(self):
-        # Shut down the asynchronous task pool.
-        self._async_executor.shutdown()
+        try:
+            # Shut down the asynchronous task pool.
+            if hasattr(self, '_async_executor') and self._async_executor:
+                self._async_executor.shutdown()
+        except Exception as e:
+            # Log error if logger is available, otherwise just ignore
+            if hasattr(self, '_logger') and self._logger:
+                self._logger.error(f'Error shutting down async executor: {e}')
+        
+        # Free resources
+        # TODO self.close()?
+        self._terminate()
 
 
     def setup(self, setup_gpio=True):
@@ -336,16 +397,6 @@ class Workflow(object):
             writer.write(f, np.reshape(image, (-1, image.shape[1] * image.shape[2])))
         os.replace(f.name, str(path))
 
-    def close(self):
-        if self._camera is not None:
-            # Ensure video recording is stopped before closing
-            if self._is_recording:
-                self._camera.stop_recording()
-            self._camera.close()
-        self._image_processor.close()
-        self._gpio.close()
-        self._sound.close()
-
     def increment(self):
         self._next_image_number = (self._next_image_number + 1) % self._config.max_image_number
         self._last_original_image_number = self._next_image_number - 1
@@ -560,3 +611,13 @@ class Workflow(object):
             self._sound.say(text)
         finally:
             self._lock.release()
+
+    @property
+    def exit_event(self):
+        """Access to global exit_event for child processes"""
+        return exit_event
+
+    @property  
+    def halt_event(self):
+        """Access to global halt_event for child processes"""
+        return halt_event
