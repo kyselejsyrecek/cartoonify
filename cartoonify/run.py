@@ -23,12 +23,40 @@ logging_path = Path(__file__).parent / 'logs'
 if not logging_path.exists():
     logging_path.mkdir()
 
-# Configure logging with module prefix for multiprocessing
+# Custom formatter to extract only class name and align messages
+class CustomFormatter(logging.Formatter):
+    def format(self, record):
+        # Extract just the class name from logger name (e.g., picamera2.picamera2 -> picamera2)
+        logger_name = record.name
+        if '.' in logger_name:
+            # Take the last part after the last dot
+            class_name = logger_name.split('.')[-1]
+        else:
+            class_name = logger_name
+        
+        # Create aligned format with time in brackets, severity, and right-aligned class name
+        formatted_time = self.formatTime(record, '%H:%M:%S.%f')[:-3]  # Remove last 3 digits for milliseconds
+        # Right-align severity to 7 characters and class name to 15 characters
+        aligned_severity = f"{record.levelname:>7}"
+        aligned_class_name = f"{class_name:>15}"
+        formatted_message = f"[{formatted_time}] {aligned_severity} {aligned_class_name}: {record.getMessage()}"
+        
+        # Handle exceptions
+        if record.exc_info:
+            formatted_message += '\n' + self.formatException(record.exc_info)
+        
+        return formatted_message
+
+# Configure logging with custom formatter
+log_file = str(Path(__file__).parent / 'logs' / logging_filename)
+handler = logging.FileHandler(log_file)
+formatter = CustomFormatter()
+handler.setFormatter(formatter)
+
+# Configure root logger
 logging.basicConfig(
-    format='%(asctime)s [%(name)s] %(levelname)s: %(message)s',
-    level=logging.DEBUG, 
-    filename=str(Path(__file__).parent / 'logs' / logging_filename),
-    datefmt='%H:%M:%S'
+    level=logging.DEBUG,
+    handlers=[handler]
 )
 
 def flatten(xss):
