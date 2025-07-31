@@ -9,7 +9,7 @@ import time
 
 from app.utils.attributedict import AttributeDict
 from app.debugging import profiling
-from app.debugging.logging import setup_logging, add_console_logging
+from app.debugging.logging import setup_logging, add_console_logging, restore_stderr
 
 # BUG: Built-in input() function writes to stderr instead of stdout (Python 3.11).
 # See https://discuss.python.org/t/builtin-function-input-writes-its-prompt-to-sys-stderr-and-not-to-sys-stdout/12955/2.
@@ -20,10 +20,11 @@ def input(prompt=""):
 
 # configure logging
 logs_dir = Path(__file__).parent / 'logs'
-logging_filename, file_handler, console_handler = setup_logging(
+logging_filename, file_handler, console_handler, stderr_redirector = setup_logging(
     logs_dir=logs_dir,
     enable_colors=False,  # Will be added conditionally later
-    log_level=logging.DEBUG
+    log_level=logging.DEBUG,
+    redirect_stderr=True  # Redirect stderr to logging
 )
 
 def flatten(xss):
@@ -86,12 +87,9 @@ def run(**kwargs):
     if not config.no_log_colors:
         add_console_logging(enable_colors=True)
     
-    # Redirect standard error output prematurely. Broken TensorFlow library and its
-    # CUDA-related dependencies generate a bunch of error output which is irrelevant
-    # for the user. This block and two-step import workaround can be discarded when
-    # they are fixed.
-    redirect_file = open(str(Path(__file__).parent / 'logs' / logging_filename), 'w')
-    os.dup2(redirect_file.fileno(), sys.stderr.fileno())
+    # Standard error output had to be redirected first to the logging library.
+    # Broken TensorFlow library and its CUDA-related dependencies generate a bunch
+    # of error output which is irrelevant for the user.
 
     # Import the rest of the application including external libraries like TensorFlow
     # or CUDA-related libraries.
@@ -186,6 +184,11 @@ def run(**kwargs):
                     annotated_path, cartoon_path = app.save_results(debug=config.debug_detection)
                     app.increment()
                     print(f'cartoon saved to {cartoon_path}')
+    
+    # Cleanup: restore stderr before closing
+    if stderr_redirector:
+        restore_stderr()
+    
     app.close()
 
 def wait_for_events(app, logger):

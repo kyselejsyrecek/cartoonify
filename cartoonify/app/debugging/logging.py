@@ -3,6 +3,37 @@ import datetime
 import sys
 import os
 from pathlib import Path
+from io import StringIO
+
+
+class StderrToLogger:
+    """Redirect stderr to logger with ERROR level"""
+    
+    def __init__(self, logger_name='stderr', level=logging.ERROR):
+        self.logger = logging.getLogger(logger_name)
+        self.level = level
+        self.buffer = StringIO()
+    
+    def write(self, message):
+        # Buffer the message
+        self.buffer.write(message)
+        
+        # If we have a complete line (ends with newline), log it
+        if message.endswith('\n'):
+            content = self.buffer.getvalue().rstrip('\n')
+            if content.strip():  # Only log non-empty messages
+                self.logger.log(self.level, content)
+            self.buffer = StringIO()  # Reset buffer
+    
+    def flush(self):
+        # Flush any remaining content in buffer
+        content = self.buffer.getvalue().rstrip('\n')
+        if content.strip():
+            self.logger.log(self.level, content)
+        self.buffer = StringIO()
+    
+    def isatty(self):
+        return False
 
 
 class CustomFormatter(logging.Formatter):
@@ -111,13 +142,14 @@ class CustomFormatter(logging.Formatter):
         return formatted_message
 
 
-def setup_logging(logs_dir=None, enable_colors=True, log_level=logging.DEBUG):
+def setup_logging(logs_dir=None, enable_colors=True, log_level=logging.DEBUG, redirect_stderr=True):
     """Setup centralized logging configuration
     
     :param logs_dir: Directory for log files (defaults to current directory / 'logs')
     :param enable_colors: Whether to enable colored console output
     :param log_level: Logging level (default: DEBUG)
-    :return: Tuple of (log_filename, file_handler, console_handler)
+    :param redirect_stderr: Whether to redirect stderr to logging (default: True)
+    :return: Tuple of (log_filename, file_handler, console_handler, stderr_redirector)
     """
     # Generate log filename
     logging_filename = datetime.datetime.now().strftime('%Y%m%d-%H%M.log')
@@ -155,7 +187,13 @@ def setup_logging(logs_dir=None, enable_colors=True, log_level=logging.DEBUG):
         force=True  # Override any existing configuration
     )
     
-    return logging_filename, file_handler, console_handler
+    # Redirect stderr to logging if requested
+    stderr_redirector = None
+    if redirect_stderr:
+        stderr_redirector = StderrToLogger()
+        sys.stderr = stderr_redirector
+    
+    return logging_filename, file_handler, console_handler, stderr_redirector
 
 
 def add_console_logging(enable_colors=True):
@@ -164,8 +202,16 @@ def add_console_logging(enable_colors=True):
     :param enable_colors: Whether to enable colored console output
     :return: Console handler
     """
-    console_handler = logging.StreamHandler(sys.stderr)
+    # Use stdout for console output to avoid conflicts with stderr redirection
+    console_handler = logging.StreamHandler(sys.stdout)
     console_formatter = CustomFormatter(use_colors=enable_colors)
     console_handler.setFormatter(console_formatter)
     logging.getLogger().addHandler(console_handler)
     return console_handler
+
+
+def restore_stderr():
+    """Restore original stderr if it was redirected"""
+    if hasattr(sys.stderr, 'flush') and isinstance(sys.stderr, StderrToLogger):
+        sys.stderr.flush()  # Flush any remaining content
+        sys.stderr = sys.__stderr__  # Restore original stderr
