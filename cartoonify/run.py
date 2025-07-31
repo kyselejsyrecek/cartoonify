@@ -9,6 +9,7 @@ import time
 
 from app.utils.attributedict import AttributeDict
 from app.debugging import profiling
+from app.debugging.logging import setup_logging, add_console_logging
 
 # BUG: Built-in input() function writes to stderr instead of stdout (Python 3.11).
 # See https://discuss.python.org/t/builtin-function-input-writes-its-prompt-to-sys-stderr-and-not-to-sys-stdout/12955/2.
@@ -18,126 +19,11 @@ def input(prompt=""):
     return __input()
 
 # configure logging
-logging_filename = datetime.datetime.now().strftime('%Y%m%d-%H%M.log')
-logging_path = Path(__file__).parent / 'logs'
-if not logging_path.exists():
-    logging_path.mkdir()
-
-# Custom formatter to extract only class name and align messages
-class CustomFormatter(logging.Formatter):
-    # ANSI color codes for terminal output
-    COLORS = {
-        'DEBUG': '\033[90m',      # Gray (dark white) - entire line
-        'INFO': '\033[37m',       # White
-        'WARNING': '\033[93m',    # Yellow
-        'ERROR': '\033[91m',      # Red
-        'CRITICAL': '\033[41;93m', # Yellow text on red background
-        'RESET': '\033[0m',       # Reset to default
-        'BOLD': '\033[1m',        # Bold text
-        'WHITE_BOLD': '\033[1;97m' # Bold bright white
-    }
-    
-    def __init__(self, use_colors=None):
-        super().__init__()
-        # Auto-detect if we should use colors
-        if use_colors is None:
-            self.use_colors = self._should_use_colors()
-        else:
-            self.use_colors = use_colors
-    
-    def _should_use_colors(self):
-        """Check if terminal supports colors"""
-        import os
-        # Check if output is a terminal and supports colors
-        return (
-            hasattr(sys.stderr, 'isatty') and sys.stderr.isatty() and
-            os.environ.get('TERM', '').lower() not in ('', 'dumb') and
-            os.environ.get('NO_COLOR', '').lower() not in ('1', 'true', 'yes')
-        )
-    
-    def format(self, record):
-        # Extract just the class name from logger name (e.g., picamera2.picamera2 -> picamera2)
-        logger_name = record.name
-        if '.' in logger_name:
-            # Take the last part after the last dot
-            class_name = logger_name.split('.')[-1]
-        else:
-            class_name = logger_name
-        
-        # Create aligned format with time in brackets, severity, and right-aligned class name
-        formatted_time = self.formatTime(record, '%H:%M:%S.%f')[:-3]  # Remove last 3 digits for milliseconds
-        # Right-align severity to 7 characters and class name to 15 characters
-        aligned_severity = f"{record.levelname:>7}"
-        aligned_class_name = f"{class_name:>15}"
-        
-        # Apply colors if terminal supports them
-        if self.use_colors:
-            if record.levelname == 'DEBUG':
-                # Entire DEBUG line is gray with bold severity
-                bold_debug_severity = f"{self.COLORS['BOLD']}{self.COLORS['DEBUG']}{aligned_severity}{self.COLORS['RESET']}"
-                formatted_message = f"{self.COLORS['DEBUG']}[{formatted_time}] {bold_debug_severity} {aligned_class_name}: {record.getMessage()}{self.COLORS['RESET']}"
-            elif record.levelname == 'CRITICAL':
-                # Entire CRITICAL line with background color
-                formatted_message = f"{self.COLORS['CRITICAL']}[{formatted_time}] {aligned_severity} {aligned_class_name}: {record.getMessage()}{self.COLORS['RESET']}"
-            else:
-                # Other levels: bold severity + bold white class name
-                severity_color = self.COLORS.get(record.levelname, '')
-                bold_severity = f"{self.COLORS['BOLD']}{severity_color}{aligned_severity}{self.COLORS['RESET']}"
-                bold_class_name = f"{self.COLORS['WHITE_BOLD']}{aligned_class_name}{self.COLORS['RESET']}"
-                formatted_message = f"[{formatted_time}] {bold_severity} {bold_class_name}: {record.getMessage()}"
-        else:
-            formatted_message = f"[{formatted_time}] {aligned_severity} {aligned_class_name}: {record.getMessage()}"
-        
-        # Handle exceptions
-        if record.exc_info:
-            exception_text = self.formatException(record.exc_info)
-            if self.use_colors:
-                if record.levelname == 'DEBUG':
-                    # Gray exceptions for DEBUG
-                    formatted_message += f"\n{self.COLORS['DEBUG']}{exception_text}{self.COLORS['RESET']}"
-                elif record.levelname == 'CRITICAL':
-                    # Critical background for CRITICAL exceptions
-                    formatted_message += f"\n{self.COLORS['CRITICAL']}{exception_text}{self.COLORS['RESET']}"
-                else:
-                    # Format exceptions with ERROR severity and normal white text
-                    error_severity = f"{self.COLORS['BOLD']}{self.COLORS['ERROR']}   ERROR{self.COLORS['RESET']}"
-                    bold_class_name = f"{self.COLORS['WHITE_BOLD']}{aligned_class_name}{self.COLORS['RESET']}"
-                    # Split exception text into lines and format each with ERROR prefix
-                    exception_lines = exception_text.split('\n')
-                    formatted_exception = []
-                    for i, line in enumerate(exception_lines):
-                        if i == 0:
-                            # First line gets full ERROR formatting
-                            formatted_exception.append(f"[{formatted_time}] {error_severity} {bold_class_name}: {line}")
-                        else:
-                            # Subsequent lines are just indented with spaces to align with message
-                            spaces = ' ' * (len(f"[{formatted_time}] ") + 7 + 1 + 15 + 2)  # time + severity + space + class + ": "
-                            formatted_exception.append(f"{spaces}{line}")
-                    formatted_message += '\n' + '\n'.join(formatted_exception)
-            else:
-                # Plain text exceptions with ERROR prefix
-                exception_lines = exception_text.split('\n')
-                formatted_exception = []
-                for i, line in enumerate(exception_lines):
-                    if i == 0:
-                        formatted_exception.append(f"[{formatted_time}]    ERROR {aligned_class_name}: {line}")
-                    else:
-                        spaces = ' ' * (len(f"[{formatted_time}] ") + 7 + 1 + 15 + 2)
-                        formatted_exception.append(f"{spaces}{line}")
-                formatted_message += '\n' + '\n'.join(formatted_exception)
-        
-        return formatted_message
-
-# Configure logging with custom formatter
-log_file = str(Path(__file__).parent / 'logs' / logging_filename)
-handler = logging.FileHandler(log_file)
-formatter = CustomFormatter(use_colors=False)  # File handler never uses colors
-handler.setFormatter(formatter)
-
-# Configure root logger
-logging.basicConfig(
-    level=logging.DEBUG,
-    handlers=[handler]
+logs_dir = Path(__file__).parent / 'logs'
+logging_filename, file_handler, console_handler = setup_logging(
+    logs_dir=logs_dir,
+    enable_colors=False,  # Will be added conditionally later
+    log_level=logging.DEBUG
 )
 
 def flatten(xss):
@@ -198,10 +84,7 @@ def run(**kwargs):
     
     # Add console handler with colors if needed
     if not config.no_log_colors:
-        console_handler = logging.StreamHandler(sys.stderr)
-        console_formatter = CustomFormatter(use_colors=True)
-        console_handler.setFormatter(console_formatter)
-        logging.getLogger().addHandler(console_handler)
+        add_console_logging(enable_colors=True)
     
     # Redirect standard error output prematurely. Broken TensorFlow library and its
     # CUDA-related dependencies generate a bunch of error output which is irrelevant

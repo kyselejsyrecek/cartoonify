@@ -1,1 +1,2 @@
-import app.debugging.profiling
+from . import profiling
+from . import logging
