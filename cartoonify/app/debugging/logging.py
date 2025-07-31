@@ -86,9 +86,10 @@ class CustomFormatter(logging.Formatter):
         # Apply colors if terminal supports them
         if self.use_colors:
             if record.levelname == 'DEBUG':
-                # Entire DEBUG line is gray with bold severity
+                # Entire DEBUG line is gray with bold severity and bold gray class name
                 bold_debug_severity = f"{self.COLORS['BOLD']}{self.COLORS['DEBUG']}{aligned_severity}{self.COLORS['RESET']}"
-                formatted_message = f"{self.COLORS['DEBUG']}[{formatted_time}] {bold_debug_severity} {aligned_class_name}: {record.getMessage()}{self.COLORS['RESET']}"
+                bold_gray_class_name = f"{self.COLORS['BOLD']}{self.COLORS['DEBUG']}{aligned_class_name}{self.COLORS['RESET']}"
+                formatted_message = f"{self.COLORS['DEBUG']}[{formatted_time}] {bold_debug_severity} {bold_gray_class_name}: {record.getMessage()}{self.COLORS['RESET']}"
             elif record.levelname == 'CRITICAL':
                 # Entire CRITICAL line with background color
                 formatted_message = f"{self.COLORS['CRITICAL']}[{formatted_time}] {aligned_severity} {aligned_class_name}: {record.getMessage()}{self.COLORS['RESET']}"
@@ -179,8 +180,41 @@ def setup_logging(logs_dir=None, enable_colors=True, log_level=logging.DEBUG, re
     # Redirect stderr to logging if requested
     stderr_redirector = None
     if redirect_stderr:
+        # Create StderrToLogger for Python-level stderr
         stderr_redirector = StderrToLogger()
+        
+        # Also redirect stderr at file descriptor level for C libraries like libcamera
+        # Save original stderr file descriptor
+        original_stderr_fd = os.dup(sys.stderr.fileno())
+        
+        # Create a pipe for capturing low-level stderr
+        read_fd, write_fd = os.pipe()
+        
+        # Redirect stderr file descriptor to write end of pipe
+        os.dup2(write_fd, sys.stderr.fileno())
+        os.close(write_fd)
+        
+        # Set up Python-level stderr redirect
         sys.stderr = stderr_redirector
+        
+        # Store original stderr fd in redirector for cleanup
+        stderr_redirector.original_stderr_fd = original_stderr_fd
+        stderr_redirector.pipe_read_fd = read_fd
+        
+        # Start thread to read from pipe and log messages
+        import threading
+        def pipe_reader():
+            try:
+                with os.fdopen(read_fd, 'r') as pipe_reader_file:
+                    for line in pipe_reader_file:
+                        if line.strip():
+                            stderr_redirector.logger.error(line.rstrip('\n'))
+            except:
+                pass  # Ignore errors in pipe reader
+        
+        pipe_thread = threading.Thread(target=pipe_reader, daemon=True)
+        pipe_thread.start()
+        stderr_redirector.pipe_thread = pipe_thread
     
     return logging_filename, file_handler, None, stderr_redirector
 
