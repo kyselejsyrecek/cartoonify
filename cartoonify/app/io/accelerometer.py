@@ -3,9 +3,10 @@ import time
 import threading
 import importlib
 from app.utils.asynctask import *
+from app.workflow.multiprocessing import ProcessInterface
 
 
-class Accelerometer(object):
+class Accelerometer(ProcessInterface):
     """Accelerometer/gyroscope motion detection using BMI160"""
 
     def __init__(self, logger=None):

@@ -1,12 +1,14 @@
 import remi.gui as gui
-from remi import App, start
 import PIL.Image
 import io
 import time
-from pathlib import Path
 import importlib
 import logging
 import sys
+
+from pathlib import Path
+from remi import App, start
+from app.workflow.multiprocessing import ProcessInterface
 
 
 class PILImageViewerWidget(gui.Image):
@@ -34,7 +36,7 @@ class PILImageViewerWidget(gui.Image):
         return [self._buf.read(), headers]
 
 
-class WebGui(App):
+class WebGui(App, ProcessInterface):
     """
     gui for the app
     """

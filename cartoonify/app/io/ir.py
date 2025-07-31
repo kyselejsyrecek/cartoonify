@@ -3,6 +3,8 @@ import logging
 import signal
 import time
 
+from app.workflow.multiprocessing import ProcessInterface
+
 
 BUTTON_IMMEDIATE_TRIGGER = [ 0x7fbfffff, 0xcab11f  ]
 BUTTON_2S_TRIGGER = [ 0x7effffff ]
@@ -14,7 +16,7 @@ def noop():
     pass
 
 
-class IrReceiver:
+class IrReceiver(ProcessInterface):
     """
     interface to IR receiver
     """

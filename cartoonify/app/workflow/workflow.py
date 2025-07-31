@@ -208,11 +208,11 @@ class Workflow(object):
                              approach_callback=self.someone_approached,
                              halt_callback=self.system_halt)
             if not self._config.no_ir_receiver:
-                self._ir_receiver = self._process_manager.start_process(IrReceiver.hook_up)
+                self._ir_receiver = self._process_manager.start_process(IrReceiver)
             if not self._config.no_clap_detector:
-                self._clap_detector = self._process_manager.start_process(ClapDetector.hook_up)
+                self._clap_detector = self._process_manager.start_process(ClapDetector)
             if not self._config.no_accelerometer:
-                self._accelerometer = self._process_manager.start_process(Accelerometer.hook_up)
+                self._accelerometer = self._process_manager.start_process(Accelerometer)
             self._logger.info('done')
         
         # Start web GUI if requested
@@ -225,7 +225,7 @@ class Workflow(object):
                 self._logger.info(f'Starting HTTP server on address {self._config.ip}:{self._config.port}...')
             
             self._web_gui = self._process_manager.start_process(
-                WebGui.hook_up, 
+                WebGui, 
                 self._i18n,  # i18n object from run.py
                 self._config.raspi_headless,  # cam_only mode - limits GUI features to camera operations only
                 self._config.ip, 

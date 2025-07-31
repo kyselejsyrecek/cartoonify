@@ -1,6 +1,7 @@
 import logging
 from piclap import *
 from threading import Thread
+from app.workflow.multiprocessing import ProcessInterface
 
 
 def noop():
@@ -35,7 +36,7 @@ class Config(Settings):
         self.wink_callback()
 
 
-class ClapDetector:
+class ClapDetector(ProcessInterface):
     """
     Interface to clap detector.
     """

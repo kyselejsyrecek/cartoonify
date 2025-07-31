@@ -3,6 +3,7 @@ import multiprocessing
 import os
 import signal
 import sys
+from abc import ABC, abstractmethod
 
 from multiprocessing.managers import BaseManager
 
@@ -13,14 +14,20 @@ exit_event = multiprocessing.Event()
 halt_event = multiprocessing.Event()
 
 
-# Class whose methods will be called remotely
-#class EventService:
-#    def handle_event(self, message, process_id):
-#        """
-#        This method is called in the parent process, but is triggered by a child process.
-#        """
-#        print(f"Parent Process: Received remote message '{message}' from process {process_id}")
-#        # Implement any logic here that should be executed based on the child's message.
+class ProcessInterface(ABC):
+    """Abstract base class for all processes that can be started via multiprocessing."""
+    
+    @staticmethod
+    @abstractmethod
+    def hook_up(event_service, logger, *args, **kwargs):
+        """Hook up the process with event service and logger.
+        
+        :param event_service: Event service proxy
+        :param logger: Logger instance for this process
+        :param args: Additional positional arguments
+        :param kwargs: Additional keyword arguments
+        """
+        pass
 
 
 # Custom Manager for registering our service
@@ -39,33 +46,28 @@ class ProcessManager:
         self._manager_authkey = manager_authkey
 
 
-    def start_process(self, task, *args, **kwargs):
-        # Create logger for this task in the main process.
-        try:
-            # Extract class name from task function
-            if hasattr(task, '__qualname__'):
-                # For static methods like ClapDetector.hook_up
-                class_name = task.__qualname__.split('.')[0]
-            elif hasattr(task, '__self__') and hasattr(task.__self__, '__class__'):
-                # For bound methods
-                class_name = task.__self__.__class__.__name__
-            else:
-                # Fallback to function name
-                class_name = getattr(task, '__name__', f"Process{len(self._subprocesses) + 1}")
-            
-            module_logger = logging.getLogger(class_name)
-        except Exception as e:
-            self._logger.error(f'Failed to create logger for task {task}: {e}')
-            module_logger = None
-
+    def start_process(self, process_class, *args, **kwargs):
+        """Start a new process using a ProcessInterface subclass.
+        
+        :param process_class: Class that inherits from ProcessInterface
+        :param args: Additional positional arguments for hook_up
+        :param kwargs: Additional keyword arguments for hook_up
+        """
+        # Validate that the class implements ProcessInterface
+        if not issubclass(process_class, ProcessInterface):
+            raise ValueError(f"Process class {process_class.__name__} must inherit from ProcessInterface")
+        
+        # Create logger for this process in the main process
+        module_logger = logging.getLogger(process_class.__name__)
+        
         p = multiprocessing.Process(target=self._task_wrapper, 
-                                    args=(task, len(self._subprocesses) + 1, module_logger, args, kwargs))
-        self._subprocesses.append([p, task])
+                                    args=(process_class, len(self._subprocesses) + 1, module_logger, args, kwargs))
+        self._subprocesses.append([p, process_class])
         p.start()
         return p
 
     
-    def _task_wrapper(self, task, id, module_logger, args, kwargs):
+    def _task_wrapper(self, process_class, id, module_logger, args, kwargs):
         """
         The main task executed by each child process.
         """
@@ -75,16 +77,17 @@ class ProcessManager:
                 if 'event_proxy' in locals():
                     if event_proxy.exit_event.is_set():
                         return  # Already exiting, return immediately.
-                    print(f"Child Process {id} ({task}): Received signal {signum}, exiting.")
+                    print(f"Child Process {id} ({process_class.__name__}): Received signal {signum}, exiting.")
                     event_proxy.exit_event.set()
             except:
-                pass
+                # Cannot access exit_event, just exit.
+                print(f"Child Process {id} ({process_class.__name__}): Received signal {signum}, exiting.")
             sys.exit(0)
 
         # Set up the SIGINT handler for the child process.
         signal.signal(signal.SIGINT, signal_handler)
 
-        print(f"Child Process {id} ({task}): Starting. PID: {os.getpid()}")
+        print(f"Child Process {id} ({process_class.__name__}): Starting. PID: {os.getpid()}")
 
         # Connect to the parent process's manager.
         # Register the instance directly (without a callable) for client-side access.
@@ -94,13 +97,14 @@ class ProcessManager:
             event_manager.connect()
             event_proxy = event_manager.event_service()
         except Exception as e:
-            print(f"Child Process {id} ({task}): Failed to connect to manager: {e}")
+            print(f"Child Process {id} ({process_class.__name__}): Failed to connect to manager: {e}")
             sys.exit(1)
 
         try:
-            task(event_proxy, module_logger, *args, **kwargs)
+            # Call the static hook_up method on the process class
+            process_class.hook_up(event_proxy, module_logger, *args, **kwargs)
         finally:
-            print(f"Child Process {id} ({task}): Exiting.")
+            print(f"Child Process {id} ({process_class.__name__}): Exiting.")
 
 
     def terminate(self):
@@ -108,11 +112,11 @@ class ProcessManager:
         """
         self._logger.info('Terminating child processes...')
         # Attempt to gracefully terminate all child processes.
-        for p, task in self._subprocesses:
+        for p, process_class in self._subprocesses:
             if p.is_alive():
                 p.terminate() # Request child to terminate.
                 p.join(timeout=1) # Wait for termination with a timeout.
                 if p.is_alive():
                     # If child hasn't terminated, forcibly kill it.
-                    self._logger.warning(f"Subprocess {p.pid} ({task}) did not terminate gracefully, killing.")
+                    self._logger.warning(f"Subprocess {p.pid} ({process_class}) did not terminate gracefully, killing.")
                     os.kill(p.pid, signal.SIGKILL)
