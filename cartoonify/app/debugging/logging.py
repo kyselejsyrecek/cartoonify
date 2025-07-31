@@ -143,10 +143,10 @@ class CustomFormatter(logging.Formatter):
 
 
 def setup_logging(logs_dir=None, enable_colors=True, log_level=logging.DEBUG, redirect_stderr=True):
-    """Setup centralized logging configuration
+    """Setup centralized logging configuration - ONLY FILE OUTPUT WITH COLORS
     
     :param logs_dir: Directory for log files (defaults to current directory / 'logs')
-    :param enable_colors: Whether to enable colored console output
+    :param enable_colors: Whether to enable colored console output (IGNORED - no console output)
     :param log_level: Logging level (default: DEBUG)
     :param redirect_stderr: Whether to redirect stderr to logging (default: True)
     :return: Tuple of (log_filename, file_handler, console_handler, stderr_redirector)
@@ -163,27 +163,16 @@ def setup_logging(logs_dir=None, enable_colors=True, log_level=logging.DEBUG, re
     if not logs_dir.exists():
         logs_dir.mkdir(parents=True, exist_ok=True)
     
-    # Configure file handler (never uses colors)
+    # Configure file handler WITH COLORS (this is what you want)
     log_file = logs_dir / logging_filename
     file_handler = logging.FileHandler(str(log_file))
-    file_formatter = CustomFormatter(use_colors=False)
+    file_formatter = CustomFormatter(use_colors=True)  # COLORS IN FILE!
     file_handler.setFormatter(file_formatter)
     
-    # Configure console handler (with colors if enabled)
-    console_handler = None
-    if enable_colors:
-        console_handler = logging.StreamHandler(sys.stderr)
-        console_formatter = CustomFormatter(use_colors=True)
-        console_handler.setFormatter(console_formatter)
-    
-    # Configure root logger
-    handlers = [file_handler]
-    if console_handler:
-        handlers.append(console_handler)
-    
+    # Configure root logger with ONLY file handler - NO CONSOLE
     logging.basicConfig(
         level=log_level,
-        handlers=handlers,
+        handlers=[file_handler],  # ONLY file handler
         force=True  # Override any existing configuration
     )
     
@@ -193,21 +182,17 @@ def setup_logging(logs_dir=None, enable_colors=True, log_level=logging.DEBUG, re
         stderr_redirector = StderrToLogger()
         sys.stderr = stderr_redirector
     
-    return logging_filename, file_handler, console_handler, stderr_redirector
+    return logging_filename, file_handler, None, stderr_redirector
 
 
 def add_console_logging(enable_colors=True):
-    """Add console logging to existing configuration
+    """Add console logging to existing configuration - DISABLED
     
-    :param enable_colors: Whether to enable colored console output
-    :return: Console handler
+    :param enable_colors: Whether to enable colored console output (IGNORED)
+    :return: Console handler (always None)
     """
-    # Use stdout for console output to avoid conflicts with stderr redirection
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_formatter = CustomFormatter(use_colors=enable_colors)
-    console_handler.setFormatter(console_formatter)
-    logging.getLogger().addHandler(console_handler)
-    return console_handler
+    # DO NOT ADD CONSOLE LOGGING - ALL OUTPUT GOES ONLY TO FILE
+    return None
 
 
 def restore_stderr():
