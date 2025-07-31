@@ -40,14 +40,32 @@ class ProcessManager:
 
 
     def start_process(self, task, *args, **kwargs):
+        # Create logger for this task in the main process.
+        try:
+            # Extract class name from task function
+            if hasattr(task, '__qualname__'):
+                # For static methods like ClapDetector.hook_up
+                class_name = task.__qualname__.split('.')[0]
+            elif hasattr(task, '__self__') and hasattr(task.__self__, '__class__'):
+                # For bound methods
+                class_name = task.__self__.__class__.__name__
+            else:
+                # Fallback to function name
+                class_name = getattr(task, '__name__', f"Process{len(self._subprocesses) + 1}")
+            
+            module_logger = logging.getLogger(class_name)
+        except Exception as e:
+            self._logger.error(f'Failed to create logger for task {task}: {e}')
+            module_logger = None
+
         p = multiprocessing.Process(target=self._task_wrapper, 
-                                    args=(task, len(self._subprocesses) + 1, args, kwargs))
+                                    args=(task, len(self._subprocesses) + 1, module_logger, args, kwargs))
         self._subprocesses.append([p, task])
         p.start()
         return p
 
     
-    def _task_wrapper(self, task, id, args, kwargs):
+    def _task_wrapper(self, task, id, module_logger, args, kwargs):
         """
         The main task executed by each child process.
         """
@@ -80,7 +98,7 @@ class ProcessManager:
             sys.exit(1)
 
         try:
-            task(event_proxy, *args, **kwargs)
+            task(event_proxy, module_logger, *args, **kwargs)
         finally:
             print(f"Child Process {id} ({task}): Exiting.")
 

@@ -22,7 +22,14 @@ logging_filename = datetime.datetime.now().strftime('%Y%m%d-%H%M.log')
 logging_path = Path(__file__).parent / 'logs'
 if not logging_path.exists():
     logging_path.mkdir()
-logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG, filename=str(Path(__file__).parent / 'logs' / logging_filename))
+
+# Configure logging with module prefix for multiprocessing
+logging.basicConfig(
+    format='%(asctime)s [%(name)s] %(levelname)s: %(message)s',
+    level=logging.DEBUG, 
+    filename=str(Path(__file__).parent / 'logs' / logging_filename),
+    datefmt='%H:%M:%S'
+)
 
 def flatten(xss):
     return [x for xs in xss for x in xs]

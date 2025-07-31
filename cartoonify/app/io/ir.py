@@ -19,8 +19,8 @@ class IrReceiver:
     interface to IR receiver
     """
 
-    def __init__(self):
-        self._logger = logging.getLogger(self.__class__.__name__)
+    def __init__(self, logger=None):
+        self._logger = logger or logging.getLogger(self.__class__.__name__)
 
         self.dev = None
         self.trigger_callback = noop
@@ -30,8 +30,8 @@ class IrReceiver:
 
 
     @staticmethod
-    def hook_up(event_service, *args, **kwargs):
-        ir_receiver = IrReceiver()
+    def hook_up(event_service, logger, *args, **kwargs):
+        ir_receiver = IrReceiver(logger)
         ir_receiver.setup(trigger_callback=event_service.capture,
                             trigger_2s_callback = event_service.delayed_capture,
                             recording_callback=event_service.toggle_recording,

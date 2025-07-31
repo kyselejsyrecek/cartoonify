@@ -616,10 +616,10 @@ class Workflow(object):
 
     @property
     def exit_event(self):
-        """Access to global exit_event for child processes"""
+        """Access to global exit_event for child processes."""
         return exit_event
 
     @property  
     def halt_event(self):
-        """Access to global halt_event for child processes"""
+        """Access to global halt_event for child processes."""
         return halt_event

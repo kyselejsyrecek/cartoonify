@@ -47,17 +47,19 @@ class WebGui(App):
         self._logger = logging.getLogger("WebGui")
 
     @staticmethod
-    def hook_up(event_service, i18n, cam_only, web_host='0.0.0.0', web_port=8081):
-        """Static method for multiprocessing integration"""
+    def hook_up(event_service, logger, i18n, cam_only, web_host='0.0.0.0', web_port=8081):
+        """Static method for multiprocessing integration."""
+        # TODO
         # Register the /say route
         #from remi.server import remi_server
         
-        def say_page_handler():
-            app = WebGui()
-            app._event_service = event_service
-            app._i18n = i18n
-            app._full_capabilities = not cam_only
-            return app.construct_say_ui()
+        #def say_page_handler():
+        #    app = WebGui()
+        #    app._event_service = event_service
+        #    app._i18n = i18n
+        #    app._full_capabilities = not cam_only
+        #    app._logger = logger
+        #    return app.construct_say_ui()
         
         # Register the route before starting
         #remi_server.add_resource('/say', say_page_handler)
@@ -66,21 +68,22 @@ class WebGui(App):
               debug=False, 
               address=web_host, 
               port=web_port, 
-              userdata=(event_service, i18n, cam_only))
+              userdata=(event_service, logger, i18n, cam_only))
 
     def idle(self):
         # idle function called every update cycle
         # Check for exit_event to gracefully shutdown WebGui
         try:
             if hasattr(self._event_service, 'exit_event') and self._event_service.exit_event.is_set():
-                self._logger.info('Exit event detected in WebGui - closing application')
+                self._logger.info('Exit event detected in WebGui - closing application.')
                 self.close()
         except Exception as e:
             self._logger.warning(f'Could not check exit_event: {e}')
         pass
 
-    def main(self, event_service, i18n, cam_only):
-        self._event_service = event_service  # This is now the event service proxy
+    def main(self, event_service, logger, i18n, cam_only):
+        self._event_service = event_service
+        self._logger = logger
         self._i18n = i18n
         self._full_capabilities = not cam_only
         
@@ -312,7 +315,7 @@ class WebGui(App):
         self.fileselectionDialog.onchange.do(self.process_image)
         self.fileselectionDialog.set_on_cancel_dialog_listener(
             self.on_dialog_cancel)
-        # here is shown the dialog as root widget
+        # here is shown the dialog as root widget.
         self.fileselectionDialog.show(self)
 
     def process_image(self, widget, file_list):
@@ -336,12 +339,12 @@ class WebGui(App):
         self.set_root_widget(self.main_container)
     
     def on_say_pressed(self, *_):
-        """Handle Say button press"""
+        """Handle Say button press."""
         text = self.text_input.get_value().strip()
         if text:
             self._event_service.say(text)
-            self.text_input.set_value('')  # Clear the input field
+            self.text_input.set_value('')  # Clear the input field.
         
     def on_back_pressed(self, *_):
-        """Handle Back to Main button press"""
+        """Handle Back to Main button press."""
         self.set_root_widget(self.main_container)

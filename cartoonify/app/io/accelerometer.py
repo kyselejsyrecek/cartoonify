@@ -8,8 +8,8 @@ from app.utils.asynctask import *
 class Accelerometer(object):
     """Accelerometer/gyroscope motion detection using BMI160"""
 
-    def __init__(self):
-        self._logger = logging.getLogger(self.__class__.__name__)
+    def __init__(self, logger=None):
+        self._logger = logger or logging.getLogger(self.__class__.__name__)
         self._bmi160 = None
         self._sensor = None
         self._monitoring = False
@@ -155,16 +155,19 @@ class Accelerometer(object):
         self._logger.info('Accelerometer closed')
 
     @staticmethod
-    def hook_up(accel_threshold=2.0, gyro_threshold=100.0, cooldown_time=5.0, gyro_enabled=True):
-        """Static method for multiprocessing integration
+    def hook_up(event_service, logger, accel_threshold=2.0, gyro_threshold=100.0, cooldown_time=5.0, gyro_enabled=True):
+        """Static method for multiprocessing integration.
         
+        :param event_service: Event service proxy
+        :param logger: Logger instance for this process
         :param accel_threshold: Acceleration threshold in g-force
         :param gyro_threshold: Gyroscope threshold in degrees/second  
         :param cooldown_time: Time in seconds between motion detections
         :param gyro_enabled: Whether to enable gyroscope detection
         """
-        accelerometer = Accelerometer()
+        accelerometer = Accelerometer(logger)
         accelerometer.setup(
+            motion_callback=event_service.dizzy,
             accel_threshold=accel_threshold,
             gyro_threshold=gyro_threshold, 
             cooldown_time=cooldown_time,
