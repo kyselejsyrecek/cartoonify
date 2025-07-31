@@ -61,7 +61,8 @@ class Workflow(object):
             "tts_language": "cs",
             "raspi_headless": False,
             "ip": "0.0.0.0",
-            "port": 8081
+            "port": 8081,
+            "no_sound": False
         })
         self._lock = Lock()
         self._logger = logging.getLogger(self.__class__.__name__)
@@ -86,7 +87,7 @@ class Workflow(object):
         self._gpio = Gpio()
         self._ir_receiver = None
         self._clap_detector = None
-        self._sound = PlaySound()
+        self._sound = PlaySound(enabled=not self._config.no_sound)
         self._sketcher = None
         self._web_gui = None
         self._image = None

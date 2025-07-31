@@ -10,7 +10,11 @@ from pathlib import Path
 class PlaySound(object):
     """Controls audio playback functionality"""
 
-    def __init__(self):
+    def __init__(self, enabled=True):
+        """Initialize PlaySound with optional enabled flag
+        
+        :param enabled: If False, all sound operations are silently ignored
+        """
         self._logger = logging.getLogger(self.__class__.__name__)
         self._pa = None
         self._resources_path = Path(__file__).parent.parent.parent / 'sound'
@@ -20,6 +24,11 @@ class PlaySound(object):
         self._alsa_numid = 4
         self._mp3_player = None
         self._ogg_player = None
+        self._enabled = enabled
+        
+        if not self._enabled:
+            self._logger.info('Sound system disabled')
+    
 
     def setup(self, audio_backend=None, volume=1.0, alsa_numid=4, tts_language='cs'):
         """Setup audio system
@@ -29,6 +38,9 @@ class PlaySound(object):
         :param alsa_numid: ALSA mixer control numid for volume adjustment
         :param tts_language: Text-to-speech language code
         """
+        if not self._enabled:
+            return
+            
         self._logger.info('Setting up audio system...')
         
         # Store volume settings
@@ -127,6 +139,9 @@ class PlaySound(object):
 
     def close(self):
         """Cleanup audio resources"""
+        if not self._enabled:
+            return
+            
         if self._pa is not None:
             self._pa.terminate()
             self._pa = None
@@ -178,6 +193,9 @@ class PlaySound(object):
         :param audio_file: Path to audio file, filename with wildcards, or list of paths/filenames for random selection
         :param volume: Relative volume (0.0 to 1.0, relative to max volume)
         """
+        if not self._enabled:
+            return
+            
         # Resolve file pattern to actual file
         full_path = self._resolve_audio_file(audio_file)
         if not full_path or not full_path.exists():
@@ -526,6 +544,9 @@ class PlaySound(object):
         
         :param text: Text to speak
         """
+        if not self._enabled:
+            return
+            
         if not text or not text.strip():
             self._logger.warning('Empty text provided for TTS')
             return
