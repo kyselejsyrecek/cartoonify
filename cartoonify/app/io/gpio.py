@@ -1,5 +1,5 @@
 import importlib
-import logging
+from app.debugging.logging import getLogger
 import re
 import time
 
@@ -27,7 +27,7 @@ class Gpio:
     """
 
     def __init__(self):
-        self._logger = logging.getLogger(self.__class__.__name__)
+        self._logger = getLogger(self.__class__.__name__)
 
         # References to imported libraries
         self.gpio = None

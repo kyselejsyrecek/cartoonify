@@ -1,4 +1,4 @@
-import logging
+from app.debugging.logging import getLogger
 from piclap import *
 from threading import Thread
 from app.workflow.multiprocessing import ProcessInterface
@@ -42,7 +42,7 @@ class ClapDetector(ProcessInterface):
     """
 
     def __init__(self, logger=None):
-        self._logger = logger or logging.getLogger(self.__class__.__name__)
+        self._logger = logger or getLogger(self.__class__.__name__)
         self.listener = None
         self.config = None
         self.thread = None

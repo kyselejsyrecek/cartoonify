@@ -27,7 +27,7 @@ import tensorflow.compat.v1 as tf
 from PIL import Image
 from app.object_detection import label_map_util
 from app.object_detection import visualization_utils as vis_util
-import logging
+from app.debugging.logging import getLogger
 from pathlib import Path
 import click
 
@@ -68,7 +68,7 @@ class ImageProcessor(object):
         self.num_detections = None
 
     def setup(self):
-        self._logger = logging.getLogger(self.__class__.__name__)
+        self._logger = getLogger(self.__class__.__name__)
         if not Path(self._path_to_model).exists():
             if self._force_download or \
                click.confirm('no object detection model available, would you like to download the model? '

@@ -1,4 +1,4 @@
-import logging
+from app.debugging.logging import getLogger
 import time
 import threading
 import importlib
@@ -10,7 +10,7 @@ class Accelerometer(ProcessInterface):
     """Accelerometer/gyroscope motion detection using BMI160"""
 
     def __init__(self, logger=None):
-        self._logger = logger or logging.getLogger(self.__class__.__name__)
+        self._logger = logger or getLogger(self.__class__.__name__)
         self._bmi160 = None
         self._sensor = None
         self._monitoring = False

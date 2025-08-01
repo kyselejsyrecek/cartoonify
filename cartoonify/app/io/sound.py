@@ -1,4 +1,4 @@
-import logging
+from app.debugging.logging import getLogger
 import glob
 import importlib
 import random
@@ -15,7 +15,7 @@ class PlaySound(object):
         
         :param enabled: If False, all sound operations are silently ignored
         """
-        self._logger = logging.getLogger(self.__class__.__name__)
+        self._logger = getLogger(self.__class__.__name__)
         self._pa = None
         self._resources_path = Path(__file__).parent.parent.parent / 'sound'
         self._audio_backend = None  # Will be set in setup()

@@ -2,7 +2,7 @@ import struct
 from struct import unpack
 from pathlib import Path
 import jsonlines
-import logging
+from app.debugging.logging import getLogger
 import click
 
 
@@ -19,7 +19,7 @@ class DrawingDataset(object):
         self._quickdraw_dataset_url = 'https://storage.googleapis.com/quickdraw_dataset/full/binary/'
         self._categories = []
         self._category_mapping = dict()
-        self._logger = logging.getLogger(self.__class__.__name__)
+        self._logger = getLogger(self.__class__.__name__)
 
     def setup(self):
         try:

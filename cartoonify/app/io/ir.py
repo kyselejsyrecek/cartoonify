@@ -1,5 +1,5 @@
 import evdev
-import logging
+from app.debugging.logging import getLogger
 import signal
 import time
 
@@ -22,7 +22,7 @@ class IrReceiver(ProcessInterface):
     """
 
     def __init__(self, logger=None):
-        self._logger = logger or logging.getLogger(self.__class__.__name__)
+        self._logger = logger or getLogger(self.__class__.__name__)
 
         self.dev = None
         self.trigger_callback = noop

@@ -9,7 +9,7 @@ import time
 
 from app.utils.attributedict import AttributeDict
 from app.debugging import profiling
-from app.debugging.logging import setup_logging, add_console_logging, restore_stderr
+from app.debugging.logging import setup_logging, add_console_logging, restore_stderr, getLogger
 
 # BUG: Built-in input() function writes to stderr instead of stdout (Python 3.11).
 # See https://discuss.python.org/t/builtin-function-input-writes-its-prompt-to-sys-stderr-and-not-to-sys-stdout/12955/2.
@@ -122,7 +122,7 @@ def run(**kwargs):
     app.setup(setup_gpio=config.raspi_headless)
 
     # Create logger after workflow setup
-    logger = logging.getLogger(__name__)
+    logger = getLogger(__name__)
 
     # For headless mode or web GUI mode, use the same event waiting logic
     if config.raspi_headless or config.gui or config.web_server:

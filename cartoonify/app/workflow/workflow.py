@@ -19,12 +19,13 @@ from app.sketch import SketchGizeh
 from app.io import Gpio, IrReceiver, ClapDetector, PlaySound, Camera, Accelerometer
 from app.utils.attributedict import AttributeDict
 from app.debugging import profiling
+from app.debugging.logging import getLogger  # Import our enhanced getLogger
 from app.workflow.multiprocessing import *
 from app.utils.asynctask import *
 
 
 def signal_handler(signum, frame):
-    logger = logging.getLogger(__name__)
+    logger = getLogger(__name__)
     if exit_event.is_set():
         return  # Already exiting, return immediately.
     logger.info(f"Parent Process: Received signal {signum}, signaling children to exit.")
@@ -66,7 +67,7 @@ class Workflow(object):
             "no_sound": False
         })
         self._lock = Lock()
-        self._logger = logging.getLogger(self.__class__.__name__)
+        self._logger = getLogger(self.__class__.__name__)  # Use enhanced getLogger
         self._config.update(config)
         self._i18n = i18n
 

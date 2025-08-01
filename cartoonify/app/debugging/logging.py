@@ -2,20 +2,94 @@ import logging
 import datetime
 import sys
 import os
+import re
 from pathlib import Path
 from io import StringIO
+
+
+def strip_ansi_codes(text):
+    """Remove ANSI escape sequences and control characters from text
+    
+    This prevents terminal control sequences from breaking log file formatting
+    and prevents clearing/corrupting the log file content.
+    """
+    # ANSI escape sequence pattern: ESC[ followed by parameter bytes and final byte
+    ansi_pattern = re.compile(r'\x1b\[[0-9;]*[a-zA-Z]')
+    # Remove ANSI escape sequences
+    text = ansi_pattern.sub('', text)
+    
+    # Remove other common control characters but keep newlines and tabs
+    control_chars = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
+    text = control_chars.sub('', text)
+    
+    return text
+
+
+class FilteredLogger:
+    """Wrapper for standard logger that filters ANSI codes and control characters"""
+    
+    def __init__(self, logger, filter_ansi=True, custom_filter=None):
+        self._logger = logger
+        self._filter_ansi = filter_ansi
+        self._custom_filter = custom_filter
+    
+    def _filter_message(self, message):
+        """Apply filters to message if enabled"""
+        if isinstance(message, str):
+            if self._custom_filter:
+                message = self._custom_filter(message)
+            if self._filter_ansi:
+                message = strip_ansi_codes(message)
+        return message
+    
+    def debug(self, message, *args, **kwargs):
+        self._logger.debug(self._filter_message(message), *args, **kwargs)
+    
+    def info(self, message, *args, **kwargs):
+        self._logger.info(self._filter_message(message), *args, **kwargs)
+    
+    def warning(self, message, *args, **kwargs):
+        self._logger.warning(self._filter_message(message), *args, **kwargs)
+    
+    def error(self, message, *args, **kwargs):
+        self._logger.error(self._filter_message(message), *args, **kwargs)
+    
+    def critical(self, message, *args, **kwargs):
+        self._logger.critical(self._filter_message(message), *args, **kwargs)
+    
+    def exception(self, message, *args, **kwargs):
+        self._logger.exception(self._filter_message(message), *args, **kwargs)
+    
+    def log(self, level, message, *args, **kwargs):
+        self._logger.log(level, self._filter_message(message), *args, **kwargs)
+    
+    # Delegate other attributes to the underlying logger
+    def __getattr__(self, name):
+        return getattr(self._logger, name)
+
+
+def getLogger(name=None, filter_ansi=True, custom_filter=None):
+    """Enhanced getLogger with optional ANSI filtering
+    
+    :param name: Logger name (same as standard logging.getLogger)
+    :param filter_ansi: Whether to filter ANSI escape sequences (default: True)
+    :param custom_filter: Custom filter function to apply to messages (default: None)
+    :return: FilteredLogger instance
+    """
+    base_logger = logging.getLogger(name)
+    return FilteredLogger(base_logger, filter_ansi=filter_ansi, custom_filter=custom_filter)
 
 
 class StderrToLogger:
     """Redirect stderr to logger with ERROR level"""
     
     def __init__(self, logger_name='stderr', level=logging.ERROR):
-        self.logger = logging.getLogger(logger_name)
+        self.logger = getLogger(logger_name, filter_ansi=True)  # Use our enhanced getLogger
         self.level = level
         self.buffer = StringIO()
     
     def write(self, message):
-        # Buffer the message
+        # Buffer the message (filtering is handled by FilteredLogger)
         self.buffer.write(message)
         
         # If we have a complete line (ends with newline), log it
@@ -167,6 +241,7 @@ def setup_logging(logs_dir=None, enable_colors=True, log_level=logging.DEBUG, re
                 with os.fdopen(read_fd, 'r') as pipe_reader_file:
                     for line in pipe_reader_file:
                         if line.strip():
+                            # Filtering is handled by FilteredLogger
                             stderr_redirector.logger.error(line.rstrip('\n'))
             except:
                 pass

@@ -1,4 +1,4 @@
-import logging
+from app.debugging.logging import getLogger
 import importlib
 import sys
 import time
@@ -10,7 +10,7 @@ class Camera(object):
     """Controls camera functionality using Picamera2"""
 
     def __init__(self):
-        self._logger = logging.getLogger(self.__class__.__name__)
+        self._logger = getLogger(self.__class__.__name__)
         self._cam = None
         self._picam2 = None
         self._video_encoder = None

@@ -3,7 +3,7 @@ import PIL.Image
 import io
 import time
 import importlib
-import logging
+from app.debugging.logging import getLogger
 import sys
 
 from pathlib import Path
@@ -46,7 +46,7 @@ class WebGui(App, ProcessInterface):
         self._event_service = None
         self._i18n = None
         self._full_capabilities = True
-        self._logger = logging.getLogger("WebGui")
+        self._logger = getLogger("WebGui")
 
     @staticmethod
     def hook_up(event_service, logger, i18n, cam_only, web_host='0.0.0.0', web_port=8081):

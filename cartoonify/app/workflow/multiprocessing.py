@@ -1,4 +1,3 @@
-import logging
 import multiprocessing
 import os
 import signal
@@ -6,6 +5,7 @@ import sys
 from abc import ABC, abstractmethod
 
 from multiprocessing.managers import BaseManager
+from app.debugging.logging import getLogger  # Import our enhanced getLogger
 
 
 # Global event for signaling processes to exit.
@@ -40,7 +40,7 @@ class ProcessManager:
     """
 
     def __init__(self, manager_address, manager_authkey):
-        self._logger = logging.getLogger(self.__class__.__name__)
+        self._logger = getLogger(self.__class__.__name__)
         self._subprocesses = []
         self._manager_address = manager_address
         self._manager_authkey = manager_authkey
@@ -60,7 +60,7 @@ class ProcessManager:
             raise ValueError(f"Process class {process_class.__name__} must inherit from ProcessInterface")
         
         # Create logger for this process in the main process
-        module_logger = logging.getLogger(process_class.__name__)
+        module_logger = getLogger(process_class.__name__, filter_ansi=True)
         
         # Set up pipes for stdout/stderr capture if requested
         stdout_pipe = None
