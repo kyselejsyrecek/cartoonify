@@ -78,7 +78,9 @@ def flatten(xss):
 @click.option('--no-accelerometer', is_flag=True, help='Disable accelerometer motion detection')
 @click.option('--tts-language', type=str, default='cs', help='Text-to-speech language code (default: cs for Czech)')
 @click.option('--no-log-colors', is_flag=True, help='Disable colored output in log messages')
-@click.option('--no-sound', is_flag=True, help='Disable all sound output and text-to-speech')
+@click.option('--no-sound', is_flag=True, default=False, help='Disable all sounds.')
+@click.option('--cert-file', type=str, default=None, help='SSL certificate file for HTTPS server.')
+@click.option('--key-file', type=str, default=None, help='SSL private key file for HTTPS server.')
 def run(**kwargs):
     # Configure logging based on command line options
     config = AttributeDict(kwargs)

@@ -49,7 +49,7 @@ class WebGui(App, ProcessInterface):
         self._logger = getLogger("WebGui")
 
     @staticmethod
-    def hook_up(event_service, logger, i18n, cam_only, web_host='0.0.0.0', web_port=8081):
+    def hook_up(event_service, logger, i18n, cam_only, web_host='0.0.0.0', web_port=8081, start_browser=False, cert_file=None, key_file=None):
         """Static method for multiprocessing integration."""
         # TODO
         # Register the /say route
@@ -69,7 +69,10 @@ class WebGui(App, ProcessInterface):
         start(WebGui, 
               debug=False, 
               address=web_host, 
-              port=web_port, 
+              port=web_port,
+              start_browser=start_browser,
+              certfile=cert_file,
+              keyfile=key_file,
               userdata=(event_service, logger, i18n, cam_only))
 
     def idle(self):

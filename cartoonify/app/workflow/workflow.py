@@ -64,7 +64,9 @@ class Workflow(object):
             "raspi_headless": False,
             "ip": "0.0.0.0",
             "port": 8081,
-            "no_sound": False
+            "no_sound": False,
+            "cert_file": None,
+            "key_file": None
         })
         self._lock = Lock()
         self._logger = getLogger(self.__class__.__name__)  # Use enhanced getLogger
@@ -233,8 +235,12 @@ class Workflow(object):
                 self._config.raspi_headless,  # cam_only mode - limits GUI features to camera operations only
                 self._config.ip, 
                 self._config.port,
+                self._config.gui,  # start_browser - True for GUI mode, False for web_server mode
+                self._config.cert_file,  # SSL certificate file
+                self._config.key_file,   # SSL private key file
                 capture_stdout=False,  # Allow WebGUI stdout to go to console
-                capture_stderr=False   # Allow WebGUI stderr to go to console
+                capture_stderr=False,  # Allow WebGUI stderr to go to console
+                filter_ansi=False      # Don't filter ANSI codes from WebGUI
             )
             
             if self._config.gui:
