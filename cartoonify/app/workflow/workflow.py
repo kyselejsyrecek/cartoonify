@@ -231,7 +231,9 @@ class Workflow(object):
                 self._i18n,  # i18n object from run.py
                 self._config.raspi_headless,  # cam_only mode - limits GUI features to camera operations only
                 self._config.ip, 
-                self._config.port
+                self._config.port,
+                capture_stdout=False,  # Allow WebGUI stdout to go to console
+                capture_stderr=False   # Allow WebGUI stderr to go to console
             )
             
             if self._config.gui:

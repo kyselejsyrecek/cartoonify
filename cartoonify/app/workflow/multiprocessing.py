@@ -46,10 +46,12 @@ class ProcessManager:
         self._manager_authkey = manager_authkey
 
 
-    def start_process(self, process_class, *args, **kwargs):
+    def start_process(self, process_class, *args, capture_stdout=True, capture_stderr=True, **kwargs):
         """Start a new process using a ProcessInterface subclass.
         
         :param process_class: Class that inherits from ProcessInterface
+        :param capture_stdout: Whether to capture stdout from child process (default: True)
+        :param capture_stderr: Whether to capture stderr from child process (default: True)
         :param args: Additional positional arguments for hook_up
         :param kwargs: Additional keyword arguments for hook_up
         """
@@ -60,17 +62,86 @@ class ProcessManager:
         # Create logger for this process in the main process
         module_logger = logging.getLogger(process_class.__name__)
         
+        # Set up pipes for stdout/stderr capture if requested
+        stdout_pipe = None
+        stderr_pipe = None
+        stdout_thread = None
+        stderr_thread = None
+        
+        if capture_stdout or capture_stderr:
+            import threading
+            
+            if capture_stdout:
+                stdout_read, stdout_write = os.pipe()
+                stdout_pipe = (stdout_read, stdout_write)
+                
+                def stdout_reader():
+                    try:
+                        with os.fdopen(stdout_read, 'r') as pipe_reader:
+                            for line in pipe_reader:
+                                if line.strip():
+                                    module_logger.info(f"[STDOUT] {line.rstrip()}")
+                    except:
+                        pass
+                
+                stdout_thread = threading.Thread(target=stdout_reader, daemon=True)
+                stdout_thread.start()
+            
+            if capture_stderr:
+                stderr_read, stderr_write = os.pipe()
+                stderr_pipe = (stderr_read, stderr_write)
+                
+                def stderr_reader():
+                    try:
+                        with os.fdopen(stderr_read, 'r') as pipe_reader:
+                            for line in pipe_reader:
+                                if line.strip():
+                                    module_logger.error(f"[STDERR] {line.rstrip()}")
+                    except:
+                        pass
+                
+                stderr_thread = threading.Thread(target=stderr_reader, daemon=True)
+                stderr_thread.start()
+        
         p = multiprocessing.Process(target=self._task_wrapper, 
-                                    args=(process_class, len(self._subprocesses) + 1, module_logger, args, kwargs))
-        self._subprocesses.append([p, process_class])
+                                    args=(process_class, len(self._subprocesses) + 1, module_logger, args, kwargs, stdout_pipe, stderr_pipe))
+        
+        # Store process info with pipes for cleanup
+        process_info = {
+            'process': p,
+            'class': process_class,
+            'stdout_pipe': stdout_pipe,
+            'stderr_pipe': stderr_pipe,
+            'stdout_thread': stdout_thread,
+            'stderr_thread': stderr_thread
+        }
+        self._subprocesses.append(process_info)
         p.start()
+        
+        # Close write ends in parent process
+        if stdout_pipe:
+            os.close(stdout_pipe[1])
+        if stderr_pipe:
+            os.close(stderr_pipe[1])
+            
         return p
 
     
-    def _task_wrapper(self, process_class, id, module_logger, args, kwargs):
+    def _task_wrapper(self, process_class, id, module_logger, args, kwargs, stdout_pipe, stderr_pipe):
         """
         The main task executed by each child process.
         """
+        # Redirect stdout/stderr if pipes are provided
+        if stdout_pipe:
+            os.dup2(stdout_pipe[1], 1)  # Redirect stdout to pipe
+            os.close(stdout_pipe[0])    # Close read end in child
+            os.close(stdout_pipe[1])    # Close write end after dup2
+        
+        if stderr_pipe:
+            os.dup2(stderr_pipe[1], 2)  # Redirect stderr to pipe
+            os.close(stderr_pipe[0])    # Close read end in child
+            os.close(stderr_pipe[1])    # Close write end after dup2
+        
         def signal_handler(signum, frame):
             try:
                 # Try to access exit_event through event_proxy.
@@ -112,11 +183,25 @@ class ProcessManager:
         """
         self._logger.info('Terminating child processes...')
         # Attempt to gracefully terminate all child processes.
-        for p, process_class in self._subprocesses:
+        for process_info in self._subprocesses:
+            p = process_info['process']
+            process_class = process_info['class']
             if p.is_alive():
                 p.terminate() # Request child to terminate.
                 p.join(timeout=1) # Wait for termination with a timeout.
                 if p.is_alive():
                     # If child hasn't terminated, forcibly kill it.
-                    self._logger.warning(f"Subprocess {p.pid} ({process_class}) did not terminate gracefully, killing.")
+                    self._logger.warning(f"Subprocess {p.pid} ({process_class.__name__}) did not terminate gracefully, killing.")
                     os.kill(p.pid, signal.SIGKILL)
+            
+            # Clean up pipes
+            if process_info['stdout_pipe']:
+                try:
+                    os.close(process_info['stdout_pipe'][0])
+                except:
+                    pass
+            if process_info['stderr_pipe']:
+                try:
+                    os.close(process_info['stderr_pipe'][0])
+                except:
+                    pass
