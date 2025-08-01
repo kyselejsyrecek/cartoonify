@@ -77,17 +77,17 @@ class ProcessManager:
                 if 'event_proxy' in locals():
                     if event_proxy.exit_event.is_set():
                         return  # Already exiting, return immediately.
-                    print(f"Child Process {id} ({process_class.__name__}): Received signal {signum}, exiting.")
+                    module_logger.info(f"Child Process {id} ({process_class.__name__}): Received signal {signum}, exiting.")
                     event_proxy.exit_event.set()
             except:
                 # Cannot access exit_event, just exit.
-                print(f"Child Process {id} ({process_class.__name__}): Received signal {signum}, exiting.")
+                module_logger.info(f"Child Process {id} ({process_class.__name__}): Received signal {signum}, exiting.")
             sys.exit(0)
 
         # Set up the SIGINT handler for the child process.
         signal.signal(signal.SIGINT, signal_handler)
 
-        print(f"Child Process {id} ({process_class.__name__}): Starting. PID: {os.getpid()}")
+        module_logger.info(f"Child Process {id} ({process_class.__name__}): Starting. PID: {os.getpid()}")
 
         # Connect to the parent process's manager.
         # Register the instance directly (without a callable) for client-side access.
@@ -97,14 +97,14 @@ class ProcessManager:
             event_manager.connect()
             event_proxy = event_manager.event_service()
         except Exception as e:
-            print(f"Child Process {id} ({process_class.__name__}): Failed to connect to manager: {e}")
+            module_logger.error(f"Child Process {id} ({process_class.__name__}): Failed to connect to manager: {e}")
             sys.exit(1)
 
         try:
             # Call the static hook_up method on the process class
             process_class.hook_up(event_proxy, module_logger, *args, **kwargs)
         finally:
-            print(f"Child Process {id} ({process_class.__name__}): Exiting.")
+            module_logger.info(f"Child Process {id} ({process_class.__name__}): Exiting.")
 
 
     def terminate(self):
