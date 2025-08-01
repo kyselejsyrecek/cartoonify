@@ -46,12 +46,14 @@ class ProcessManager:
         self._manager_authkey = manager_authkey
 
 
-    def start_process(self, process_class, *args, capture_stdout=True, capture_stderr=True, **kwargs):
+    def start_process(self, process_class, *args, capture_stdout=True, capture_stderr=True, filter_ansi=True, custom_filter=None, **kwargs):
         """Start a new process using a ProcessInterface subclass.
         
         :param process_class: Class that inherits from ProcessInterface
         :param capture_stdout: Whether to capture stdout from child process (default: True)
         :param capture_stderr: Whether to capture stderr from child process (default: True)
+        :param filter_ansi: Whether to filter ANSI escape sequences (default: True)
+        :param custom_filter: Custom filter function for log messages (default: None)
         :param args: Additional positional arguments for hook_up
         :param kwargs: Additional keyword arguments for hook_up
         """
@@ -60,7 +62,7 @@ class ProcessManager:
             raise ValueError(f"Process class {process_class.__name__} must inherit from ProcessInterface")
         
         # Create logger for this process in the main process
-        module_logger = getLogger(process_class.__name__, filter_ansi=True)
+        module_logger = getLogger(process_class.__name__, filter_ansi=filter_ansi, custom_filter=custom_filter)
         
         # Set up pipes for stdout/stderr capture if requested
         stdout_pipe = None

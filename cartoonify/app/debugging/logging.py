@@ -8,19 +8,32 @@ from io import StringIO
 
 
 def strip_ansi_codes(text):
-    """Remove ANSI escape sequences and control characters from text
+    """Remove ANSI escape sequences and dangerous control characters from text
     
     This prevents terminal control sequences from breaking log file formatting
     and prevents clearing/corrupting the log file content.
-    """
-    # ANSI escape sequence pattern: ESC[ followed by parameter bytes and final byte
-    ansi_pattern = re.compile(r'\x1b\[[0-9;]*[a-zA-Z]')
-    # Remove ANSI escape sequences
-    text = ansi_pattern.sub('', text)
     
-    # Remove other common control characters but keep newlines and tabs
-    control_chars = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
-    text = control_chars.sub('', text)
+    Preserves UTF-8 characters including diacritics and special characters.
+    Only removes actual ANSI escape sequences and dangerous control characters.
+    """
+    # ANSI escape sequence patterns:
+    # - CSI sequences: ESC[ followed by parameters and final byte (most common)
+    # - OSC sequences: ESC] followed by text and terminator
+    # - Simple escape sequences: ESC followed by single character
+    ansi_csi_pattern = re.compile(r'\x1b\[[0-9;]*[a-zA-Z]')  # CSI sequences like \x1b[2J
+    ansi_osc_pattern = re.compile(r'\x1b\][^\x07\x1b]*[\x07\x1b\\]')  # OSC sequences
+    ansi_simple_pattern = re.compile(r'\x1b[a-zA-Z]')  # Simple sequences like \x1bE
+    
+    # Remove ANSI escape sequences
+    text = ansi_csi_pattern.sub('', text)
+    text = ansi_osc_pattern.sub('', text)
+    text = ansi_simple_pattern.sub('', text)
+    
+    # Remove only dangerous control characters (preserve \n, \t, \r and UTF-8)
+    # Remove C0 controls except: \t (0x09), \n (0x0a), \r (0x0d)
+    # Remove DEL (0x7f) but preserve all UTF-8 multi-byte sequences (0x80-0xff)
+    dangerous_controls = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
+    text = dangerous_controls.sub('', text)
     
     return text
 
@@ -36,8 +49,10 @@ class FilteredLogger:
     def _filter_message(self, message):
         """Apply filters to message if enabled"""
         if isinstance(message, str):
+            # Apply custom filter first if provided
             if self._custom_filter:
                 message = self._custom_filter(message)
+            # Apply ANSI filter if enabled
             if self._filter_ansi:
                 message = strip_ansi_codes(message)
         return message
