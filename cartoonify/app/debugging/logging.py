@@ -85,13 +85,17 @@ class StderrRedirector:
         if message.endswith('\n'):
             content = self.buffer.getvalue().rstrip('\n')
             if content.strip():
-                self.logger.error(f"stderr: {content}")
+                # Only log if it doesn't look like it's already formatted by our logger.
+                if not re.match(r'^\[\d{2}:\d{2}:\d{2}.\d{3}\]', content.strip()):
+                    self.logger.error(content)
             self.buffer = StringIO()
     
     def flush(self):
         content = self.buffer.getvalue().rstrip('\n')
         if content.strip():
-            self.logger.error(f"stderr: {content}")
+            # Only log if it doesn't look like it's already formatted by our logger.
+            if not re.match(r'^\[\d{2}:\d{2}:\d{2}.\d{3}\]', content.strip()):
+                self.logger.error(content)
         self.buffer = StringIO()
     
     def restore(self):
@@ -250,32 +254,9 @@ def setup_debug_logging(log_level=logging.DEBUG, use_colors=True):
     root_logger.addHandler(stderr_handler)
     root_logger.setLevel(log_level)
     
-    # In debug mode, redirect stderr at file descriptor level for proper formatting.
+    # In debug mode, use simpler stderr redirection to capture C library output.
     stderr_redirector = StderrRedirector()
-    
-    # Redirect stderr at file descriptor level for C libraries.
-    original_stderr_fd = os.dup(sys.stderr.fileno())
-    read_fd, write_fd = os.pipe()
-    os.dup2(write_fd, sys.stderr.fileno())
-    os.close(write_fd)
     sys.stderr = stderr_redirector
-    
-    # Store file descriptors for cleanup.
-    stderr_redirector.original_stderr_fd = original_stderr_fd
-    stderr_redirector.pipe_read_fd = read_fd
-    
-    # Start thread to read from pipe and log messages.
-    import threading
-    def pipe_reader():
-        try:
-            with os.fdopen(read_fd, 'r') as pipe_reader_file:
-                for line in pipe_reader_file:
-                    if line.strip():
-                        stderr_redirector.logger.error(line.rstrip('\n'))
-        except:
-            pass
-    
-    threading.Thread(target=pipe_reader, daemon=True).start()
     
     return stderr_redirector
 
