@@ -250,9 +250,32 @@ def setup_debug_logging(log_level=logging.DEBUG, use_colors=True):
     root_logger.addHandler(stderr_handler)
     root_logger.setLevel(log_level)
     
-    # In debug mode, also redirect stderr to get proper formatting
+    # In debug mode, redirect stderr at file descriptor level for proper formatting.
     stderr_redirector = StderrRedirector()
+    
+    # Redirect stderr at file descriptor level for C libraries.
+    original_stderr_fd = os.dup(sys.stderr.fileno())
+    read_fd, write_fd = os.pipe()
+    os.dup2(write_fd, sys.stderr.fileno())
+    os.close(write_fd)
     sys.stderr = stderr_redirector
+    
+    # Store file descriptors for cleanup.
+    stderr_redirector.original_stderr_fd = original_stderr_fd
+    stderr_redirector.pipe_read_fd = read_fd
+    
+    # Start thread to read from pipe and log messages.
+    import threading
+    def pipe_reader():
+        try:
+            with os.fdopen(read_fd, 'r') as pipe_reader_file:
+                for line in pipe_reader_file:
+                    if line.strip():
+                        stderr_redirector.logger.error(line.rstrip('\n'))
+        except:
+            pass
+    
+    threading.Thread(target=pipe_reader, daemon=True).start()
     
     return stderr_redirector
 
