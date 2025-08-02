@@ -160,7 +160,7 @@ class CustomFormatter(logging.Formatter):
         return formatted_message
 
 
-def _create_file_handler(logs_dir, log_level):
+def _create_file_handler(logs_dir, log_level, use_colors=True):
     """Create file handler for logging"""
     logs_dir = Path(logs_dir)
     logs_dir.mkdir(exist_ok=True)
@@ -170,7 +170,7 @@ def _create_file_handler(logs_dir, log_level):
     
     file_handler = logging.FileHandler(str(log_filename))
     file_handler.setLevel(log_level)
-    file_handler.setFormatter(CustomFormatter(use_colors=True))
+    file_handler.setFormatter(CustomFormatter(use_colors=use_colors))
     
     return file_handler
 
@@ -191,7 +191,7 @@ def _create_console_handlers(log_level, use_colors):
     return stdout_handler, stderr_handler
 
 
-def setup_file_logging(logs_dir, log_level=logging.DEBUG, redirect_stderr=True):
+def setup_file_logging(logs_dir, log_level=logging.DEBUG, redirect_stderr=True, use_colors=True):
     """Setup file-only logging (normal mode)"""
     root_logger = logging.getLogger()
     
@@ -200,7 +200,7 @@ def setup_file_logging(logs_dir, log_level=logging.DEBUG, redirect_stderr=True):
         root_logger.removeHandler(handler)
     
     # Add file handler
-    file_handler = _create_file_handler(logs_dir, log_level)
+    file_handler = _create_file_handler(logs_dir, log_level, use_colors)
     root_logger.addHandler(file_handler)
     root_logger.setLevel(log_level)
     

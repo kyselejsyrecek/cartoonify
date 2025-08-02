@@ -84,7 +84,7 @@ def run(**kwargs):
     if config.debug:
         stderr_redirector = setup_debug_logging(use_colors=not config.no_log_colors)
     else:
-        stderr_redirector = setup_file_logging(logs_dir, redirect_stderr=True)
+        stderr_redirector = setup_file_logging(logs_dir, redirect_stderr=True, use_colors=not config.no_log_colors)
     
     # Standard error output had to be redirected first to the logging library.
     # Broken TensorFlow library and its CUDA-related dependencies generate a bunch
