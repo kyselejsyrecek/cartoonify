@@ -9,7 +9,7 @@ import time
 
 from app.utils.attributedict import AttributeDict
 from app.debugging import profiling
-from app.debugging.logging import setup_logging, add_console_logging, restore_stderr, getLogger
+from app.debugging.logging import setup_logging, add_console_logging, getLogger, setup_debug_console_logging
 
 # BUG: Built-in input() function writes to stderr instead of stdout (Python 3.11).
 # See https://discuss.python.org/t/builtin-function-input-writes-its-prompt-to-sys-stderr-and-not-to-sys-stdout/12955/2.
@@ -81,13 +81,19 @@ def flatten(xss):
 @click.option('--no-sound', is_flag=True, default=False, help='Disable all sounds.')
 @click.option('--cert-file', type=str, default=None, help='SSL certificate file for HTTPS server.')
 @click.option('--key-file', type=str, default=None, help='SSL private key file for HTTPS server.')
+@click.option('--debug', is_flag=True, help='Output all log messages to console instead of file. Error messages go to stderr, others to stdout.')
 def run(**kwargs):
     # Configure logging based on command line options
     config = AttributeDict(kwargs)
     
-    # Add console handler with colors if needed
-    if not config.no_log_colors:
-        add_console_logging(enable_colors=True)
+    # Set up debug logging if requested
+    if config.debug:
+        # In debug mode, send all logs to console: ERROR to stderr, others to stdout
+        setup_debug_console_logging()
+    else:
+        # Add console handler with colors if needed
+        if not config.no_log_colors:
+            add_console_logging(enable_colors=True)
     
     # Standard error output had to be redirected first to the logging library.
     # Broken TensorFlow library and its CUDA-related dependencies generate a bunch
@@ -189,7 +195,7 @@ def run(**kwargs):
     
     # Cleanup: restore stderr before closing
     if stderr_redirector:
-        restore_stderr()
+        stderr_redirector.restore()
     
     app.close()
 

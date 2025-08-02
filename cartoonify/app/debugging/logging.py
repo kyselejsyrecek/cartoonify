@@ -276,3 +276,40 @@ def restore_stderr():
     if hasattr(sys.stderr, 'flush') and isinstance(sys.stderr, StderrToLogger):
         sys.stderr.flush()  # Flush any remaining content
         sys.stderr = sys.__stderr__  # Restore original stderr
+
+
+def setup_debug_console_logging():
+    """
+    Setup console logging for debug mode.
+    ERROR messages go to stderr, all others to stdout.
+    """
+    # Get root logger
+    root_logger = logging.getLogger()
+    
+    # Remove existing handlers to avoid duplicates
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+    
+    # Create stdout handler for non-ERROR messages
+    stdout_handler = logging.StreamHandler(sys.stdout)
+    stdout_handler.setLevel(logging.DEBUG)
+    stdout_handler.addFilter(lambda record: record.levelno < logging.ERROR)
+    stdout_formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    stdout_handler.setFormatter(stdout_formatter)
+    
+    # Create stderr handler for ERROR messages
+    stderr_handler = logging.StreamHandler(sys.stderr)
+    stderr_handler.setLevel(logging.ERROR)
+    stderr_formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    stderr_handler.setFormatter(stderr_formatter)
+    
+    # Add handlers to root logger
+    root_logger.addHandler(stdout_handler)
+    root_logger.addHandler(stderr_handler)
+    root_logger.setLevel(logging.DEBUG)
