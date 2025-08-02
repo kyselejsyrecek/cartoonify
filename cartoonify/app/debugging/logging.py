@@ -249,6 +249,12 @@ def setup_debug_logging(log_level=logging.DEBUG, use_colors=True):
     root_logger.addHandler(stdout_handler)
     root_logger.addHandler(stderr_handler)
     root_logger.setLevel(log_level)
+    
+    # In debug mode, also redirect stderr to get proper formatting
+    stderr_redirector = StderrRedirector()
+    sys.stderr = stderr_redirector
+    
+    return stderr_redirector
 
 
 def getLogger(name=None, filter_ansi=False, custom_filter=None):

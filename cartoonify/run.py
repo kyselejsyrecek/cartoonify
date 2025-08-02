@@ -82,8 +82,7 @@ def run(**kwargs):
     
     # Setup logging based on debug mode
     if config.debug:
-        setup_debug_logging(use_colors=not config.no_log_colors)
-        stderr_redirector = None
+        stderr_redirector = setup_debug_logging(use_colors=not config.no_log_colors)
     else:
         stderr_redirector = setup_file_logging(logs_dir, redirect_stderr=True)
     
