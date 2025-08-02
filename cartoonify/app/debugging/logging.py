@@ -32,13 +32,19 @@ def strip_ansi_codes(text):
 class FilteredLogger:
     """Wrapper for standard logger that filters ANSI codes"""
     
-    def __init__(self, logger, filter_ansi=True):
+    def __init__(self, logger, filter_ansi=True, custom_filter=None):
         self._logger = logger
         self._filter_ansi = filter_ansi
+        self._custom_filter = custom_filter
     
     def _filter_message(self, message):
-        if self._filter_ansi and isinstance(message, str):
-            return strip_ansi_codes(message)
+        if isinstance(message, str):
+            # Apply custom filter first if provided
+            if self._custom_filter:
+                message = self._custom_filter(message)
+            # Apply ANSI filter if enabled
+            if self._filter_ansi:
+                message = strip_ansi_codes(message)
         return message
     
     def debug(self, message, *args, **kwargs):
@@ -159,12 +165,12 @@ def _create_file_handler(logs_dir, log_level):
     logs_dir = Path(logs_dir)
     logs_dir.mkdir(exist_ok=True)
     
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_filename = logs_dir / f"cartoonify_{timestamp}.log"
+    timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M")
+    log_filename = logs_dir / f"{timestamp}.log"
     
     file_handler = logging.FileHandler(str(log_filename))
     file_handler.setLevel(log_level)
-    file_handler.setFormatter(CustomFormatter(use_colors=False))
+    file_handler.setFormatter(CustomFormatter(use_colors=True))
     
     return file_handler
 
@@ -198,11 +204,34 @@ def setup_file_logging(logs_dir, log_level=logging.DEBUG, redirect_stderr=True):
     root_logger.addHandler(file_handler)
     root_logger.setLevel(log_level)
     
-    # Setup stderr redirection
+    # Setup stderr redirection with proper file descriptor redirection
     stderr_redirector = None
     if redirect_stderr:
         stderr_redirector = StderrRedirector()
+        
+        # Redirect stderr at file descriptor level for C libraries
+        original_stderr_fd = os.dup(sys.stderr.fileno())
+        read_fd, write_fd = os.pipe()
+        os.dup2(write_fd, sys.stderr.fileno())
+        os.close(write_fd)
         sys.stderr = stderr_redirector
+        
+        # Store file descriptors for cleanup
+        stderr_redirector.original_stderr_fd = original_stderr_fd
+        stderr_redirector.pipe_read_fd = read_fd
+        
+        # Start thread to read from pipe and log messages
+        import threading
+        def pipe_reader():
+            try:
+                with os.fdopen(read_fd, 'r') as pipe_reader_file:
+                    for line in pipe_reader_file:
+                        if line.strip():
+                            stderr_redirector.logger.error(line.rstrip('\n'))
+            except:
+                pass
+        
+        threading.Thread(target=pipe_reader, daemon=True).start()
     
     return stderr_redirector
 
@@ -222,11 +251,11 @@ def setup_debug_logging(log_level=logging.DEBUG, use_colors=True):
     root_logger.setLevel(log_level)
 
 
-def getLogger(name=None, filter_ansi=False):
-    """Get logger with optional ANSI filtering"""
+def getLogger(name=None, filter_ansi=False, custom_filter=None):
+    """Get logger with optional ANSI filtering and custom message filtering"""
     base_logger = logging.getLogger(name)
     
-    if filter_ansi:
-        return FilteredLogger(base_logger, filter_ansi=True)
+    if filter_ansi or custom_filter:
+        return FilteredLogger(base_logger, filter_ansi=filter_ansi, custom_filter=custom_filter)
     else:
         return base_logger

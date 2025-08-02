@@ -82,7 +82,8 @@ class ProcessManager:
                         with os.fdopen(stdout_read, 'r') as pipe_reader:
                             for line in pipe_reader:
                                 if line.strip():
-                                    module_logger.info(f"[STDOUT] {line.rstrip()}")
+                                    # Don't add prefix, just log the raw stdout content
+                                    module_logger.info(line.rstrip())
                     except:
                         pass
                 
@@ -98,7 +99,8 @@ class ProcessManager:
                         with os.fdopen(stderr_read, 'r') as pipe_reader:
                             for line in pipe_reader:
                                 if line.strip():
-                                    module_logger.error(f"[STDERR] {line.rstrip()}")
+                                    # Don't add prefix, just log the raw stderr content
+                                    module_logger.error(line.rstrip())
                     except:
                         pass
                 
