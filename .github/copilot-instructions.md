@@ -117,3 +117,9 @@ When editing this codebase, pay attention to the multiprocessing event system, h
 - Avoid response-style comments directed at the user (e.g., "This FIXES the issue you requested").
 - Avoid all-caps emphasis in comments unless it's existing code style.
 - Write descriptive, technical comments that explain functionality rather than implementation notes for specific requests.
+
+### Import Organization
+- Always add imports to the top/header of files, following the existing structured organization.
+- Do not use local imports within functions unless absolutely necessary.
+- Remove unused imports when refactoring code.
+- Maintain consistent import ordering and grouping as established in the codebase.

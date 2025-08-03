@@ -2,6 +2,7 @@ import multiprocessing
 import os
 import signal
 import sys
+import logging
 from abc import ABC, abstractmethod
 
 from multiprocessing.managers import BaseManager
@@ -45,6 +46,22 @@ class ProcessManager:
         self._manager_address = manager_address
         self._manager_authkey = manager_authkey
 
+    def _pipe_reader(self, pipe_read_fd, logger, log_level):
+        """Generic pipe reader for stdout/stderr capture.
+        
+        :param pipe_read_fd: File descriptor to read from
+        :param logger: Logger instance to write to
+        :param log_level: Logging level (logging.INFO for stdout, logging.ERROR for stderr)
+        """
+        try:
+            with os.fdopen(pipe_read_fd, 'r') as pipe_reader:
+                for line in pipe_reader:
+                    if line.strip():
+                        # Log the raw content without additional prefix
+                        logger.log(log_level, line.rstrip())
+        except:
+            pass
+
 
     def start_process(self, process_class, *args, capture_stdout=True, capture_stderr=True, filter_ansi=True, custom_filter=None, **kwargs):
         """Start a new process using a ProcessInterface subclass.
@@ -77,34 +94,22 @@ class ProcessManager:
                 stdout_read, stdout_write = os.pipe()
                 stdout_pipe = (stdout_read, stdout_write)
                 
-                def stdout_reader():
-                    try:
-                        with os.fdopen(stdout_read, 'r') as pipe_reader:
-                            for line in pipe_reader:
-                                if line.strip():
-                                    # Don't add prefix, just log the raw stdout content
-                                    module_logger.info(line.rstrip())
-                    except:
-                        pass
-                
-                stdout_thread = threading.Thread(target=stdout_reader, daemon=True)
+                stdout_thread = threading.Thread(
+                    target=self._pipe_reader, 
+                    args=(stdout_read, module_logger, logging.INFO), 
+                    daemon=True
+                )
                 stdout_thread.start()
             
             if capture_stderr:
                 stderr_read, stderr_write = os.pipe()
                 stderr_pipe = (stderr_read, stderr_write)
                 
-                def stderr_reader():
-                    try:
-                        with os.fdopen(stderr_read, 'r') as pipe_reader:
-                            for line in pipe_reader:
-                                if line.strip():
-                                    # Don't add prefix, just log the raw stderr content
-                                    module_logger.error(line.rstrip())
-                    except:
-                        pass
-                
-                stderr_thread = threading.Thread(target=stderr_reader, daemon=True)
+                stderr_thread = threading.Thread(
+                    target=self._pipe_reader, 
+                    args=(stderr_read, module_logger, logging.WARNING), 
+                    daemon=True
+                )
                 stderr_thread.start()
         
         p = multiprocessing.Process(target=self._task_wrapper, 
