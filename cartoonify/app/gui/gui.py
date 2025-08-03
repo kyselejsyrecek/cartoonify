@@ -3,12 +3,15 @@ import PIL.Image
 import io
 import time
 import importlib
+import os
 from app.debugging.logging import getLogger
 import sys
 
 from pathlib import Path
 from remi import App, start
 from app.workflow.multiprocessing import ProcessInterface
+
+
 
 
 class PILImageViewerWidget(gui.Image):
@@ -51,21 +54,6 @@ class WebGui(App, ProcessInterface):
     @staticmethod
     def hook_up(event_service, logger, i18n, cam_only, web_host='0.0.0.0', web_port=8081, start_browser=False, cert_file=None, key_file=None):
         """Static method for multiprocessing integration."""
-        # TODO
-        # Register the /say route
-        #from remi.server import remi_server
-        
-        #def say_page_handler():
-        #    app = WebGui()
-        #    app._event_service = event_service
-        #    app._i18n = i18n
-        #    app._full_capabilities = not cam_only
-        #    app._logger = logger
-        #    return app.construct_say_ui()
-        
-        # Register the route before starting
-        #remi_server.add_resource('/say', say_page_handler)
-        
         start(WebGui, 
               debug=False, 
               address=web_host, 
@@ -92,12 +80,19 @@ class WebGui(App, ProcessInterface):
         self._i18n = i18n
         self._full_capabilities = not cam_only
         
-        self.display_original = False
-        #self.display_tagged = False # TODO Not yet implemented.
-        ui = self.construct_ui()
-        return ui
+        # Check if this is a request for the /say page
+        self._logger.debug(f'Processing request for path: {self.path}')
+            
+        # Route to different UIs based on path
+        if self.path == '/say':
+            return self.construct_say_ui()
+        else:
+            self.display_original = False
+            #self.display_tagged = False # TODO Not yet implemented.
+            return self.construct_ui()
 
     def construct_ui(self):
+        self._logger.debug(f"construct_ui() called for path: {self.path}")
         _ = self._i18n.gettext
         # layout
         self.main_container = gui.VBox()
@@ -199,6 +194,7 @@ class WebGui(App, ProcessInterface):
 
     def construct_say_ui(self):
         """Construct the /say page UI"""
+        self._logger.debug('Constructing /say UI')
         _ = self._i18n.gettext
         
         # Main container
@@ -352,4 +348,11 @@ class WebGui(App, ProcessInterface):
         
     def on_back_pressed(self, *_):
         """Handle Back to Main button press."""
-        self.set_root_widget(self.main_container)
+        # Redirect to main page by refreshing to root URL
+        try:
+            # Use REMI's built-in method to execute JavaScript for redirect
+            self.execute_javascript("window.location.href = '/';")
+        except:
+            # Fallback: just show main UI
+            main_ui = self.construct_ui()
+            self.set_root_widget(main_ui)
