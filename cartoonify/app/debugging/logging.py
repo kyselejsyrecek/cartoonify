@@ -75,7 +75,7 @@ class FilteredLogger:
 class StderrRedirector:
     """Redirect stderr to logger"""
     
-    def __init__(self, logger_name='stderr'):
+    def __init__(self, logger_name='STDERR'):
         self.logger = logging.getLogger(logger_name)
         self.buffer = StringIO()
         self.original_stderr = sys.stderr
@@ -85,13 +85,15 @@ class StderrRedirector:
         if message.endswith('\n'):
             content = self.buffer.getvalue().rstrip('\n')
             if content.strip():
-                self.logger.error(f"stderr: {content}")
+                # Messages written to stderr are often just informative.
+                self.logger.warning(f"STDERR: {content}")
             self.buffer = StringIO()
     
     def flush(self):
         content = self.buffer.getvalue().rstrip('\n')
         if content.strip():
-            self.logger.error(f"stderr: {content}")
+            # Messages written to stderr are often just informative.
+            self.logger.warning(f"STDERR: {content}")
         self.buffer = StringIO()
     
     def restore(self):
@@ -227,7 +229,8 @@ def setup_file_logging(logs_dir, log_level=logging.DEBUG, redirect_stderr=True, 
                 with os.fdopen(read_fd, 'r') as pipe_reader_file:
                     for line in pipe_reader_file:
                         if line.strip():
-                            stderr_redirector.logger.error(line.rstrip('\n'))
+                            # Messages written to stderr are often just informative.
+                            stderr_redirector.logger.warning(line.rstrip('\n'))
             except:
                 pass
         
