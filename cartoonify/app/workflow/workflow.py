@@ -226,6 +226,7 @@ class Workflow(object):
             
             if self._config.gui:
                 self._logger.info('Starting GUI...')
+                print('Starting GUI...')
             elif self._config.web_server:
                 self._logger.info(f'Starting HTTP server on address {self._config.ip}:{self._config.port}...')
             
@@ -247,6 +248,7 @@ class Workflow(object):
                 self._logger.info('GUI started successfully')
             elif self._config.web_server:
                 self._logger.info('HTTP server started successfully')
+                print(f'HTTP server running on address {self._config.ip}:{self._config.port}.')
         
         # Setup camera system
         if self._camera is not None:
