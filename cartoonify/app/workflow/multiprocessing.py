@@ -36,6 +36,60 @@ class EventManager(BaseManager):
     pass
 
 
+class Subprocess:
+    """Wrapper for a subprocess with additional metadata and management capabilities."""
+    
+    def __init__(self, process, process_class, logger, stdout_pipe=None, stderr_pipe=None, 
+                 stdout_thread=None, stderr_thread=None):
+        """Initialize subprocess wrapper.
+        
+        :param process: multiprocessing.Process instance
+        :param process_class: Class that was used to create the process
+        :param logger: Logger instance for this process
+        :param stdout_pipe: Tuple of (read_fd, write_fd) for stdout capture
+        :param stderr_pipe: Tuple of (read_fd, write_fd) for stderr capture
+        :param stdout_thread: Thread handling stdout reading
+        :param stderr_thread: Thread handling stderr reading
+        """
+        self.process = process
+        self.process_class = process_class
+        self.logger = logger
+        self.stdout_pipe = stdout_pipe
+        self.stderr_pipe = stderr_pipe
+        self.stdout_thread = stdout_thread
+        self.stderr_thread = stderr_thread
+    
+    def is_alive(self):
+        """Check if the subprocess is still running."""
+        return self.process.is_alive()
+    
+    def terminate(self):
+        """Terminate the subprocess."""
+        return self.process.terminate()
+    
+    def join(self, timeout=None):
+        """Wait for the subprocess to terminate."""
+        return self.process.join(timeout)
+    
+    @property
+    def pid(self):
+        """Get the process ID."""
+        return self.process.pid
+    
+    def cleanup_pipes(self):
+        """Clean up pipe file descriptors."""
+        if self.stdout_pipe:
+            try:
+                os.close(self.stdout_pipe[0])
+            except:
+                pass
+        if self.stderr_pipe:
+            try:
+                os.close(self.stderr_pipe[0])
+            except:
+                pass
+
+
 class ProcessManager:
     """Manages execution and termination of subprocesses.
     """
@@ -115,16 +169,19 @@ class ProcessManager:
         p = multiprocessing.Process(target=self._task_wrapper, 
                                     args=(process_class, len(self._subprocesses) + 1, module_logger, args, kwargs, stdout_pipe, stderr_pipe))
         
-        # Store process info with pipes for cleanup
-        process_info = {
-            'process': p,
-            'class': process_class,
-            'stdout_pipe': stdout_pipe,
-            'stderr_pipe': stderr_pipe,
-            'stdout_thread': stdout_thread,
-            'stderr_thread': stderr_thread
-        }
-        self._subprocesses.append(process_info)
+        # Create Subprocess wrapper
+        subprocess = Subprocess(
+            process=p,
+            process_class=process_class,
+            logger=module_logger,
+            stdout_pipe=stdout_pipe,
+            stderr_pipe=stderr_pipe,
+            stdout_thread=stdout_thread,
+            stderr_thread=stderr_thread
+        )
+        
+        # Store in subprocesses list
+        self._subprocesses.append(subprocess)
         p.start()
         
         # Close write ends in parent process
@@ -133,7 +190,7 @@ class ProcessManager:
         if stderr_pipe:
             os.close(stderr_pipe[1])
             
-        return p
+        return subprocess
 
     
     def _task_wrapper(self, process_class, id, module_logger, args, kwargs, stdout_pipe, stderr_pipe):
@@ -192,25 +249,14 @@ class ProcessManager:
         """
         self._logger.info('Terminating child processes...')
         # Attempt to gracefully terminate all child processes.
-        for process_info in self._subprocesses:
-            p = process_info['process']
-            process_class = process_info['class']
-            if p.is_alive():
-                p.terminate() # Request child to terminate.
-                p.join(timeout=1) # Wait for termination with a timeout.
-                if p.is_alive():
+        for subprocess in self._subprocesses:
+            if subprocess.is_alive():
+                subprocess.terminate() # Request child to terminate.
+                subprocess.join(timeout=1) # Wait for termination with a timeout.
+                if subprocess.is_alive():
                     # If child hasn't terminated, forcibly kill it.
-                    self._logger.warning(f"Subprocess {p.pid} ({process_class.__name__}) did not terminate gracefully, killing.")
-                    os.kill(p.pid, signal.SIGKILL)
+                    self._logger.warning(f"Subprocess {subprocess.pid} ({subprocess.process_class.__name__}) did not terminate gracefully, killing.")
+                    os.kill(subprocess.pid, signal.SIGKILL)
             
             # Clean up pipes
-            if process_info['stdout_pipe']:
-                try:
-                    os.close(process_info['stdout_pipe'][0])
-                except:
-                    pass
-            if process_info['stderr_pipe']:
-                try:
-                    os.close(process_info['stderr_pipe'][0])
-                except:
-                    pass
+            subprocess.cleanup_pipes()
