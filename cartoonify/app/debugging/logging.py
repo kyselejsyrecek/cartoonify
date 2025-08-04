@@ -123,12 +123,33 @@ class CustomFormatter(logging.Formatter):
             return record.name.split('.')[-1]
         return record.name
     
+    def _should_promote_to_error(self, message):
+        """Check if message contains keywords that should promote it to ERROR level."""
+        if not isinstance(message, str):
+            return False
+        
+        # Keywords that indicate error conditions
+        error_keywords = ['error', 'fail', 'failure', 'exception']
+        message_lower = message.lower()
+        
+        return any(keyword in message_lower for keyword in error_keywords)
+    
     def format(self, record):
         class_name = self._get_class_name(record)
         formatted_time = self.formatTime(record, '%H:%M:%S.%f')[:-3]
+        message = record.getMessage()
+        
+        # Check if message should be promoted to ERROR level
+        original_levelname = record.levelname
+        if (record.levelno < logging.ERROR and 
+            original_levelname in ['INFO', 'WARNING', 'DEBUG'] and 
+            self._should_promote_to_error(message)):
+            # Temporarily change the level for formatting
+            record.levelname = 'ERROR'
+            record.levelno = logging.ERROR
+        
         aligned_severity = f"{record.levelname:>7}"
         aligned_class_name = f"{class_name:>15}"
-        message = record.getMessage()
         
         if self.use_colors:
             if record.levelname == 'DEBUG':
@@ -158,6 +179,16 @@ class CustomFormatter(logging.Formatter):
                 formatted_message += '\n' + '\n'.join(formatted_exception)
             else:
                 formatted_message += f"\n{exception_text}"
+        
+        # Restore original level if it was temporarily changed
+        if 'original_levelname' in locals() and record.levelname != original_levelname:
+            record.levelname = original_levelname
+            if original_levelname == 'DEBUG':
+                record.levelno = logging.DEBUG
+            elif original_levelname == 'INFO':
+                record.levelno = logging.INFO
+            elif original_levelname == 'WARNING':
+                record.levelno = logging.WARNING
         
         return formatted_message
 
