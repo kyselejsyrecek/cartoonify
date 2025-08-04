@@ -133,7 +133,10 @@ class ProcessManager:
             raise ValueError(f"Process class {process_class.__name__} must inherit from ProcessInterface")
         
         # Create logger for this process in the main process
-        module_logger = getLogger(process_class.__name__, filter_ansi=filter_ansi, custom_filter=custom_filter)
+        subprocess_logger = getLogger(process_class.__name__, filter_ansi=filter_ansi, custom_filter=custom_filter)
+        
+        # Register logger for this specific subprocess
+        EventManager.register('logger', callable=lambda: subprocess_logger)
         
         # Set up pipes for stdout/stderr capture if requested
         stdout_pipe = None
@@ -150,7 +153,7 @@ class ProcessManager:
                 
                 stdout_thread = threading.Thread(
                     target=self._pipe_reader, 
-                    args=(stdout_read, module_logger, logging.INFO), 
+                    args=(stdout_read, subprocess_logger, logging.INFO), 
                     daemon=True
                 )
                 stdout_thread.start()
@@ -161,19 +164,19 @@ class ProcessManager:
                 
                 stderr_thread = threading.Thread(
                     target=self._pipe_reader, 
-                    args=(stderr_read, module_logger, logging.WARNING), 
+                    args=(stderr_read, subprocess_logger, logging.WARNING), 
                     daemon=True
                 )
                 stderr_thread.start()
         
         p = multiprocessing.Process(target=self._task_wrapper, 
-                                    args=(process_class, len(self._subprocesses) + 1, module_logger, args, kwargs, stdout_pipe, stderr_pipe))
+                                    args=(process_class, len(self._subprocesses) + 1, args, kwargs, stdout_pipe, stderr_pipe))
         
         # Create Subprocess wrapper
         subprocess = Subprocess(
             process=p,
             process_class=process_class,
-            logger=module_logger,
+            logger=subprocess_logger,
             stdout_pipe=stdout_pipe,
             stderr_pipe=stderr_pipe,
             stdout_thread=stdout_thread,
@@ -193,7 +196,7 @@ class ProcessManager:
         return subprocess
 
     
-    def _task_wrapper(self, process_class, id, module_logger, args, kwargs, stdout_pipe, stderr_pipe):
+    def _task_wrapper(self, process_class, id, args, kwargs, stdout_pipe, stderr_pipe):
         """
         The main task executed by each child process.
         """
@@ -211,37 +214,41 @@ class ProcessManager:
         def signal_handler(signum, frame):
             try:
                 # Try to access exit_event through event_proxy.
-                if 'event_proxy' in locals():
+                if 'event_proxy' in locals() and 'subprocess_logger' in locals():
                     if event_proxy.exit_event.is_set():
                         return  # Already exiting, return immediately.
-                    module_logger.info(f"Child Process {id} ({process_class.__name__}): Received signal {signum}, exiting.")
+                    subprocess_logger.info(f"Child Process {id} ({process_class.__name__}): Received signal {signum}, exiting.")
                     event_proxy.exit_event.set()
             except:
                 # Cannot access exit_event, just exit.
-                module_logger.info(f"Child Process {id} ({process_class.__name__}): Received signal {signum}, exiting.")
+                if 'subprocess_logger' in locals():
+                    subprocess_logger.info(f"Child Process {id} ({process_class.__name__}): Received signal {signum}, exiting.")
             sys.exit(0)
 
         # Set up the SIGINT handler for the child process.
         signal.signal(signal.SIGINT, signal_handler)
 
-        module_logger.info(f"Child Process {id} ({process_class.__name__}): Starting. PID: {os.getpid()}")
-
         # Connect to the parent process's manager.
-        # Register the instance directly (without a callable) for client-side access.
+        # Register both event_service and logger for client-side access.
         EventManager.register('event_service')
+        EventManager.register('logger')
         event_manager = EventManager(address=self._manager_address, authkey=self._manager_authkey)
         try:
             event_manager.connect()
             event_proxy = event_manager.event_service()
+            subprocess_logger = event_manager.logger()
         except Exception as e:
-            module_logger.error(f"Child Process {id} ({process_class.__name__}): Failed to connect to manager: {e}")
+            # Fallback to stderr if connection fails
+            print(f"Child Process {id} ({process_class.__name__}): Failed to connect to manager: {e}", file=sys.stderr)
             sys.exit(1)
+
+        subprocess_logger.info(f"Child Process {id} ({process_class.__name__}): Starting. PID: {os.getpid()}")
 
         try:
             # Call the static hook_up method on the process class
-            process_class.hook_up(event_proxy, module_logger, *args, **kwargs)
+            process_class.hook_up(event_proxy, subprocess_logger, *args, **kwargs)
         finally:
-            module_logger.info(f"Child Process {id} ({process_class.__name__}): Exiting.")
+            subprocess_logger.info(f"Child Process {id} ({process_class.__name__}): Exiting.")
 
 
     def terminate(self):
