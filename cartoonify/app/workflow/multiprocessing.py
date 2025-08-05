@@ -137,6 +137,7 @@ class ProcessManager:
 
     def get_subprocess_logger(self, pid):
         """Get logger for subprocess by PID."""
+        print(f"pid: {pid}")
         return self._subprocess_loggers[pid - 1]
 
     def _pipe_reader(self, pipe_read_fd, logger, log_level):
