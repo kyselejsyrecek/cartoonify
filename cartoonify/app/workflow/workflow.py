@@ -82,9 +82,6 @@ class Workflow(object):
         self._image_path = Path('')
         self._event_manager_address = ('127.0.0.1', 50000)
         self._event_manager_authkey = b'489r4gs/r2*!-B.u'
-        self._event_manager = None
-        self._event_manager_server = None
-        self._event_manager_process = None
         self._dataset = dataset
         self._image_processor = imageprocessor
         self._camera = Camera() if self._config.camera else None
@@ -127,19 +124,8 @@ class Workflow(object):
             self._logger.error(f'Error terminating process manager: {e}')
 
         try:
-            # Terminate the event manager process
-            if hasattr(self, '_event_manager_process') and self._event_manager_process:
-                if self._event_manager_process.is_alive():
-                    self._logger.debug('Terminating event manager...')
-                    self._event_manager_process.terminate()
-                    self._event_manager_process.join(timeout=1)
-                    if self._event_manager_process.is_alive():
-                        self._logger.warning(f"Manager process {self._event_manager_process.pid} did not terminate gracefully, killing.")
-                        try:
-                            os.kill(self._event_manager_process.pid, signal.SIGKILL)
-                        except (OSError, ProcessLookupError):
-                            # Process may have already finished
-                            pass
+            # Terminate the event manager process using the static method
+            EventManager.terminate()
         except Exception as e:
             self._logger.error(f'Error terminating event manager process: {e}')
         
@@ -195,14 +181,11 @@ class Workflow(object):
         # Set up the SIGINT handler for the parent process
         signal.signal(signal.SIGINT, signal_handler)
 
-        # Initialize event manager
-        self._event_manager = EventManager(self._event_manager_address, self._event_manager_authkey)
-        self._event_manager_server = self._event_manager.get_server()
-        # Start the manager server in a separate process
-        # This prevents the parent's main loop from being blocked by the manager.
-        self._event_manager_process = multiprocessing.Process(target=self._event_manager_server.serve_forever)
-        self._event_manager_process.daemon = True # Ensures the manager process terminates with the parent
-        self._event_manager_process.start()
+        # Initialize and start event manager using static method
+        EventManager.start(self._event_manager_address, self._event_manager_authkey)
+        
+        # Initialize process manager after EventManager is started
+        self._process_manager = ProcessManager(self._event_manager_address, self._event_manager_authkey)
 
         # TODO aplay -D plughw:CARD=Device,DEV=0 -t raw -c 1 -r 22050 -f S16_LE /tmp/file.pcm
         if setup_gpio:

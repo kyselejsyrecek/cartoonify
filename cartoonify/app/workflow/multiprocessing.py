@@ -33,7 +33,38 @@ class ProcessInterface(ABC):
 
 # Custom Manager for registering our service
 class EventManager(BaseManager):
-    pass
+    _server = None
+    _process = None
+    _logger = getLogger('EventManager')
+    
+    @classmethod
+    def start(cls, manager_address, manager_authkey):
+        """Initialize and start the event manager server process."""
+        event_manager = cls(manager_address, manager_authkey)
+        cls._server = event_manager.get_server()
+        # Start the manager server in a separate process
+        # This prevents the parent's main loop from being blocked by the manager.
+        cls._process = multiprocessing.Process(target=cls._server.serve_forever)
+        cls._process.daemon = True  # Ensures the manager process terminates with the parent
+        cls._process.start()
+    
+    @classmethod
+    def terminate(cls):
+        """Terminate the event manager process."""
+        try:
+            if cls._process and cls._process.is_alive():
+                cls._logger.debug('Terminating event manager...')
+                cls._process.terminate()
+                cls._process.join(timeout=1)
+                if cls._process.is_alive():
+                    cls._logger.warning(f"Manager process {cls._process.pid} did not terminate gracefully, killing.")
+                    try:
+                        os.kill(cls._process.pid, signal.SIGKILL)
+                    except (OSError, ProcessLookupError):
+                        # Process may have already finished
+                        pass
+        except Exception as e:
+            cls._logger.error(f'Error terminating event manager process: {e}')
 
 
 class Subprocess:
@@ -99,6 +130,14 @@ class ProcessManager:
         self._subprocesses = []
         self._manager_address = manager_address
         self._manager_authkey = manager_authkey
+        self._subprocess_loggers = []  # Store loggers by PID
+        
+        # Register logger method for subprocesses (only once)
+        EventManager.register('logger', callable=self.get_subprocess_logger)
+
+    def get_subprocess_logger(self, pid):
+        """Get logger for subprocess by PID."""
+        return self._subprocess_loggers[pid - 1]
 
     def _pipe_reader(self, pipe_read_fd, logger, log_level):
         """Generic pipe reader for stdout/stderr capture.
@@ -132,11 +171,14 @@ class ProcessManager:
         if not issubclass(process_class, ProcessInterface):
             raise ValueError(f"Process class {process_class.__name__} must inherit from ProcessInterface")
         
+        # Calculate PID for the subprocess (sequential numbering)
+        pid = len(self._subprocesses) + 1
+        
         # Create logger for this process in the main process
         subprocess_logger = getLogger(process_class.__name__, filter_ansi=filter_ansi, custom_filter=custom_filter)
         
-        # Register logger for this specific subprocess
-        EventManager.register('logger', callable=lambda: subprocess_logger)
+        # Store logger by PID
+        self._subprocess_loggers.append(subprocess_logger)
         
         # Set up pipes for stdout/stderr capture if requested
         stdout_pipe = None
@@ -170,7 +212,7 @@ class ProcessManager:
                 stderr_thread.start()
         
         p = multiprocessing.Process(target=self._task_wrapper, 
-                                    args=(process_class, len(self._subprocesses) + 1, args, kwargs, stdout_pipe, stderr_pipe))
+                                    args=(process_class, pid, args, kwargs, stdout_pipe, stderr_pipe))
         
         # Create Subprocess wrapper
         subprocess = Subprocess(
@@ -196,7 +238,7 @@ class ProcessManager:
         return subprocess
 
     
-    def _task_wrapper(self, process_class, id, args, kwargs, stdout_pipe, stderr_pipe):
+    def _task_wrapper(self, process_class, pid, args, kwargs, stdout_pipe, stderr_pipe):
         """
         The main task executed by each child process.
         """
@@ -217,12 +259,12 @@ class ProcessManager:
                 if 'event_proxy' in locals() and 'subprocess_logger' in locals():
                     if event_proxy.exit_event.is_set():
                         return  # Already exiting, return immediately.
-                    subprocess_logger.info(f"Child Process {id} ({process_class.__name__}): Received signal {signum}, exiting.")
+                    subprocess_logger.info(f"Child Process {pid} ({process_class.__name__}): Received signal {signum}, exiting.")
                     event_proxy.exit_event.set()
             except:
                 # Cannot access exit_event, just exit.
                 if 'subprocess_logger' in locals():
-                    subprocess_logger.info(f"Child Process {id} ({process_class.__name__}): Received signal {signum}, exiting.")
+                    subprocess_logger.info(f"Child Process {pid} ({process_class.__name__}): Received signal {signum}, exiting.")
             sys.exit(0)
 
         # Set up the SIGINT handler for the child process.
@@ -236,19 +278,19 @@ class ProcessManager:
         try:
             event_manager.connect()
             event_proxy = event_manager.event_service()
-            subprocess_logger = event_manager.logger()
+            subprocess_logger = event_manager.logger(pid)
         except Exception as e:
             # Fallback to stderr if connection fails
-            print(f"Child Process {id} ({process_class.__name__}): Failed to connect to manager: {e}", file=sys.stderr)
+            print(f"Child Process {pid} ({process_class.__name__}): Failed to connect to manager: {e}", file=sys.stderr)
             sys.exit(1)
 
-        subprocess_logger.info(f"Child Process {id} ({process_class.__name__}): Starting. PID: {os.getpid()}")
+        subprocess_logger.info(f"Child Process {pid} ({process_class.__name__}): Starting. PID: {os.getpid()}")
 
         try:
             # Call the static hook_up method on the process class
             process_class.hook_up(event_proxy, subprocess_logger, *args, **kwargs)
         finally:
-            subprocess_logger.info(f"Child Process {id} ({process_class.__name__}): Exiting.")
+            subprocess_logger.info(f"Child Process {pid} ({process_class.__name__}): Exiting.")
 
 
     def terminate(self):
