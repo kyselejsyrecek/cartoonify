@@ -76,6 +76,7 @@ def flatten(xss):
 @click.option('--cert-file', type=str, default=None, help='SSL certificate file for HTTPS server.')
 @click.option('--key-file', type=str, default=None, help='SSL private key file for HTTPS server.')
 @click.option('--debug', is_flag=True, help='Output all log messages to console instead of file. Error messages go to stderr, others to stdout.')
+@click.option('--debug-cmdline', is_flag=True, help='Start interactive Python console for debugging instead of event waiting loop. Only compatible with --raspi-headless, --gui and --web-server.')
 def run(**kwargs):
     # Configure logging based on command line options
     config = AttributeDict(kwargs)
@@ -125,7 +126,20 @@ def run(**kwargs):
 
     # For headless mode or web GUI mode, use the same event waiting logic
     if config.raspi_headless or config.gui or config.web_server:
-        wait_for_events(app, logger)
+        if config.debug_cmdline:
+            import code
+            from app.workflow import exit_event
+            logger.info('Starting interactive Python console for debugging...')
+            try:
+                code.interact(local=locals(), local_exit=True)
+            except SystemExit:
+                pass
+            logger.info('Interactive console session ended - shutting down.')
+            exit_event.set()
+            app.close()
+            sys.exit(0)
+        else:
+            wait_for_events(app, logger)
     else:
         while True:
             if config.camera:
