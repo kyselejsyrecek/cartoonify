@@ -119,5 +119,5 @@ class IrReceiver(ProcessInterface):
                 time.sleep(0.1)  # Small delay to prevent busy waiting
                         
             except Exception as e:
-                self._logger.error(f'Error in IR processing: {e}')
+                self._logger.exception(f'Error in IR processing: {e}')
                 time.sleep(1)  # Wait before retrying

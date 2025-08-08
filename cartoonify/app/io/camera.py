@@ -252,7 +252,7 @@ class Camera(object):
                 time.sleep(0.1)
                 
         except Exception as e:
-            self._logger.error(f'Video recording error: {e}')
+            self._logger.exception(f'Video recording error: {e}')
         finally:
             # Stop recording and restart the camera for still capture.
             try:

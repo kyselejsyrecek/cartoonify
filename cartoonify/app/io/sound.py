@@ -370,7 +370,7 @@ class PlaySound(object):
                 self._logger.error(f'Unsupported audio format: {extension}')
             
         except Exception as e:
-            self._logger.error(f'Native playback failed: {e}')
+            self._logger.exception(f'Native playback failed: {e}')
 
     def _play_pcm_native(self, pcm_file, volume=1.0):
         """Play PCM file using PyAudio with volume control"""
@@ -456,7 +456,7 @@ class PlaySound(object):
                 stream.close()
                 
         except Exception as e:
-            self._logger.error(f'MP3 playback failed: {e}')
+            self._logger.exception(f'MP3 playback failed: {e}')
 
     def _play_ogg_native(self, ogg_file, volume=1.0):
         """Play OGG file using PyAudio via pydub with volume control"""
@@ -491,7 +491,7 @@ class PlaySound(object):
                 stream.close()
                 
         except Exception as e:
-            self._logger.error(f'OGG playback failed: {e}')
+            self._logger.exception(f'OGG playback failed: {e}')
 
     def _detect_audio_players(self):
         """Detect available audio players for different formats"""
@@ -570,6 +570,6 @@ class PlaySound(object):
                 text.strip()
             ], check=True, capture_output=True)
         except subprocess.CalledProcessError as e:
-            self._logger.error(f'Text-to-speech failed: {e}')
+            self._logger.exception(f'Text-to-speech failed: {e}')
         except FileNotFoundError:
             self._logger.error('spd-say command not found - install speech-dispatcher package')

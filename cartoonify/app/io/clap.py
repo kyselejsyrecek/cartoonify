@@ -101,4 +101,4 @@ class ClapDetector(ProcessInterface):
             self.listener.start()
             self._logger.debug('Worker thread of clap detector terminated.')
         except Exception as e:
-            self._logger.error(f'Clap detector processing failed: {e}')
+            self._logger.exception(f'Clap detector processing failed: {e}')

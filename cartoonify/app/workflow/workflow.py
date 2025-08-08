@@ -122,13 +122,13 @@ class Workflow(object):
             if hasattr(self, '_process_manager') and self._process_manager:
                 self._process_manager.terminate()
         except Exception as e:
-            self._logger.error(f'Error terminating process manager: {e}')
+            self._logger.exception(f'Error terminating process manager: {e}')
 
         try:
             # Terminate the event manager process using the static method
             EventManager.terminate()
         except Exception as e:
-            self._logger.error(f'Error terminating event manager process: {e}')
+            self._logger.exception(f'Error terminating event manager process: {e}')
         
         self._logger.info('Workflow termination completed.')
 
@@ -140,22 +140,22 @@ class Workflow(object):
                     self._camera.stop_recording()
                 self._camera.close()
         except Exception as e:
-            self._logger.error(f'Error closing camera: {e}')
+            self._logger.exception(f'Error closing camera: {e}')
         
         try:
             self._image_processor.close()
         except Exception as e:
-            self._logger.error(f'Error closing image processor: {e}')
+            self._logger.exception(f'Error closing image processor: {e}')
         
         try:
             self._gpio.close()
         except Exception as e:
-            self._logger.error(f'Error closing GPIO: {e}')
+            self._logger.exception(f'Error closing GPIO: {e}')
         
         try:
             self._sound.close()
         except Exception as e:
-            self._logger.error(f'Error closing sound: {e}')
+            self._logger.exception(f'Error closing sound: {e}')
         
         #if not self._config.no_ir_receiver:
         #    self._ir_receiver.close()
@@ -171,7 +171,7 @@ class Workflow(object):
         except Exception as e:
             # Log error if logger is available, otherwise just ignore
             if hasattr(self, '_logger') and self._logger:
-                self._logger.error(f'Error shutting down async executor: {e}')
+                self._logger.exception(f'Error shutting down async executor: {e}')
         
         # Free resources
         # TODO self.close()?

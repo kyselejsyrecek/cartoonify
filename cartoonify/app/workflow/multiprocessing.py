@@ -69,7 +69,7 @@ class EventManager(BaseManager):
                     cls._logger.warning(f"Manager process {cls._process.pid} did not terminate gracefully.")
                     # TODO Kill the thread using ctypes and pthread.
         except Exception as e:
-            cls._logger.error(f'Error terminating event manager: {e}')
+            cls._logger.exception(f'Error terminating event manager: {e}')
 
 
 class Subprocess:

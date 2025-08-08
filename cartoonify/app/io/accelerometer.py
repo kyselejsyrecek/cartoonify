@@ -69,7 +69,7 @@ class Accelerometer(ProcessInterface):
             self._logger.error('BMI160-i2c library not found. Install with: pip install BMI160-i2c')
             self._sensor = None
         except Exception as e:
-            self._logger.error(f'Failed to initialize BMI160: {e}')
+            self._logger.exception(f'Failed to initialize BMI160: {e}')
             self._sensor = None
 
     def _start_monitoring(self):
@@ -131,7 +131,7 @@ class Accelerometer(ProcessInterface):
                 time.sleep(0.1)  # Check 10 times per second
                 
             except Exception as e:
-                self._logger.error(f'Error reading sensor: {e}')
+                self._logger.exception(f'Error reading sensor: {e}')
                 time.sleep(1)  # Wait longer on error
 
     @async_task
@@ -141,7 +141,7 @@ class Accelerometer(ProcessInterface):
             if self._motion_callback:
                 self._motion_callback()
         except Exception as e:
-            self._logger.error(f'Error in motion callback: {e}')
+            self._logger.exception(f'Error in motion callback: {e}')
 
     def close(self):
         """Stop monitoring and cleanup resources"""
