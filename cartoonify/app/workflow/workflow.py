@@ -104,6 +104,7 @@ class Workflow(object):
 
         # Register this instance as the event handler service.
         EventManager.register('event_service', callable=lambda: self)
+        # Proces manager has to register its own objects. Instantiate it before EventManager is started.
         self._process_manager = ProcessManager(self._event_manager_address, self._event_manager_authkey)
         self._is_initialized = True
 
@@ -183,9 +184,6 @@ class Workflow(object):
 
         # Initialize and start event manager using static method
         EventManager.start(self._event_manager_address, self._event_manager_authkey)
-        
-        # Initialize process manager after EventManager is started
-        self._process_manager = ProcessManager(self._event_manager_address, self._event_manager_authkey)
 
         # TODO aplay -D plughw:CARD=Device,DEV=0 -t raw -c 1 -r 22050 -f S16_LE /tmp/file.pcm
         if setup_gpio:

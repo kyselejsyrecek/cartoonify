@@ -131,7 +131,8 @@ def run(**kwargs):
             from app.workflow import exit_event
             logger.info('Starting interactive Python console for debugging...')
             try:
-                code.interact(local=locals(), local_exit=True)
+                # FIXME Prints banner to stderr (which is usually only logged).
+                code.interact(local=locals()) # local_exit=True requires Python 3.13.
             except SystemExit:
                 pass
             logger.info('Interactive console session ended - shutting down.')

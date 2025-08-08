@@ -1,11 +1,13 @@
+import logging
 import multiprocessing
 import os
 import signal
 import sys
-import logging
+import threading
 from abc import ABC, abstractmethod
 
-from multiprocessing.managers import BaseManager
+from multiprocessing.managers import BaseManager, dispatch, listener_client
+
 from app.debugging.logging import getLogger  # Import our enhanced getLogger
 
 
@@ -34,37 +36,40 @@ class ProcessInterface(ABC):
 # Custom Manager for registering our service
 class EventManager(BaseManager):
     _server = None
-    _process = None
+    _manager_address = None
+    _manager_authkey = None
+    _worker = None
     _logger = getLogger('EventManager')
     
     @classmethod
     def start(cls, manager_address, manager_authkey):
         """Initialize and start the event manager server process."""
+        cls._manager_address = manager_address
+        cls._manager_authkey = manager_authkey
         event_manager = cls(manager_address, manager_authkey)
         cls._server = event_manager.get_server()
-        # Start the manager server in a separate process
+        # Start the manager server in a separate thread.
         # This prevents the parent's main loop from being blocked by the manager.
-        cls._process = multiprocessing.Process(target=cls._server.serve_forever)
-        cls._process.daemon = True  # Ensures the manager process terminates with the parent
-        cls._process.start()
+        cls._worker = threading.Thread(target=cls._server.serve_forever)
+        cls._worker.start()
     
     @classmethod
     def terminate(cls):
         """Terminate the event manager process."""
         try:
-            if cls._process and cls._process.is_alive():
+            if cls._worker and cls._worker.is_alive():
                 cls._logger.debug('Terminating event manager...')
-                cls._process.terminate()
-                cls._process.join(timeout=1)
-                if cls._process.is_alive():
-                    cls._logger.warning(f"Manager process {cls._process.pid} did not terminate gracefully, killing.")
-                    try:
-                        os.kill(cls._process.pid, signal.SIGKILL)
-                    except (OSError, ProcessLookupError):
-                        # Process may have already finished
-                        pass
+                client = listener_client['pickle'][1]
+                # address and authkey same as when started the manager
+                connection = client(address=cls._manager_address, authkey=cls._manager_authkey)
+                dispatch(connection, None, 'shutdown')
+                connection.close()
+                cls._worker.join(timeout=1)
+                if cls._worker.is_alive():
+                    cls._logger.warning(f"Manager process {cls._process.pid} did not terminate gracefully.")
+                    # TODO Kill the thread using ctypes and pthread.
         except Exception as e:
-            cls._logger.error(f'Error terminating event manager process: {e}')
+            cls._logger.error(f'Error terminating event manager: {e}')
 
 
 class Subprocess:
@@ -137,7 +142,6 @@ class ProcessManager:
 
     def get_subprocess_logger(self, pid):
         """Get logger for subprocess by PID."""
-        print(f"pid: {pid}")
         return self._subprocess_loggers[pid - 1]
 
     def _pipe_reader(self, pipe_read_fd, logger, log_level):
