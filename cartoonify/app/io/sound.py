@@ -22,6 +22,7 @@ class PlaySound(object):
         self._pydub_available = False
         self._max_volume = 1.0
         self._alsa_numid = 4
+        self._tts_language = 'cs'
         self._mp3_player = None
         self._ogg_player = None
         self._enabled = enabled
@@ -38,8 +39,6 @@ class PlaySound(object):
         :param alsa_numid: ALSA mixer control numid for volume adjustment
         :param tts_language: Text-to-speech language code
         """
-        if not self._enabled:
-            return
             
         self._logger.info('Setting up audio system...')
         
@@ -47,6 +46,10 @@ class PlaySound(object):
         self._max_volume = max(0.0, min(1.0, volume))  # Clamp between 0.0 and 1.0
         self._alsa_numid = alsa_numid
         self._tts_language = tts_language
+
+        # Disable now, after having stored all parameters
+        if not self._enabled:
+            return
         
         # Try to import pydub
         try:
@@ -146,6 +149,14 @@ class PlaySound(object):
             self._pa.terminate()
             self._pa = None
         self._logger.info('Audio system closed')
+
+    @property
+    def is_enabled(self):
+        return self._enabled
+
+    def toggle(self):
+        self._enabled = not self._enabled
+        self.setup(self._audio_backend, self._max_volume, self._alsa_numid, self._tts_language)
 
     def _resolve_audio_file(self, audio_file):
         """Resolve audio file pattern to actual file path
