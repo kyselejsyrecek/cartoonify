@@ -229,29 +229,39 @@ class Camera(object):
     def _record_video(self):
         """Internal method to handle video recording"""
         try:
-            # Configure camera for video
+            # We need to stop the camera to initialize the encoder.
+            self._cam.stop()
+
+            # Configure camera for video.
             self._cam.configure(self._video_config)
             
-            # Create appropriate encoder
+            # Create appropriate encoder.
             if self._video_format == 'h264':
                 encoder = self._picam2.H264Encoder()
             else:  # mjpeg
                 encoder = self._picam2.MJPEGEncoder()
-                
-            # Start recording
-            self._cam.start_recording(encoder, str(self._video_path))
+
+            # Start recording.
+            self._cam.start_encoder(encoder, str(self._video_path))
+
+            # Start the camera again.
+            self._cam.start()
             
-            # Keep recording until stopped
+            # Keep recording until stopped.
             while self._recording:
                 time.sleep(0.1)
                 
         except Exception as e:
             self._logger.error(f'Video recording error: {e}')
         finally:
+            # Stop recording and restart the camera for still capture.
             try:
-                self._cam.stop_recording()
+                self._cam.stop()
+                self._cam.stop_encoder()
             except:
                 pass
+            finally:
+                self._cam.start()
 
     def close(self):
         """Close camera resources"""
