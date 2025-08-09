@@ -1,9 +1,9 @@
-from app.debugging.logging import getLogger
-import importlib
 import sys
 import time
 import threading
 from pathlib import Path
+
+from app.debugging.logging import getLogger
 
 
 class Camera(object):
@@ -12,7 +12,6 @@ class Camera(object):
     def __init__(self):
         self._logger = getLogger(self.__class__.__name__)
         self._cam = None
-        self._picam2 = None
         self._video_encoder = None
         self._recording = False
         self._video_number = 0
@@ -43,15 +42,17 @@ class Camera(object):
             'max': (2304, 1296)
         }
         
-        # Import picamera2
+        # Import picamera2 and encoders
         try:
-            self._picam2 = importlib.import_module('picamera2')
+            import picamera2
+            from picamera2 import encoders
+            self._encoders = encoders  # Store reference for use in other methods
         except ImportError as e:
             print('picamera2 module missing, please install using:\n     pip install picamera2')
-            logging.exception(e)
+            self._logger.error('picamera2 module not available')
             sys.exit()
         
-        self._cam = self._picam2.Picamera2()
+        self._cam = picamera2.Picamera2()
         
         if self._cam is not None:
             # Get video resolution
@@ -122,8 +123,8 @@ class Camera(object):
             #    'AfPause': (0, 2, 0)
             #}
 
-            #picam2.Picamera2.load_tuning_file("imx477_scientific.json")
-            #picam2 = picam2.Picamera2(tuning=tuningfile)
+            #picamera2.Picamera2.load_tuning_file("imx477_scientific.json")
+            #self._cam = picamera2.Picamera2(tuning=tuningfile)
             
             # Enable raw capture for DNG files alongside JPEG
             capture_config = self._cam.create_still_configuration(
@@ -155,7 +156,7 @@ class Camera(object):
             self._cam.start()
             time.sleep(2) # FIXME Replace with lazy sleep instead? Is that even needed?
 
-            #request = picam2.capture_request()
+            #request = self._cam.capture_request()
             #request.save("main", "test.jpg")
             #metadata = request.get_metadata()
             #print(f"ExposureTime: {metadata['ExposureTime']}  AnalogueGain: {metadata['AnalogueGain']} DigitalGain: {metadata['DigitalGain']}")
@@ -237,9 +238,9 @@ class Camera(object):
             
             # Create appropriate encoder.
             if self._video_format == 'h264':
-                encoder = self._picam2.H264Encoder()
+                encoder = self._encoders.H264Encoder()
             else:  # mjpeg
-                encoder = self._picam2.MJPEGEncoder()
+                encoder = self._encoders.MJPEGEncoder()
 
             # Start recording.
             self._cam.start_encoder(encoder, str(self._video_path))
