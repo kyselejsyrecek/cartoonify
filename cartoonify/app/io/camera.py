@@ -19,13 +19,14 @@ class Camera(object):
         self._video_thread = None
         self._video_config = None
 
-    def setup(self, rotate_180deg=False, video_format='h264', video_resolution='1080p', video_fps=30):
+    def setup(self, rotate_180deg=False, video_format='h264', video_resolution='1080p', video_fps=30, video_raw_stream=False):
         """Setup camera system
         
         :param rotate_180deg: Whether to rotate camera image by 180 degrees
         :param video_format: Video recording format ('h264' or 'mjpeg')
         :param video_resolution: Video resolution ('480p', '720p', '1080p', 'max')
         :param video_fps: Video frame rate (30, 50, 60, 100, 120)
+        :param video_raw_stream: Whether to save as raw stream or container format
         """
         self._logger.info('Setting up camera system...')
         
@@ -33,6 +34,7 @@ class Camera(object):
         self._video_format = video_format
         self._video_resolution = video_resolution
         self._video_fps = video_fps
+        self._video_raw_stream = video_raw_stream
         
         # Define resolution mappings
         self._resolutions = {
@@ -46,7 +48,9 @@ class Camera(object):
         try:
             import picamera2
             from picamera2 import encoders
+            from picamera2.outputs import FfmpegOutput
             self._encoders = encoders  # Store reference for use in other methods
+            self._FfmpegOutput = FfmpegOutput  # Store reference for container output
         except ImportError as e:
             print('picamera2 module missing, please install using:\n     pip install picamera2')
             self._logger.error('picamera2 module not available')
@@ -200,8 +204,19 @@ class Camera(object):
             self._logger.error('Camera not initialized')
             return
             
-        # Generate video filename
-        video_extension = 'h264' if self._video_format == 'h264' else 'mjpeg'
+        # Generate video filename based on format and raw stream setting
+        if self._video_raw_stream:
+            # Raw stream: H264Encoder outputs .h264, MJPEGEncoder outputs .mjpeg
+            if self._video_format == 'h264':
+                video_extension = 'h264'  # Raw H.264 stream
+            else:
+                video_extension = 'mjpeg'  # MJPEG stream
+        else:
+            # Container format: use FfmpegEncoder for standard containers
+            if self._video_format == 'h264':
+                video_extension = 'mp4'  # H.264 in MP4 container
+            else:
+                video_extension = 'avi'  # MJPEG in AVI container
         self._video_path = Path(__file__).parent.parent.parent / 'images' / f'video{self._video_number}.{video_extension}'
         self._video_number += 1
         
@@ -236,14 +251,33 @@ class Camera(object):
             # Configure camera for video.
             self._cam.configure(self._video_config)
             
-            # Create appropriate encoder.
-            if self._video_format == 'h264':
-                encoder = self._encoders.H264Encoder()
-            else:  # mjpeg
-                encoder = self._encoders.MJPEGEncoder()
+            # Create appropriate encoder based on format and raw stream setting
+            if self._video_raw_stream:
+                # Use raw stream encoders for direct file output
+                if self._video_format == 'h264':
+                    encoder = self._encoders.H264Encoder()
+                    output = str(self._video_path)  # Direct file output
+                else:  # mjpeg
+                    encoder = self._encoders.MJPEGEncoder()
+                    output = str(self._video_path)  # Direct file output
+            else:
+                # Use encoder + FfmpegOutput for container formats
+                if self._video_format == 'h264':
+                    # H.264 in MP4 container
+                    encoder = self._encoders.H264Encoder()
+                    output = self._FfmpegOutput(str(self._video_path))
+                else:  # mjpeg
+                    # MJPEG in AVI container 
+                    encoder = self._encoders.MJPEGEncoder()
+                    output = self._FfmpegOutput(str(self._video_path))
 
-            # Start recording.
-            self._cam.start_encoder(encoder, str(self._video_path))
+            # Start recording
+            if self._video_raw_stream:
+                # For raw streams, pass the file path to start_encoder
+                self._cam.start_encoder(encoder, output)
+            else:
+                # For container formats, use encoder + FfmpegOutput
+                self._cam.start_encoder(encoder, output)
 
             # Start the camera again.
             self._cam.start()

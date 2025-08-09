@@ -57,6 +57,7 @@ class Workflow(object):
             "video_format": "h264",
             "video_resolution": "1080p", 
             "video_fps": 30,
+            "video_raw_stream": False,
             "volume": 1.0,
             "no_accelerometer": False,
             "alsa_numid": 4,
@@ -238,7 +239,8 @@ class Workflow(object):
                 rotate_180deg=self._config.rotate_180deg,
                 video_format=self._config.video_format,
                 video_resolution=self._config.video_resolution,
-                video_fps=self._config.video_fps
+                video_fps=self._config.video_fps,
+                video_raw_stream=self._config.video_raw_stream
             )
             self._logger.info('done')
         

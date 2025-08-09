@@ -65,6 +65,7 @@ def flatten(xss):
               help='Video recording resolution')
 @click.option('--video-fps', type=click.Choice([30, 50, 60, 100, 120]), default=30,
               help='Video recording frame rate')
+@click.option('--video-raw-stream', is_flag=True, help='Save video as raw stream (.h264/.mjpeg) instead of standard container format (.mp4/.avi)')
 @click.option('--volume', type=float, default=1.0, metavar='0.0-1.0',
               help='Audio volume (0.0 = mute, 1.0 = 100%%)')
 @click.option('--alsa-numid', type=int, default=4,
