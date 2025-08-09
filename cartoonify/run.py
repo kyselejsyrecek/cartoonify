@@ -12,9 +12,6 @@ from app.utils.attributedict import AttributeDict
 from app.debugging import profiling
 from app.debugging.logging import setup_file_logging, setup_debug_logging, getLogger
 
-# Interactive console history support.
-import readline
-
 # BUG: Built-in input() function writes to stderr instead of stdout (Python 3.11).
 # See https://discuss.python.org/t/builtin-function-input-writes-its-prompt-to-sys-stderr-and-not-to-sys-stdout/12955/2.
 from builtins import input as __input
@@ -24,34 +21,6 @@ def input(prompt=""):
 
 # configure logging
 logs_dir = Path(__file__).parent / 'logs'
-
-def setup_console_history():
-    """Setup interactive console history support."""
-    # Path to console history file.
-    settings_dir = Path(__file__).parent.parent / '.settings'
-    settings_dir.mkdir(exist_ok=True)
-    history_file = settings_dir / 'console_history'
-    
-    # Load existing history if available.
-    if history_file.exists():
-        try:
-            readline.read_history_file(str(history_file))
-        except Exception:
-            pass  # Ignore errors loading history.
-    
-    # Setup history saving on exit.
-    def save_history():
-        try:
-            readline.write_history_file(str(history_file))
-        except Exception:
-            pass  # Ignore errors saving history.
-    
-    atexit.register(save_history)
-    
-    # Set maximum history length.
-    readline.set_history_length(1000)
-    
-    return history_file
 
 def flatten(xss):
     return [x for xs in xss for x in xs]
@@ -160,25 +129,26 @@ def run(**kwargs):
     # For headless mode or web GUI mode, use the same event waiting logic
     if config.raspi_headless or config.gui or config.web_server:
         if config.debug_cmdline:
-            import code
+            from app.debugging.console import DebugConsole
             from app.workflow import exit_event
             
-            # Setup console history support.
-            history_file = setup_console_history()
-            log.info(f'Console history will be saved to: {history_file}')
+            # Create and setup debug console
+            console = DebugConsole()
+            console.setup(
+                stderr=stderr_redirector.original_stderr,
+                stdout=sys.stdout,
+                locals_dict=locals(),
+                exit_event=exit_event
+            )
             
-            log.info('Starting interactive Python console for debugging...')
-            try:
-                # FIXME Prints banner to stderr (which is usually only logged).
-                code.interact(local=locals()) # local_exit=True requires Python 3.13.
-            except SystemExit:
-                pass
-            log.info('Interactive console session ended - shutting down.')
-            exit_event.set()
+            # Start interactive console session
+            console.start()
+            
+            # Cleanup and exit
             app.close()
             sys.exit(0)
         else:
-            wait_for_events(app, logger)
+            wait_for_events(app, log)
     else:
         while True:
             if config.camera:
@@ -249,11 +219,11 @@ def wait_for_events(app, logger):
     while True:
         try:
             if halt_event.is_set():
-                log.info('Halt event detected - shutting down the system.')
+                logger.info('Halt event detected - shutting down the system.')
                 app.close()
                 sys.exit(42)
             elif exit_event.is_set():
-                log.info('Exiting on exit event.')
+                logger.info('Exiting on exit event.')
                 app.close()
                 sys.exit(0)
             time.sleep(0.5)  # Short pause to reduce CPU usage
