@@ -148,7 +148,7 @@ class CustomFormatter(logging.Formatter):
             record.levelname = 'ERROR'
             record.levelno = logging.ERROR
         
-        aligned_severity = f"{record.levelname:>7}"
+        aligned_severity = f"{record.levelname:>9}"
         aligned_class_name = f"{class_name:>15}"
         
         if self.use_colors:
@@ -170,11 +170,13 @@ class CustomFormatter(logging.Formatter):
         if record.exc_info:
             exception_text = self.formatException(record.exc_info)
             if self.use_colors and record.levelname != 'DEBUG':
-                error_severity = f"{self.COLORS['BOLD']}{self.COLORS['ERROR']}   ERROR{self.COLORS['RESET']}"
+                aligned_exception_severity = f"{'EXCEPTION':>9}"
+                exception_severity = f"{self.COLORS['CRITICAL']}{aligned_exception_severity}{self.COLORS['RESET']}"
                 bold_class = f"{self.COLORS['WHITE_BOLD']}{aligned_class_name}{self.COLORS['RESET']}"
                 exception_lines = exception_text.split('\n')
-                formatted_exception = [f"[{formatted_time}] {error_severity} {bold_class}: {exception_lines[0]}"]
-                spaces = ' ' * (len(f"[{formatted_time}] ") + 7 + 1 + 15 + 2)
+                formatted_exception = [f"[{formatted_time}] {exception_severity} {bold_class}: {exception_lines[0]}"]
+                # Calculate spaces to align with the message part: [time] + space + severity + space + class + ": "
+                spaces = ' ' * (len(f"[{formatted_time}] ") + 9 + 1 + 15 + 2)  # 9 for "EXCEPTION", 1 for space, 15 for class, 2 for ": "
                 formatted_exception.extend(f"{spaces}{line}" for line in exception_lines[1:] if line)
                 formatted_message += '\n' + '\n'.join(formatted_exception)
             else:
