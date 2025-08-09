@@ -15,7 +15,7 @@ class PlaySound(object):
         
         :param enabled: If False, all sound operations are silently ignored
         """
-        self._logger = getLogger(self.__class__.__name__)
+        self._log = getLogger(self.__class__.__name__)
         self._pa = None
         self._resources_path = Path(__file__).parent.parent.parent / 'sound'
         self._audio_backend = None  # Will be set in setup()
@@ -28,7 +28,7 @@ class PlaySound(object):
         self._enabled = enabled
         
         if not self._enabled:
-            self._logger.info('Sound system disabled')
+            self._log.info('Sound system disabled')
     
 
     def setup(self, audio_backend=None, volume=1.0, alsa_numid=4, tts_language='cs'):
@@ -40,7 +40,7 @@ class PlaySound(object):
         :param tts_language: Text-to-speech language code
         """
             
-        self._logger.info('Setting up audio system...')
+        self._log.info('Setting up audio system...')
         
         # Store volume settings
         self._max_volume = max(0.0, min(1.0, volume))  # Clamp between 0.0 and 1.0
@@ -55,18 +55,18 @@ class PlaySound(object):
         try:
             self._pydub = importlib.import_module('pydub')
             self._pydub_available = True
-            self._logger.info('pydub is available')
+            self._log.info('pydub is available')
         except ImportError:
             self._pydub_available = False
-            self._logger.warning('pydub not available - MP3/OGG support limited')
+            self._log.warning('pydub not available - MP3/OGG support limited')
         
         # Try to import wave module
         try:
             self._wave = importlib.import_module('wave')
-            self._logger.info('wave module is available')
+            self._log.info('wave module is available')
         except ImportError:
             self._wave = None
-            self._logger.warning('wave module not available')
+            self._log.warning('wave module not available')
         
         # Detect and set preferred audio backend
         self._audio_backend = None
@@ -75,29 +75,29 @@ class PlaySound(object):
         def try_pulseaudio():
             try:
                 subprocess.run(['pulseaudio', '--check'], check=True, capture_output=True)
-                self._logger.info('PulseAudio is available')
+                self._log.info('PulseAudio is available')
                 return True
             except (subprocess.CalledProcessError, FileNotFoundError):
-                self._logger.warning('PulseAudio not available or not running')
+                self._log.warning('PulseAudio not available or not running')
                 return False
         
         def try_alsa():
             try:
                 subprocess.run(['aplay', '--version'], check=True, capture_output=True)
-                self._logger.info('ALSA is available')
+                self._log.info('ALSA is available')
                 return True
             except (subprocess.CalledProcessError, FileNotFoundError):
-                self._logger.warning('ALSA not available')
+                self._log.warning('ALSA not available')
                 return False
         
         def try_native():
             try:
                 pyaudio_module = importlib.import_module('pyaudio')
                 self._pa = pyaudio_module.PyAudio()
-                self._logger.info('PyAudio initialized successfully')
+                self._log.info('PyAudio initialized successfully')
                 return True
             except (ImportError, Exception) as e:
-                self._logger.warning(f'PyAudio initialization failed: {e}')
+                self._log.warning(f'PyAudio initialization failed: {e}')
                 self._pa = None
                 return False
         
@@ -128,10 +128,10 @@ class PlaySound(object):
                 break
         
         if self._audio_backend is None:
-            self._logger.error('No audio backend available')
+            self._log.error('No audio backend available')
         else:
-            self._logger.info(f'Using audio backend: {self._audio_backend}')
-            self._logger.info(f'Maximum volume set to: {self._max_volume:.1%}')
+            self._log.info(f'Using audio backend: {self._audio_backend}')
+            self._log.info(f'Maximum volume set to: {self._max_volume:.1%}')
             
             # Set system volume if using PulseAudio or ALSA
             self._set_system_volume(self._max_volume)
@@ -148,7 +148,7 @@ class PlaySound(object):
         if self._pa is not None:
             self._pa.terminate()
             self._pa = None
-        self._logger.info('Audio system closed')
+        self._log.info('Audio system closed')
 
     @property
     def is_enabled(self):
@@ -170,7 +170,7 @@ class PlaySound(object):
         items = audio_file if isinstance(audio_file, (list, tuple)) else [audio_file]
         
         if not items:
-            self._logger.warning('Empty audio file list provided')
+            self._log.warning('Empty audio file list provided')
             return None
         
         # Process each item (file or pattern)
@@ -186,7 +186,7 @@ class PlaySound(object):
                 all_files.append(str(full_path))
         
         if not all_files:
-            self._logger.warning(f'No files found matching: {audio_file}')
+            self._log.warning(f'No files found matching: {audio_file}')
             return None
         
         # Select random file
@@ -194,7 +194,7 @@ class PlaySound(object):
         file_count = len(all_files)
         
         if file_count > 1:
-            self._logger.info(f'Randomly selected: {Path(selected_file).name} from {file_count} matching files')
+            self._log.info(f'Randomly selected: {Path(selected_file).name} from {file_count} matching files')
         
         return Path(selected_file)
 
@@ -211,7 +211,7 @@ class PlaySound(object):
         full_path = self._resolve_audio_file(audio_file)
         if not full_path or not full_path.exists():
             if full_path:
-                self._logger.warning(f'Audio file not found: {full_path}')
+                self._log.warning(f'Audio file not found: {full_path}')
             return
         
         # Calculate final volume
@@ -229,7 +229,7 @@ class PlaySound(object):
         elif self._audio_backend == 'native':
             self._play_native(str(full_path), volume)
         else:
-            self._logger.error('No audio backend available for playback')
+            self._log.error('No audio backend available for playback')
             
         # Restore max volume if it was temporarily changed
         if volume != 1.0 and self._audio_backend in ['pulseaudio', 'alsa']:
@@ -254,7 +254,7 @@ class PlaySound(object):
                              check=True, capture_output=True)
                              
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            self._logger.warning(f'Failed to set system volume: {e}')
+            self._log.warning(f'Failed to set system volume: {e}')
 
     def _play_alsa(self, audio_file):
         """Play audio file using ALSA
@@ -267,7 +267,7 @@ class PlaySound(object):
             
             if extension == '.pcm':
                 # Play PCM file with aplay
-                self._logger.info(f'Playing PCM file via ALSA: {audio_file}')
+                self._log.info(f'Playing PCM file via ALSA: {audio_file}')
                 subprocess.run([
                     'aplay', 
                     '-r', '44100',
@@ -277,34 +277,34 @@ class PlaySound(object):
                 ], check=True)
             elif extension == '.wav':
                 # Play WAV file with aplay
-                self._logger.info(f'Playing WAV file via ALSA: {audio_file}')
+                self._log.info(f'Playing WAV file via ALSA: {audio_file}')
                 subprocess.run(['aplay', str(audio_file)], check=True)
             elif extension == '.mp3':
                 # Play MP3 file with detected player
                 if self._mp3_player == 'mpg123':
-                    self._logger.info(f'Playing MP3 file via mpg123: {audio_file}')
+                    self._log.info(f'Playing MP3 file via mpg123: {audio_file}')
                     subprocess.run(['mpg123', '-q', str(audio_file)], check=True)
                 elif self._mp3_player == 'ffplay':
-                    self._logger.info(f'Playing MP3 file via ffplay: {audio_file}')
+                    self._log.info(f'Playing MP3 file via ffplay: {audio_file}')
                     subprocess.run(['ffplay', '-nodisp', '-autoexit', str(audio_file)], check=True)
                 else:
-                    self._logger.error('No MP3 player available')
+                    self._log.error('No MP3 player available')
             elif extension == '.ogg':
                 # Play OGG file with detected player
                 if self._ogg_player == 'ogg123':
-                    self._logger.info(f'Playing OGG file via ogg123: {audio_file}')
+                    self._log.info(f'Playing OGG file via ogg123: {audio_file}')
                     subprocess.run(['ogg123', '-q', str(audio_file)], check=True)
                 elif self._ogg_player == 'ffplay':
-                    self._logger.info(f'Playing OGG file via ffplay: {audio_file}')
+                    self._log.info(f'Playing OGG file via ffplay: {audio_file}')
                     subprocess.run(['ffplay', '-nodisp', '-autoexit', str(audio_file)], check=True)
                 else:
-                    self._logger.error('No OGG player available')
+                    self._log.error('No OGG player available')
             else:
-                self._logger.error(f'Unsupported audio format for ALSA: {extension}')
+                self._log.error(f'Unsupported audio format for ALSA: {extension}')
         except subprocess.CalledProcessError as e:
-            self._logger.error(f'ALSA playback failed: {e}')
+            self._log.error(f'ALSA playback failed: {e}')
         except Exception as e:
-            self._logger.error(f'ALSA playback error: {e}')
+            self._log.error(f'ALSA playback error: {e}')
 
     def _play_pulseaudio(self, audio_file):
         """Play audio file using PulseAudio
@@ -317,7 +317,7 @@ class PlaySound(object):
             
             if extension == '.pcm':
                 # Play PCM file with paplay
-                self._logger.info(f'Playing PCM file: {audio_file}')
+                self._log.info(f'Playing PCM file: {audio_file}')
                 subprocess.run([
                     'paplay', 
                     '--rate=44000',
@@ -327,15 +327,15 @@ class PlaySound(object):
                 ], check=True)
             elif extension in ['.wav', '.mp3', '.ogg']:
                 # Play WAV/MP3/OGG file with paplay
-                self._logger.info(f'Playing {extension.upper()} file: {audio_file}')
+                self._log.info(f'Playing {extension.upper()} file: {audio_file}')
                 subprocess.run(['paplay', str(audio_file)], check=True)
             else:
-                self._logger.error(f'Unsupported audio format: {extension}')
+                self._log.error(f'Unsupported audio format: {extension}')
             
         except subprocess.CalledProcessError as e:
-            self._logger.error(f'PulseAudio playback failed: {e}')
+            self._log.error(f'PulseAudio playback failed: {e}')
         except FileNotFoundError:
-            self._logger.error('paplay command not found')
+            self._log.error('paplay command not found')
 
     def _play_native(self, audio_file, volume=1.0):
         """Play audio file using native Python PyAudio
@@ -344,7 +344,7 @@ class PlaySound(object):
         :param volume: Relative volume (0.0 to 1.0, relative to max volume)
         """
         if self._pa is None:
-            self._logger.error('PyAudio not available for native playback')
+            self._log.error('PyAudio not available for native playback')
             return
 
         try:
@@ -355,22 +355,22 @@ class PlaySound(object):
             final_volume = self._max_volume * max(0.0, min(1.0, volume))
             
             if extension == '.pcm':
-                self._logger.info(f'Playing PCM file natively: {audio_file}')
+                self._log.info(f'Playing PCM file natively: {audio_file}')
                 self._play_pcm_native(audio_file, final_volume)
             elif extension == '.wav':
-                self._logger.info(f'Playing WAV file natively: {audio_file}')
+                self._log.info(f'Playing WAV file natively: {audio_file}')
                 self._play_wav_native(audio_file, final_volume)
             elif extension == '.mp3':
-                self._logger.info(f'Playing MP3 file natively: {audio_file}')
+                self._log.info(f'Playing MP3 file natively: {audio_file}')
                 self._play_mp3_native(audio_file, final_volume)
             elif extension == '.ogg':
-                self._logger.info(f'Playing OGG file natively: {audio_file}')
+                self._log.info(f'Playing OGG file natively: {audio_file}')
                 self._play_ogg_native(audio_file, final_volume)
             else:
-                self._logger.error(f'Unsupported audio format: {extension}')
+                self._log.error(f'Unsupported audio format: {extension}')
             
         except Exception as e:
-            self._logger.exception(f'Native playback failed: {e}')
+            self._log.exception(f'Native playback failed: {e}')
 
     def _play_pcm_native(self, pcm_file, volume=1.0):
         """Play PCM file using PyAudio with volume control"""
@@ -399,7 +399,7 @@ class PlaySound(object):
     def _play_wav_native(self, wav_file, volume=1.0):
         """Play WAV file using PyAudio with volume control"""
         if self._wave is None:
-            self._logger.error('wave module not available for WAV playback')
+            self._log.error('wave module not available for WAV playback')
             return
             
         with self._wave.open(str(wav_file), 'rb') as wf:
@@ -426,7 +426,7 @@ class PlaySound(object):
     def _play_mp3_native(self, mp3_file, volume=1.0):
         """Play MP3 file using PyAudio via pydub with volume control"""
         if not self._pydub_available:
-            self._logger.error('pydub not available for MP3 playback')
+            self._log.error('pydub not available for MP3 playback')
             return
             
         try:
@@ -456,12 +456,12 @@ class PlaySound(object):
                 stream.close()
                 
         except Exception as e:
-            self._logger.exception(f'MP3 playback failed: {e}')
+            self._log.exception(f'MP3 playback failed: {e}')
 
     def _play_ogg_native(self, ogg_file, volume=1.0):
         """Play OGG file using PyAudio via pydub with volume control"""
         if not self._pydub_available:
-            self._logger.error('pydub not available for OGG playback')
+            self._log.error('pydub not available for OGG playback')
             return
             
         try:
@@ -491,7 +491,7 @@ class PlaySound(object):
                 stream.close()
                 
         except Exception as e:
-            self._logger.exception(f'OGG playback failed: {e}')
+            self._log.exception(f'OGG playback failed: {e}')
 
     def _detect_audio_players(self):
         """Detect available audio players for different formats"""
@@ -499,27 +499,27 @@ class PlaySound(object):
         try:
             subprocess.run(['mpg123', '--version'], capture_output=True, check=True)
             self._mp3_player = 'mpg123'
-            self._logger.info('Detected MP3 player: mpg123')
+            self._log.info('Detected MP3 player: mpg123')
         except (FileNotFoundError, subprocess.CalledProcessError):
             try:
                 subprocess.run(['ffplay', '-version'], capture_output=True, check=True)
                 self._mp3_player = 'ffplay'
-                self._logger.info('Detected MP3 player: ffplay')
+                self._log.info('Detected MP3 player: ffplay')
             except (FileNotFoundError, subprocess.CalledProcessError):
-                self._logger.warning('No MP3 player found (install mpg123 or ffmpeg)')
+                self._log.warning('No MP3 player found (install mpg123 or ffmpeg)')
         
         # Detect OGG player
         try:
             subprocess.run(['ogg123', '--version'], capture_output=True, check=True)
             self._ogg_player = 'ogg123'
-            self._logger.info('Detected OGG player: ogg123')
+            self._log.info('Detected OGG player: ogg123')
         except (FileNotFoundError, subprocess.CalledProcessError):
             try:
                 subprocess.run(['ffplay', '-version'], capture_output=True, check=True)
                 self._ogg_player = 'ffplay'
-                self._logger.info('Detected OGG player: ffplay')
+                self._log.info('Detected OGG player: ffplay')
             except (FileNotFoundError, subprocess.CalledProcessError):
-                self._logger.warning('No OGG player found (install vorbis-tools or ffmpeg)')
+                self._log.warning('No OGG player found (install vorbis-tools or ffmpeg)')
 
     # Sound definitions
     def awake(self):
@@ -559,17 +559,17 @@ class PlaySound(object):
             return
             
         if not text or not text.strip():
-            self._logger.warning('Empty text provided for TTS')
+            self._log.warning('Empty text provided for TTS')
             return
             
         try:
-            self._logger.info(f'Speaking text: "{text}"')
+            self._log.info(f'Speaking text: "{text}"')
             subprocess.run([
                 'spd-say', 
                 '-l', self._tts_language, 
                 text.strip()
             ], check=True, capture_output=True)
         except subprocess.CalledProcessError as e:
-            self._logger.exception(f'Text-to-speech failed: {e}')
+            self._log.exception(f'Text-to-speech failed: {e}')
         except FileNotFoundError:
-            self._logger.error('spd-say command not found - install speech-dispatcher package')
+            self._log.error('spd-say command not found - install speech-dispatcher package')

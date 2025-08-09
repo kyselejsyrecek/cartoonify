@@ -22,17 +22,17 @@ class Config(Settings):
 
     def on2Claps(self):
         """Custom action for 2 claps."""
-        self._logger.debug('Invoking immediate trigger.')
+        self._log.debug('Invoking immediate trigger.')
         self.trigger_callback()
 
     def on3Claps(self):
         """Custom action for 3 claps."""
-        self._logger.debug('Invoking 2-second trigger.')
+        self._log.debug('Invoking 2-second trigger.')
         self.trigger_2s_callback()
 
     def on4Claps(self):
         """Custom action for 4 claps."""
-        self._logger.debug('Invoking wink trigger.')
+        self._log.debug('Invoking wink trigger.')
         self.wink_callback()
 
 
@@ -41,8 +41,8 @@ class ClapDetector(ProcessInterface):
     Interface to clap detector.
     """
 
-    def __init__(self, logger=None):
-        self._logger = logger or getLogger(self.__class__.__name__)
+    def __init__(self, log=None):
+        self._log = log or getLogger(self.__class__.__name__)
         self.listener = None
         self.config = None
         self.thread = None
@@ -52,8 +52,8 @@ class ClapDetector(ProcessInterface):
 
 
     @staticmethod
-    def hook_up(event_service, logger, *args, **kwargs):
-        clap_detector = ClapDetector(logger)
+    def hook_up(event_service, log, *args, **kwargs):
+        clap_detector = ClapDetector(log)
         clap_detector.setup(trigger_callback=event_service.capture,
                             trigger_2s_callback=event_service.delayed_capture,
                             wink_callback=event_service.wink)
@@ -72,18 +72,18 @@ class ClapDetector(ProcessInterface):
         try:
             # Suppress interactive input by setting calibrate=False and using default settings.
             self.listener = Listener(config=self.config, calibrate=False)
-            self._logger.info('Clap detector initialized successfully.')
+            self._log.info('Clap detector initialized successfully.')
         except (EOFError, KeyboardInterrupt) as e:
-            self._logger.warning('Clap detector initialization failed - no interactive input available.')
+            self._log.warning('Clap detector initialization failed - no interactive input available.')
             self.listener = None
         except Exception as e:
-            self._logger.warning(f'Clap detector initialization failed: {e}')
+            self._log.warning(f'Clap detector initialization failed: {e}')
             self.listener = None
 
     def start(self):
         """Start worker thread."""
         if self.listener is None:
-            self._logger.warning('Clap detector not initialized - skipping detection.')
+            self._log.warning('Clap detector not initialized - skipping detection.')
             return
         
         self._processing_loop()
@@ -91,14 +91,14 @@ class ClapDetector(ProcessInterface):
     def _processing_loop(self):
         """Main processing loop for clap detection (synchronous)."""
         if self.listener is None:
-            self._logger.warning('Cannot start clap detection - listener not initialized.')
+            self._log.warning('Cannot start clap detection - listener not initialized.')
             return
             
-        self._logger.info('Starting clap detector processing loop...')
+        self._log.info('Starting clap detector processing loop...')
         
         try:
-            self._logger.debug('Worker thread of clap detector started.')
+            self._log.debug('Worker thread of clap detector started.')
             self.listener.start()
-            self._logger.debug('Worker thread of clap detector terminated.')
+            self._log.debug('Worker thread of clap detector terminated.')
         except Exception as e:
-            self._logger.exception(f'Clap detector processing failed: {e}')
+            self._log.exception(f'Clap detector processing failed: {e}')

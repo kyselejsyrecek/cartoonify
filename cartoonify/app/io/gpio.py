@@ -27,7 +27,7 @@ class Gpio:
     """
 
     def __init__(self):
-        self._logger = getLogger(self.__class__.__name__)
+        self._log = getLogger(self.__class__.__name__)
 
         # References to imported libraries
         self.gpio = None
@@ -49,8 +49,8 @@ class Gpio:
             self.gpio = importlib.import_module('gpiozero')
             self.elements = importlib.import_module('app.io.elements')
         except (ImportError, ModuleNotFoundError) as e:
-            self._logger.exception(e)
-            self._logger.info('raspi gpio module not found, continuing...')
+            self._log.exception(e)
+            self._log.info('raspi gpio module not found, continuing...')
 
     def __del__(self):
         if not self.available():
@@ -89,7 +89,7 @@ class Gpio:
             if approach_callback:
                 self.proximity_sensor.when_activated = approach_callback
         except:
-            self._logger.info('proximity sensor not found, continuing...')
+            self._log.info('proximity sensor not found, continuing...')
 
         # Setup halt button
         self.button_halt = self.gpio.Button(HALT_BUTTON, pull_up=True, bounce_time=0.05)

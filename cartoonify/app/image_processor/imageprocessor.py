@@ -59,7 +59,7 @@ class ImageProcessor(object):
         self._classes = None
         self._scores = None
         self._num = None
-        self._logger = None
+        self._log = None
         self._session = None
         self.image_tensor = None
         self.detection_boxes = None
@@ -68,7 +68,7 @@ class ImageProcessor(object):
         self.num_detections = None
 
     def setup(self):
-        self._logger = getLogger(self.__class__.__name__)
+        self._log = getLogger(self.__class__.__name__)
         if not Path(self._path_to_model).exists():
             if self._force_download or \
                click.confirm('no object detection model available, would you like to download the model? '
@@ -83,7 +83,7 @@ class ImageProcessor(object):
         """download a model file from the url and unzip it
         """
         import app.urllib
-        self._logger.info('downloading model: {}'.format(filename))
+        self._log.info('downloading model: {}'.format(filename))
         for i in range(5):
             try:
                 app.urllib.urlretrieve(url + filename, filename)

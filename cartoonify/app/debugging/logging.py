@@ -33,7 +33,7 @@ class FilteredLogger:
     """Wrapper for standard logger that filters ANSI codes"""
     
     def __init__(self, logger, filter_ansi=True, custom_filter=None):
-        self._logger = logger
+        self._log = logger
         self._filter_ansi = filter_ansi
         self._custom_filter = custom_filter
     
@@ -48,35 +48,35 @@ class FilteredLogger:
         return message
     
     def debug(self, message, *args, **kwargs):
-        self._logger.debug(self._filter_message(message), *args, **kwargs)
+        self._log.debug(self._filter_message(message), *args, **kwargs)
     
     def info(self, message, *args, **kwargs):
-        self._logger.info(self._filter_message(message), *args, **kwargs)
+        self._log.info(self._filter_message(message), *args, **kwargs)
     
     def warning(self, message, *args, **kwargs):
-        self._logger.warning(self._filter_message(message), *args, **kwargs)
+        self._log.warning(self._filter_message(message), *args, **kwargs)
     
     def error(self, message, *args, **kwargs):
-        self._logger.error(self._filter_message(message), *args, **kwargs)
+        self._log.error(self._filter_message(message), *args, **kwargs)
     
     def critical(self, message, *args, **kwargs):
-        self._logger.critical(self._filter_message(message), *args, **kwargs)
+        self._log.critical(self._filter_message(message), *args, **kwargs)
     
     def exception(self, message, *args, **kwargs):
-        self._logger.exception(self._filter_message(message), *args, **kwargs)
+        self._log.exception(self._filter_message(message), *args, **kwargs)
     
     def log(self, level, message, *args, **kwargs):
-        self._logger.log(level, self._filter_message(message), *args, **kwargs)
+        self._log.log(level, self._filter_message(message), *args, **kwargs)
     
     def __getattr__(self, name):
-        return getattr(self._logger, name)
+        return getattr(self._log, name)
 
 
 class StderrRedirector:
     """Redirect stderr to logger"""
     
     def __init__(self, logger_name='STDERR'):
-        self.logger = logging.getLogger(logger_name)
+        self._log = logging.getLogger(logger_name)
         self.buffer = StringIO()
         self.original_stderr = sys.stderr
     
@@ -86,14 +86,14 @@ class StderrRedirector:
             content = self.buffer.getvalue().rstrip('\n')
             if content.strip():
                 # Messages written to stderr are often just informative.
-                self.logger.warning(f"STDERR: {content}")
+                self._log.warning(f"STDERR: {content}")
             self.buffer = StringIO()
     
     def flush(self):
         content = self.buffer.getvalue().rstrip('\n')
         if content.strip():
             # Messages written to stderr are often just informative.
-            self.logger.warning(f"STDERR: {content}")
+            self._log.warning(f"STDERR: {content}")
         self.buffer = StringIO()
     
     def restore(self):

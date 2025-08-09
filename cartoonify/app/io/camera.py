@@ -10,7 +10,7 @@ class Camera(object):
     """Controls camera functionality using Picamera2"""
 
     def __init__(self):
-        self._logger = getLogger(self.__class__.__name__)
+        self._log = getLogger(self.__class__.__name__)
         self._cam = None
         self._video_encoder = None
         self._video_output = None
@@ -33,7 +33,7 @@ class Camera(object):
         :param video_fps: Video frame rate (30, 50, 60, 100, 120)
         :param video_raw_stream: Whether to save as raw stream or container format
         """
-        self._logger.info('Setting up camera system...')
+        self._log.info('Setting up camera system...')
         
         # Store video settings
         self._video_format = video_format
@@ -58,7 +58,7 @@ class Camera(object):
             self._FfmpegOutput = FfmpegOutput  # Store reference for container output
         except ImportError as e:
             print('picamera2 module missing, please install using:\n     pip install picamera2')
-            self._logger.error('picamera2 module not available')
+            self._log.error('picamera2 module not available')
             sys.exit()
         
         self._cam = picamera2.Picamera2()
@@ -148,7 +148,7 @@ class Camera(object):
                 capture_config["transform"] = Transform(hflip=True, vflip=True)
                 self._video_config["transform"] = Transform(hflip=True, vflip=True)
                 
-            self._logger.info(f"AnalogueGain control limits: {self._cam.camera_controls['AnalogueGain']}")
+            self._log.info(f"AnalogueGain control limits: {self._cam.camera_controls['AnalogueGain']}")
             # TODO resolution = (640, 480)
             self._cam.configure(capture_config)
             
@@ -194,7 +194,7 @@ class Camera(object):
         :param path: Path to save the JPEG image (DNG will have same name with .dng extension)
         """
         if self._cam is not None:
-            self._logger.info('capturing image')
+            self._log.info('capturing image')
             
             # Generate paths for both JPEG and DNG
             jpeg_path = Path(path)
@@ -209,8 +209,8 @@ class Camera(object):
                 # Save DNG from raw stream
                 request.save_dng(str(dng_path))
                 
-                self._logger.info(f'Saved JPEG: {jpeg_path}')
-                self._logger.info(f'Saved DNG: {dng_path}')
+                self._log.info(f'Saved JPEG: {jpeg_path}')
+                self._log.info(f'Saved DNG: {dng_path}')
             finally:
                 request.release()
         else:
@@ -219,11 +219,11 @@ class Camera(object):
     def start_recording(self):
         """Start video recording in background thread"""
         if self._recording:
-            self._logger.warning('Recording already in progress')
+            self._log.warning('Recording already in progress')
             return
             
         if self._cam is None:
-            self._logger.error('Camera not initialized')
+            self._log.error('Camera not initialized')
             return
             
         # Generate video filename based on format and raw stream setting.
@@ -243,7 +243,7 @@ class Camera(object):
         self._video_number += 1
         
         self._recording = True
-        self._logger.info(f'Starting video recording: {self._video_path}')
+        self._log.info(f'Starting video recording: {self._video_path}')
         
         # Start recording in separate thread to avoid blocking.
         self._video_thread = threading.Thread(target=self._record_video)
@@ -252,17 +252,17 @@ class Camera(object):
     def stop_recording(self):
         """Stop video recording"""
         if not self._recording:
-            self._logger.warning('No recording in progress')
+            self._log.warning('No recording in progress')
             return
             
         self._recording = False
-        self._logger.info('Stopping video recording...')
+        self._log.info('Stopping video recording...')
         
         # Wait for recording thread to finish.
         if self._video_thread and self._video_thread.is_alive():
             self._video_thread.join(timeout=5)
             
-        self._logger.info(f'Video recording stopped: {self._video_path}')
+        self._log.info(f'Video recording stopped: {self._video_path}')
 
     def _record_video(self):
         """Internal method to handle video recording"""
@@ -286,7 +286,7 @@ class Camera(object):
                 time.sleep(0.1)
                 
         except Exception as e:
-            self._logger.exception(f'Video recording error: {e}')
+            self._log.exception(f'Video recording error: {e}')
         finally:
             # Stop recording.
             try:
@@ -304,4 +304,4 @@ class Camera(object):
         if self._cam is not None:
             self._cam.close()
             self._cam = None
-        self._logger.info('Camera closed')
+        self._log.info('Camera closed')

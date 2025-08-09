@@ -39,7 +39,7 @@ class EventManager(BaseManager):
     _manager_address = None
     _manager_authkey = None
     _worker = None
-    _logger = getLogger('EventManager')
+    _log = getLogger('EventManager')
     
     @classmethod
     def start(cls, manager_address, manager_authkey):
@@ -58,7 +58,7 @@ class EventManager(BaseManager):
         """Terminate the event manager process."""
         try:
             if cls._worker and cls._worker.is_alive():
-                cls._logger.debug('Terminating event manager...')
+                cls._log.debug('Terminating event manager...')
                 client = listener_client['pickle'][1]
                 # address and authkey same as when started the manager
                 connection = client(address=cls._manager_address, authkey=cls._manager_authkey)
@@ -66,10 +66,10 @@ class EventManager(BaseManager):
                 connection.close()
                 cls._worker.join(timeout=1)
                 if cls._worker.is_alive():
-                    cls._logger.warning(f"Manager process {cls._process.pid} did not terminate gracefully.")
+                    cls._log.warning(f"Manager process {cls._process.pid} did not terminate gracefully.")
                     # TODO Kill the thread using ctypes and pthread.
         except Exception as e:
-            cls._logger.exception(f'Error terminating event manager: {e}')
+            cls._log.exception(f'Error terminating event manager: {e}')
 
 
 class Subprocess:
@@ -131,18 +131,17 @@ class ProcessManager:
     """
 
     def __init__(self, manager_address, manager_authkey):
-        self._logger = getLogger(self.__class__.__name__)
+        self._log = getLogger(self.__class__.__name__)
         self._subprocesses = []
         self._manager_address = manager_address
         self._manager_authkey = manager_authkey
-        self._subprocess_loggers = []  # Store loggers by PID
         
         # Register logger method for subprocesses (only once)
         EventManager.register('logger', callable=self.get_subprocess_logger)
 
     def get_subprocess_logger(self, pid):
         """Get logger for subprocess by PID."""
-        return self._subprocess_loggers[pid - 1]
+        return self._subprocesses[pid - 1].logger
 
     def _pipe_reader(self, pipe_read_fd, logger, log_level):
         """Generic pipe reader for stdout/stderr capture.
@@ -181,9 +180,6 @@ class ProcessManager:
         
         # Create logger for this process in the main process
         subprocess_logger = getLogger(process_class.__name__, filter_ansi=filter_ansi, custom_filter=custom_filter)
-        
-        # Store logger by PID
-        self._subprocess_loggers.append(subprocess_logger)
         
         # Set up pipes for stdout/stderr capture if requested
         stdout_pipe = None
@@ -301,7 +297,7 @@ class ProcessManager:
     def terminate(self):
         """Terminates all subprocesses.
         """
-        self._logger.info('Terminating child processes...')
+        self._log.info('Terminating child processes...')
         # Attempt to gracefully terminate all child processes.
         for subprocess in self._subprocesses:
             if subprocess.is_alive():
@@ -309,7 +305,7 @@ class ProcessManager:
                 subprocess.join(timeout=1) # Wait for termination with a timeout.
                 if subprocess.is_alive():
                     # If child hasn't terminated, forcibly kill it.
-                    self._logger.warning(f"Subprocess {subprocess.pid} ({subprocess.process_class.__name__}) did not terminate gracefully, killing.")
+                    self._log.warning(f"Subprocess {subprocess.pid} ({subprocess.process_class.__name__}) did not terminate gracefully, killing.")
                     os.kill(subprocess.pid, signal.SIGKILL)
             
             # Clean up pipes

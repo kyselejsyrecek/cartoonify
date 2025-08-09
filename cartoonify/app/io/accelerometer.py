@@ -9,8 +9,8 @@ from app.workflow.multiprocessing import ProcessInterface
 class Accelerometer(ProcessInterface):
     """Accelerometer/gyroscope motion detection using BMI160"""
 
-    def __init__(self, logger=None):
-        self._logger = logger or getLogger(self.__class__.__name__)
+    def __init__(self, log=None):
+        self._log = log or getLogger(self.__class__.__name__)
         self._bmi160 = None
         self._sensor = None
         self._monitoring = False
@@ -32,7 +32,7 @@ class Accelerometer(ProcessInterface):
         :param cooldown_time: Time in seconds between motion detections
         :param gyro_enabled: Whether to enable gyroscope detection
         """
-        self._logger.info('Setting up accelerometer/gyroscope...')
+        self._log.info('Setting up accelerometer/gyroscope...')
         
         # Store configuration
         self._motion_callback = motion_callback
@@ -50,26 +50,26 @@ class Accelerometer(ProcessInterface):
             
             # Test sensor communication
             chip_id = self._sensor.getChipID()
-            self._logger.info(f'BMI160 chip ID: {chip_id}')
+            self._log.info(f'BMI160 chip ID: {chip_id}')
             
             if chip_id == 0xD1:  # BMI160 chip ID
-                self._logger.info('BMI160 sensor initialized successfully')
-                self._logger.info(f'Acceleration threshold: {self._accel_threshold}g')
+                self._log.info('BMI160 sensor initialized successfully')
+                self._log.info(f'Acceleration threshold: {self._accel_threshold}g')
                 if self._gyro_enabled:
-                    self._logger.info(f'Gyroscope threshold: {self._gyro_threshold}°/s')
+                    self._log.info(f'Gyroscope threshold: {self._gyro_threshold}°/s')
                 else:
-                    self._logger.info('Gyroscope detection disabled')
-                self._logger.info(f'Motion cooldown: {self._motion_cooldown}s')
+                    self._log.info('Gyroscope detection disabled')
+                self._log.info(f'Motion cooldown: {self._motion_cooldown}s')
                 self._start_monitoring()
             else:
-                self._logger.error(f'Invalid BMI160 chip ID: {chip_id}')
+                self._log.error(f'Invalid BMI160 chip ID: {chip_id}')
                 self._sensor = None
                 
         except ImportError as e:
-            self._logger.error('BMI160-i2c library not found. Install with: pip install BMI160-i2c')
+            self._log.error('BMI160-i2c library not found. Install with: pip install BMI160-i2c')
             self._sensor = None
         except Exception as e:
-            self._logger.exception(f'Failed to initialize BMI160: {e}')
+            self._log.exception(f'Failed to initialize BMI160: {e}')
             self._sensor = None
 
     def _start_monitoring(self):
@@ -80,7 +80,7 @@ class Accelerometer(ProcessInterface):
         self._monitoring = True
         self._monitor_thread = threading.Thread(target=self._monitor_motion, daemon=True)
         self._monitor_thread.start()
-        self._logger.info('Motion monitoring started')
+        self._log.info('Motion monitoring started')
 
     def _monitor_motion(self):
         """Monitor accelerometer and gyroscope for motion events"""
@@ -104,7 +104,7 @@ class Accelerometer(ProcessInterface):
                     
                     # Check if acceleration exceeds threshold
                     if total_accel > self._accel_threshold:
-                        self._logger.info(f'Acceleration motion detected: {total_accel:.2f}g')
+                        self._log.info(f'Acceleration motion detected: {total_accel:.2f}g')
                         motion_detected = True
                 
                 # Read gyroscope data if enabled
@@ -117,7 +117,7 @@ class Accelerometer(ProcessInterface):
                         
                         # Check if rotation exceeds threshold
                         if total_rotation > self._gyro_threshold:
-                            self._logger.info(f'Rotation motion detected: {total_rotation:.2f}°/s')
+                            self._log.info(f'Rotation motion detected: {total_rotation:.2f}°/s')
                             motion_detected = True
                 
                 # Trigger motion event if detected
@@ -131,7 +131,7 @@ class Accelerometer(ProcessInterface):
                 time.sleep(0.1)  # Check 10 times per second
                 
             except Exception as e:
-                self._logger.exception(f'Error reading sensor: {e}')
+                self._log.exception(f'Error reading sensor: {e}')
                 time.sleep(1)  # Wait longer on error
 
     @async_task
@@ -141,7 +141,7 @@ class Accelerometer(ProcessInterface):
             if self._motion_callback:
                 self._motion_callback()
         except Exception as e:
-            self._logger.exception(f'Error in motion callback: {e}')
+            self._log.exception(f'Error in motion callback: {e}')
 
     def close(self):
         """Stop monitoring and cleanup resources"""
@@ -153,20 +153,20 @@ class Accelerometer(ProcessInterface):
             self._sensor = None
             
         self._async_executor.close()
-        self._logger.info('Accelerometer closed')
+        self._log.info('Accelerometer closed')
 
     @staticmethod
-    def hook_up(event_service, logger, accel_threshold=2.0, gyro_threshold=100.0, cooldown_time=5.0, gyro_enabled=True):
+    def hook_up(event_service, log, accel_threshold=2.0, gyro_threshold=100.0, cooldown_time=5.0, gyro_enabled=True):
         """Static method for multiprocessing integration.
         
         :param event_service: Event service proxy
-        :param logger: Logger instance for this process
+        :param log: Logger instance for this process
         :param accel_threshold: Acceleration threshold in g-force
         :param gyro_threshold: Gyroscope threshold in degrees/second  
         :param cooldown_time: Time in seconds between motion detections
         :param gyro_enabled: Whether to enable gyroscope detection
         """
-        accelerometer = Accelerometer(logger)
+        accelerometer = Accelerometer(log)
         accelerometer.setup(
             motion_callback=event_service.dizzy,
             accel_threshold=accel_threshold,

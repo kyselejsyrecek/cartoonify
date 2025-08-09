@@ -25,10 +25,10 @@ from app.utils.asynctask import *
 
 
 def signal_handler(signum, frame):
-    logger = getLogger(__name__)
+    log = getLogger(__name__)
     if exit_event.is_set():
         return  # Already exiting, return immediately.
-    logger.info(f"Parent Process: Received signal {signum}, signaling children to exit.")
+    log.info(f"Parent Process: Received signal {signum}, signaling children to exit.")
     exit_event.set() # Set the event to signal all processes to exit.
     #workflow._terminate()
 
@@ -70,7 +70,7 @@ class Workflow(object):
             "key_file": None
         })
         self._lock = Lock()
-        self._logger = getLogger(self.__class__.__name__)  # Use enhanced getLogger
+        self._log = getLogger(self.__class__.__name__)  # Use enhanced getLogger
         self._config.update(config)
         self._i18n = i18n
 
@@ -116,49 +116,47 @@ class Workflow(object):
             return  # Not fully initialized yet, nothing to terminate
             
         self._is_initialized = False  # Mark as no longer initialized
-        self._logger.info('Starting workflow termination...')
+        self._log.info('Starting workflow termination...')
         
         try:
             # Terminate process manager and child processes
             if hasattr(self, '_process_manager') and self._process_manager:
                 self._process_manager.terminate()
         except Exception as e:
-            self._logger.exception(f'Error terminating process manager: {e}')
+            self._log.exception(f'Error terminating process manager: {e}')
 
         try:
             # Terminate the event manager process using the static method
             EventManager.terminate()
         except Exception as e:
-            self._logger.exception(f'Error terminating event manager process: {e}')
+            self._log.exception(f'Error terminating event manager process: {e}')
         
-        self._logger.info('Workflow termination completed.')
+        self._log.info('Workflow termination completed.')
 
     def close(self):
         try:
-            if self._camera is not None:
-                # Ensure video recording is stopped before closing
-                if self._is_recording:
-                    self._camera.stop_recording()
+            if self._camera:
                 self._camera.close()
         except Exception as e:
-            self._logger.exception(f'Error closing camera: {e}')
+            self._log.exception(f'Error closing camera: {e}')
+
+        try:
+            if self._image_processor:
+                self._image_processor.close()
+        except Exception as e:
+            self._log.exception(f'Error closing image processor: {e}')
+
+        try:
+            if self._gpio:
+                self._gpio.close()
+        except Exception as e:
+            self._log.exception(f'Error closing GPIO: {e}')
         
         try:
-            self._image_processor.close()
+            if self._sound:
+                self._sound.close()
         except Exception as e:
-            self._logger.exception(f'Error closing image processor: {e}')
-        
-        try:
-            self._gpio.close()
-        except Exception as e:
-            self._logger.exception(f'Error closing GPIO: {e}')
-        
-        try:
-            self._sound.close()
-        except Exception as e:
-            self._logger.exception(f'Error closing sound: {e}')
-        
-        #if not self._config.no_ir_receiver:
+            self._log.exception(f'Error closing sound: {e}')        #if not self._config.no_ir_receiver:
         #    self._ir_receiver.close()
         
         self._terminate()
@@ -171,8 +169,8 @@ class Workflow(object):
                 self._async_executor.shutdown()
         except Exception as e:
             # Log error if logger is available, otherwise just ignore
-            if hasattr(self, '_logger') and self._logger:
-                self._logger.exception(f'Error shutting down async executor: {e}')
+            if hasattr(self, '_log') and self._log:
+                self._log.exception(f'Error shutting down async executor: {e}')
         
         # Free resources
         # TODO self.close()?
@@ -188,7 +186,7 @@ class Workflow(object):
 
         # TODO aplay -D plughw:CARD=Device,DEV=0 -t raw -c 1 -r 22050 -f S16_LE /tmp/file.pcm
         if setup_gpio:
-            self._logger.info('setting up GPIO...')
+            self._log.info('setting up GPIO...')
             self._gpio.setup(fast_init=self._config.fast_init,
                              trigger_release_callback=self.capture,
                              trigger_held_callback=self.print_previous_original,
@@ -200,17 +198,17 @@ class Workflow(object):
                 self._clap_detector = self._process_manager.start_process(ClapDetector)
             if not self._config.no_accelerometer:
                 self._accelerometer = self._process_manager.start_process(Accelerometer)
-            self._logger.info('done')
+            self._log.info('done')
         
         # Start web GUI if requested
         if self._config.gui or self._config.web_server:
             from app.gui import WebGui
             
             if self._config.gui:
-                self._logger.info('Starting GUI...')
+                self._log.info('Starting GUI...')
                 print('Starting GUI...')
             elif self._config.web_server:
-                self._logger.info(f'Starting HTTP server on address {self._config.ip}:{self._config.port}...')
+                self._log.info(f'Starting HTTP server on address {self._config.ip}:{self._config.port}...')
             
             self._web_gui = self._process_manager.start_process(
                 WebGui, 
@@ -227,14 +225,14 @@ class Workflow(object):
             )
             
             if self._config.gui:
-                self._logger.info('GUI started successfully')
+                self._log.info('GUI started successfully')
             elif self._config.web_server:
-                self._logger.info('HTTP server started successfully')
+                self._log.info('HTTP server started successfully')
                 print(f'HTTP server running on address {self._config.ip}:{self._config.port}.')
         
         # Setup camera system
         if self._camera is not None:
-            self._logger.info('setting up camera...')
+            self._log.info('setting up camera...')
             self._camera.setup(
                 rotate_180deg=self._config.rotate_180deg,
                 video_format=self._config.video_format,
@@ -242,20 +240,20 @@ class Workflow(object):
                 video_fps=self._config.video_fps,
                 video_raw_stream=self._config.video_raw_stream
             )
-            self._logger.info('done')
+            self._log.info('done')
         
         # Setup sound system
-        self._logger.info('setting up sound system...')
+        self._log.info('setting up sound system...')
         self._sound.setup(audio_backend=self._config.audio_backend, volume=self._config.volume, alsa_numid=self._config.alsa_numid, tts_language=self._config.tts_language)
-        self._logger.info('done')
-        self._logger.info('loading cartoon dataset...')
+        self._log.info('done')
+        self._log.info('loading cartoon dataset...')
         self._dataset.setup()
-        self._logger.info('Done')
+        self._log.info('Done')
         self._sketcher = SketchGizeh()
         self._sketcher.setup()
-        self._logger.info('loading tensorflow model...')
+        self._log.info('loading tensorflow model...')
         self._image_processor.setup()
-        self._logger.info('Done')
+        self._log.info('Done')
         self._path = Path(__file__).parent / '..' / '..' / 'images'
         if not self._path.exists():
             self._path.mkdir()
@@ -265,7 +263,7 @@ class Workflow(object):
         self._next_image_number = image_numbers[-1] + 1 if len(image_numbers) > 0 else 0
         self._last_original_image_number = self._next_image_number - 1
         self._set_initial_state()
-        self._logger.info('setup finished.')
+        self._log.info('setup finished.')
 
     def _execute_concurrent_tasks(self, *tasks):
         """Execute multiple tasks concurrently and wait for completion
@@ -286,14 +284,14 @@ class Workflow(object):
         :return:
         """
         try:
-            self._logger.info('capturing and processing image.')
+            self._log.info('capturing and processing image.')
             original = self._capture()
             self.process()
             annotated, cartoon, image_labels = self.save_results()
             if print_cartoon:
                 self._gpio.print(str(cartoon))
         except Exception as e:
-            self._logger.exception(e)
+            self._log.exception(e)
         
         self.increment()
         self._gpio.set_ready()
@@ -304,7 +302,7 @@ class Workflow(object):
         if self._camera is not None:
             if path is None:
                 path = self._path / ('image' + str(self._next_image_number) + '.jpg')
-            self._logger.info('capturing image')
+            self._log.info('capturing image')
             self._camera.capture_file(str(path))
             self._gpio.blink_eyes()
         else:
@@ -321,7 +319,7 @@ class Workflow(object):
         :param image_path: image to process, if camera is disabled
         :return:
         """
-        self._logger.info('processing image...')
+        self._log.info('processing image...')
 
         if threshold is None:
             threshold = self._config.threshold
@@ -357,7 +355,7 @@ class Workflow(object):
                                  self._dataset,
                                  threshold=threshold)
         except (ValueError, IOError) as e:
-            self._logger.exception(e)
+            self._log.exception(e)
 
     def save_results(self, debug=False):
         """save result images as png and list of detected objects as txt
@@ -365,7 +363,7 @@ class Workflow(object):
 
         :return tuple: (path to annotated image, path to cartoon image)
         """
-        self._logger.info('saving results...')
+        self._log.info('saving results...')
         annotated_path = self._image_path.parent / (self._image_path.name + '.annotated.png')
         cartoon_path = self._image_path.with_name('cartoon' + str(self._next_image_number) + '.png')
         labels_path = self._image_path.with_name('labels' + str(self._next_image_number) + '.txt')
@@ -402,16 +400,16 @@ class Workflow(object):
     def _set_initial_state(self):
         """Set initial state for GPIO and play awake sound simultaneously"""
         if not self._lock.acquire(blocking=True):
-            self._logger.error('Error setting initial state.')
+            self._log.error('Error setting initial state.')
             self.close()
         try:
-            self._logger.info('Setting initial state...')
+            self._log.info('Setting initial state...')
             # Run both operations concurrently
             self._execute_concurrent_tasks(
                 self._sound.awake,
                 self._gpio.set_initial_state
             )
-            self._logger.info('Initial state set.')
+            self._log.info('Initial state set.')
         finally:
             self._lock.release()
 
@@ -422,11 +420,11 @@ class Workflow(object):
         
         :param Button e: Originator of the event (gpiozero object).
         """
-        self._logger.info('System halt button pressed - waiting for current operation to finish...')
+        self._log.info('System halt button pressed - waiting for current operation to finish...')
         # Wait for any current operation to finish (blocking acquire)
         self._lock.acquire(blocking=True)
         try:
-            self._logger.info('Initiating system shutdown.')
+            self._log.info('Initiating system shutdown.')
             # Set halt event to signal shutdown
             halt_event.set()
             # Set exit event to exit all sub-processes
@@ -444,10 +442,10 @@ class Workflow(object):
         :param SmartButton e: Originator of the event (gpiozero object). None if called from WebGUI.
         """
         if not self._lock.acquire(blocking=False):
-            self._logger.info('Capture event ignored because another operation is in progress.')
+            self._log.info('Capture event ignored because another operation is in progress.')
             return
         try:
-            self._logger.info('Capture button pressed.')
+            self._log.info('Capture button pressed.')
             self._execute_concurrent_tasks(
                 self._sound.capture,
                 lambda: self.run(print_cartoon=True)
@@ -463,10 +461,10 @@ class Workflow(object):
         :param SmartButton e: Originator of the event (gpiozero object). None if called from IrReceiver.
         """
         if not self._lock.acquire(blocking=False):
-            self._logger.info('Delayed capture event ignored because another operation is in progress.')
+            self._log.info('Delayed capture event ignored because another operation is in progress.')
             return
         try:
-            self._logger.info('Button for delayed capture pressed.')
+            self._log.info('Button for delayed capture pressed.')
             self._gpio.set_recording_state(not self._is_recording)
             time.sleep(0.2)
             self._gpio.set_recording_state(self._is_recording)
@@ -489,14 +487,14 @@ class Workflow(object):
            When called multiple times, prints originals in backward order.
         """
         if not self._lock.acquire(blocking=False):
-            self._logger.info('Not printing previous original because another operation is in progress.')
+            self._log.info('Not printing previous original because another operation is in progress.')
             return
         try:
             start_num = self._last_original_image_number
             if self._last_original_image_number <= 0:
-                self._logger.info(f'Refusing to print previous original as no previous photo is available. Original image number: {self._last_original_image_number}.')
+                self._log.info(f'Refusing to print previous original as no previous photo is available. Original image number: {self._last_original_image_number}.')
             else:
-                self._logger.info('Capture button held - printing original photo.')
+                self._log.info('Capture button held - printing original photo.')
                 while True:
                     path = self._path / ('image' + str(self._last_original_image_number) + '.jpg')
                     if Path(path).is_file():
@@ -507,7 +505,7 @@ class Workflow(object):
                         # For now, skip photos that do not exist.
                         self._last_original_image_number = (self._last_original_image_number - 1) % self._next_image_number
                         if self._last_original_image_number == start_num:
-                            self._logger.info('No original photo found.')
+                            self._log.info('No original photo found.')
                             return
 
                 self._execute_concurrent_tasks(
@@ -526,10 +524,10 @@ class Workflow(object):
         :param SmartButton e: Originator of the event (gpiozero object). None if called from IrReceiver.
         """
         if not self._lock.acquire(blocking=False):
-            self._logger.info('Event toggle recording ignored because another operation is in progress.')
+            self._log.info('Event toggle recording ignored because another operation is in progress.')
             return
         try:
-            self._logger.info('Button toggling video recording pressed.')
+            self._log.info('Button toggling video recording pressed.')
             self._is_recording = not self._is_recording
             self._gpio.set_recording_state(self._is_recording)
             
@@ -549,10 +547,10 @@ class Workflow(object):
         :param SmartButton e: Originator of the event (gpiozero object). None if called from IrReceiver.
         """
         if not self._lock.acquire(blocking=False):
-            self._logger.info('Event wink ignored because another operation is in progress.')
+            self._log.info('Event wink ignored because another operation is in progress.')
             return
         try:
-            self._logger.info('Wink button pressed.')
+            self._log.info('Wink button pressed.')
             self._gpio.wink()
         finally:
             self._lock.release()
@@ -565,10 +563,10 @@ class Workflow(object):
         :param DigitalInputDevice e: Originator of the event (gpiozero object).
         """
         if not self._lock.acquire(blocking=False):
-            self._logger.info('Approach event ignored because another operation is in progress.')
+            self._log.info('Approach event ignored because another operation is in progress.')
             return
         try:
-            self._logger.info('Someone approached.')
+            self._log.info('Someone approached.')
             self._execute_concurrent_tasks(
                 self._sound.greeting,
                 self._gpio.blink_eyes
@@ -583,10 +581,10 @@ class Workflow(object):
         :param e: Originator of the event
         """
         if not self._lock.acquire(blocking=False):
-            self._logger.info('Dizzy motion event ignored because another operation is in progress.')
+            self._log.info('Dizzy motion event ignored because another operation is in progress.')
             return
         try:
-            self._logger.info('Motion detected - triggering dizzy response.')
+            self._log.info('Motion detected - triggering dizzy response.')
             # Execute dizzy sound and eye blink concurrently
             self._execute_concurrent_tasks(
                 self._sound.dizzy,
@@ -602,10 +600,10 @@ class Workflow(object):
         :param text: Text to speak
         """
         if not self._lock.acquire(blocking=False):
-            self._logger.info('TTS event ignored because another operation is in progress.')
+            self._log.info('TTS event ignored because another operation is in progress.')
             return
         try:
-            self._logger.info(f'TTS requested: "{text}"')
+            self._log.info(f'TTS requested: "{text}"')
             self._sound.say(text)
         finally:
             self._lock.release()

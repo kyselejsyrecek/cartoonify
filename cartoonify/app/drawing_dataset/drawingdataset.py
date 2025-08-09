@@ -19,14 +19,14 @@ class DrawingDataset(object):
         self._quickdraw_dataset_url = 'https://storage.googleapis.com/quickdraw_dataset/full/binary/'
         self._categories = []
         self._category_mapping = dict()
-        self._logger = getLogger(self.__class__.__name__)
+        self._log = getLogger(self.__class__.__name__)
 
     def setup(self):
         try:
             with jsonlines.open(self._category_mapping_filepath, mode='r') as reader:
                 self._category_mapping = reader.read()
         except IOError as e:
-            self._logger.exception(e)
+            self._log.exception(e)
             print('label_mapping.jsonl not found')
             raise e
         self._categories = self.load_categories(self._path)
@@ -37,7 +37,7 @@ class DrawingDataset(object):
                 self.download_recurse(self._quickdraw_dataset_url, self._path)
                 self._categories = self.load_categories(self._path)
             else:
-                self._logger.error('no drawings available, and user declined to download dataset')
+                self._log.error('no drawings available, and user declined to download dataset')
                 raise ValueError('no drawings available, please download dataset')
 
     def download(self, url, filename, path):

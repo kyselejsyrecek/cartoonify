@@ -155,7 +155,7 @@ def run(**kwargs):
     app.setup(setup_gpio=config.raspi_headless)
 
     # Create logger after workflow setup
-    logger = getLogger(__name__)
+    log = getLogger(__name__)
 
     # For headless mode or web GUI mode, use the same event waiting logic
     if config.raspi_headless or config.gui or config.web_server:
@@ -165,15 +165,15 @@ def run(**kwargs):
             
             # Setup console history support.
             history_file = setup_console_history()
-            logger.info(f'Console history will be saved to: {history_file}')
+            log.info(f'Console history will be saved to: {history_file}')
             
-            logger.info('Starting interactive Python console for debugging...')
+            log.info('Starting interactive Python console for debugging...')
             try:
                 # FIXME Prints banner to stderr (which is usually only logged).
                 code.interact(local=locals()) # local_exit=True requires Python 3.13.
             except SystemExit:
                 pass
-            logger.info('Interactive console session ended - shutting down.')
+            log.info('Interactive console session ended - shutting down.')
             exit_event.set()
             app.close()
             sys.exit(0)
@@ -249,11 +249,11 @@ def wait_for_events(app, logger):
     while True:
         try:
             if halt_event.is_set():
-                logger.info('Halt event detected - shutting down the system.')
+                log.info('Halt event detected - shutting down the system.')
                 app.close()
                 sys.exit(42)
             elif exit_event.is_set():
-                logger.info('Exiting on exit event.')
+                log.info('Exiting on exit event.')
                 app.close()
                 sys.exit(0)
             time.sleep(0.5)  # Short pause to reduce CPU usage
