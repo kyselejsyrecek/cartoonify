@@ -13,11 +13,16 @@ class Camera(object):
         self._logger = getLogger(self.__class__.__name__)
         self._cam = None
         self._video_encoder = None
+        self._video_output = None
         self._recording = False
         self._video_number = 0
         self._video_path = None
         self._video_thread = None
         self._video_config = None
+        self._video_format = None
+        self._video_resolution = None
+        self._video_fps = None
+        self._video_raw_stream = None
 
     def setup(self, rotate_180deg=False, video_format='h264', video_resolution='1080p', video_fps=30, video_raw_stream=False):
         """Setup camera system
@@ -160,6 +165,23 @@ class Camera(object):
             self._cam.start()
             time.sleep(2) # FIXME Replace with lazy sleep instead? Is that even needed?
 
+            # Video recording setup.
+            # Pre-create video encoder and output based on format and raw stream settings.
+            if self._video_raw_stream:
+                # Use raw stream encoders for direct file output.
+                if self._video_format == 'h264':
+                    self._video_encoder = self._encoders.H264Encoder()
+                else:  # mjpeg
+                    self._video_encoder = self._encoders.MJPEGEncoder()
+            else:
+                # Use encoder + FfmpegOutput for container formats.
+                if self._video_format == 'h264':
+                    # H.264 in MP4 container.
+                    self._video_encoder = self._encoders.H264Encoder()
+                else:  # mjpeg
+                    # MJPEG in AVI container.
+                    self._video_encoder = self._encoders.MJPEGEncoder()
+
             #request = self._cam.capture_request()
             #request.save("main", "test.jpg")
             #metadata = request.get_metadata()
@@ -204,26 +226,26 @@ class Camera(object):
             self._logger.error('Camera not initialized')
             return
             
-        # Generate video filename based on format and raw stream setting
+        # Generate video filename based on format and raw stream setting.
         if self._video_raw_stream:
-            # Raw stream: H264Encoder outputs .h264, MJPEGEncoder outputs .mjpeg
+            # Raw stream: H264Encoder outputs .h264, MJPEGEncoder outputs .mjpeg.
             if self._video_format == 'h264':
-                video_extension = 'h264'  # Raw H.264 stream
+                video_extension = 'h264'  # Raw H.264 stream.
             else:
-                video_extension = 'mjpeg'  # MJPEG stream
+                video_extension = 'mjpeg'  # MJPEG stream.
         else:
-            # Container format: use FfmpegEncoder for standard containers
+            # Container format: use FfmpegEncoder for standard containers.
             if self._video_format == 'h264':
-                video_extension = 'mp4'  # H.264 in MP4 container
+                video_extension = 'mp4'  # H.264 in MP4 container.
             else:
-                video_extension = 'avi'  # MJPEG in AVI container
+                video_extension = 'avi'  # MJPEG in AVI container.
         self._video_path = Path(__file__).parent.parent.parent / 'images' / f'video{self._video_number}.{video_extension}'
         self._video_number += 1
         
         self._recording = True
         self._logger.info(f'Starting video recording: {self._video_path}')
         
-        # Start recording in separate thread to avoid blocking
+        # Start recording in separate thread to avoid blocking.
         self._video_thread = threading.Thread(target=self._record_video)
         self._video_thread.start()
 
@@ -236,7 +258,7 @@ class Camera(object):
         self._recording = False
         self._logger.info('Stopping video recording...')
         
-        # Wait for recording thread to finish
+        # Wait for recording thread to finish.
         if self._video_thread and self._video_thread.is_alive():
             self._video_thread.join(timeout=5)
             
@@ -245,42 +267,19 @@ class Camera(object):
     def _record_video(self):
         """Internal method to handle video recording"""
         try:
-            # We need to stop the camera to initialize the encoder.
-            self._cam.stop()
-
-            # Configure camera for video.
-            self._cam.configure(self._video_config)
+            # Switch to video configuration without stopping camera.
+            self._cam.switch_mode(self._video_config)
             
-            # Create appropriate encoder based on format and raw stream setting
+            # Create output based on raw stream setting (encoder is already set up in setup()).
             if self._video_raw_stream:
-                # Use raw stream encoders for direct file output
-                if self._video_format == 'h264':
-                    encoder = self._encoders.H264Encoder()
-                    output = str(self._video_path)  # Direct file output
-                else:  # mjpeg
-                    encoder = self._encoders.MJPEGEncoder()
-                    output = str(self._video_path)  # Direct file output
+                # Direct file output for raw streams.
+                self._video_output = str(self._video_path)
             else:
-                # Use encoder + FfmpegOutput for container formats
-                if self._video_format == 'h264':
-                    # H.264 in MP4 container
-                    encoder = self._encoders.H264Encoder()
-                    output = self._FfmpegOutput(str(self._video_path))
-                else:  # mjpeg
-                    # MJPEG in AVI container 
-                    encoder = self._encoders.MJPEGEncoder()
-                    output = self._FfmpegOutput(str(self._video_path))
+                # FfmpegOutput for container formats.
+                self._video_output = self._FfmpegOutput(str(self._video_path))
 
-            # Start recording
-            if self._video_raw_stream:
-                # For raw streams, pass the file path to start_encoder
-                self._cam.start_encoder(encoder, output)
-            else:
-                # For container formats, use encoder + FfmpegOutput
-                self._cam.start_encoder(encoder, output)
-
-            # Start the camera again.
-            self._cam.start()
+            # Start recording.
+            self._cam.start_recording(self._video_encoder, self._video_output)
             
             # Keep recording until stopped.
             while self._recording:
@@ -289,18 +288,16 @@ class Camera(object):
         except Exception as e:
             self._logger.exception(f'Video recording error: {e}')
         finally:
-            # Stop recording and restart the camera for still capture.
+            # Stop recording.
             try:
-                self._cam.stop()
-                self._cam.stop_encoder()
+                if self._video_encoder:
+                    self._cam.stop_recording()
             except:
                 pass
-            finally:
-                self._cam.start()
 
     def close(self):
         """Close camera resources"""
-        # Stop recording if active
+        # Stop recording if active.
         if self._recording:
             self.stop_recording()
             
