@@ -3,6 +3,7 @@ __pycache__
 *.pyc
 .idea
 .vscode-ctags
+.settings/
 cartoonify/logs/*
 cartoonify/cartoonify.egg-info
 cartoonify/downloads/drawing_dataset/*.bin

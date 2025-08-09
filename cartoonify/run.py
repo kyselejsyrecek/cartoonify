@@ -3,6 +3,7 @@ import datetime
 from pathlib import Path
 import sys
 import os
+import atexit
 import click
 import gettext
 import time
@@ -10,6 +11,9 @@ import time
 from app.utils.attributedict import AttributeDict
 from app.debugging import profiling
 from app.debugging.logging import setup_file_logging, setup_debug_logging, getLogger
+
+# Interactive console history support.
+import readline
 
 # BUG: Built-in input() function writes to stderr instead of stdout (Python 3.11).
 # See https://discuss.python.org/t/builtin-function-input-writes-its-prompt-to-sys-stderr-and-not-to-sys-stdout/12955/2.
@@ -20,6 +24,34 @@ def input(prompt=""):
 
 # configure logging
 logs_dir = Path(__file__).parent / 'logs'
+
+def setup_console_history():
+    """Setup interactive console history support."""
+    # Path to console history file.
+    settings_dir = Path(__file__).parent.parent / '.settings'
+    settings_dir.mkdir(exist_ok=True)
+    history_file = settings_dir / 'console_history'
+    
+    # Load existing history if available.
+    if history_file.exists():
+        try:
+            readline.read_history_file(str(history_file))
+        except Exception:
+            pass  # Ignore errors loading history.
+    
+    # Setup history saving on exit.
+    def save_history():
+        try:
+            readline.write_history_file(str(history_file))
+        except Exception:
+            pass  # Ignore errors saving history.
+    
+    atexit.register(save_history)
+    
+    # Set maximum history length.
+    readline.set_history_length(1000)
+    
+    return history_file
 
 def flatten(xss):
     return [x for xs in xss for x in xs]
@@ -130,6 +162,11 @@ def run(**kwargs):
         if config.debug_cmdline:
             import code
             from app.workflow import exit_event
+            
+            # Setup console history support.
+            history_file = setup_console_history()
+            logger.info(f'Console history will be saved to: {history_file}')
+            
             logger.info('Starting interactive Python console for debugging...')
             try:
                 # FIXME Prints banner to stderr (which is usually only logged).
