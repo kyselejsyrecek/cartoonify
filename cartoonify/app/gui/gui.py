@@ -4,7 +4,6 @@ import io
 import time
 import importlib
 import os
-from app.debugging.logging import getLogger
 import sys
 
 from pathlib import Path
@@ -41,13 +40,13 @@ class WebGui(App, ProcessInterface):
     """
     gui for the app
     """
+    _event_service = None
+    _log = None
+    _i18n = None
+    _full_capabilities = True
 
     def __init__(self, *args):
         super().__init__(*args)
-        self._event_service = None
-        self._i18n = None
-        self._full_capabilities = True
-        self._log = getLogger("WebGui")
 
     @staticmethod
     def hook_up(event_service, logger, i18n, cam_only, web_host='0.0.0.0', web_port=8081, start_browser=False, cert_file=None, key_file=None):
