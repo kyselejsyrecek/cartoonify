@@ -104,13 +104,13 @@ class CustomFormatter(logging.Formatter):
     """Custom logging formatter with optional colors"""
     
     COLORS = {
-        'DEBUG': '\033[90m',      # Gray
-        'INFO': '\033[37m',       # White
-        'WARNING': '\033[93m',    # Yellow
-        'ERROR': '\033[91m',      # Red
-        'CRITICAL': '\033[41;93m', # Yellow on red background
+        'DEBUG': '\033[1;90m',        # Bold Gray
+        'INFO': '\033[1;37m',         # Bold White
+        'WARNING': '\033[1;93m',      # Bold Yellow
+        'ERROR': '\033[1;91m',        # Bold Red
+        'CRITICAL': '\033[1;41;93m',  # Bold Yellow on red background
+        'EXCEPTION': '\033[1;41;93m', # Bold Yellow on red background
         'RESET': '\033[0m',
-        'BOLD': '\033[1m',
         'WHITE_BOLD': '\033[1;97m'
     }
     
@@ -118,7 +118,7 @@ class CustomFormatter(logging.Formatter):
         super().__init__()
         self.use_colors = use_colors
     
-    def _get_class_name(self, record):
+    def _get_originator(self, record):
         if '.' in record.name:
             return record.name.split('.')[-1]
         return record.name
@@ -135,7 +135,7 @@ class CustomFormatter(logging.Formatter):
         return any(keyword in message_lower for keyword in error_keywords)
     
     def format(self, record):
-        class_name = self._get_class_name(record)
+        originator = self._get_originator(record)
         formatted_time = self.formatTime(record, '%H:%M:%S.%f')[:-3]
         message = record.getMessage()
         
@@ -148,33 +148,32 @@ class CustomFormatter(logging.Formatter):
             record.levelname = 'ERROR'
             record.levelno = logging.ERROR
         
-        aligned_severity = f"{record.levelname:>9}"
-        aligned_class_name = f"{class_name:>15}"
+        if record.exc_info and record.levelname != 'DEBUG':
+            levelname = 'EXCEPTION'
+            aligned_severity = f"{'EXCEPTION':>9}"
+        else:
+            levelname = record.levelname
+            aligned_severity = f"{record.levelname:>9}"
+        aligned_originator = f"{originator:>15}"
         
         if self.use_colors:
+            severity_color = self.COLORS.get(levelname, '')
+            severity = f"{severity_color}{aligned_severity}{self.COLORS['RESET']}"
             if record.levelname == 'DEBUG':
-                bold_severity = f"{self.COLORS['BOLD']}{self.COLORS['DEBUG']}{aligned_severity}{self.COLORS['RESET']}{self.COLORS['DEBUG']}"
-                bold_class = f"{self.COLORS['BOLD']}{self.COLORS['DEBUG']}{aligned_class_name}{self.COLORS['RESET']}{self.COLORS['DEBUG']}"
-                formatted_message = f"{self.COLORS['DEBUG']}[{formatted_time}] {bold_severity} {bold_class}: {message}{self.COLORS['RESET']}"
-            elif record.levelname == 'CRITICAL':
-                formatted_message = f"{self.COLORS['CRITICAL']}[{formatted_time}] {aligned_severity} {aligned_class_name}: {message}{self.COLORS['RESET']}"
+                originator = f"{self.COLORS['DEBUG']}{aligned_originator}{self.COLORS['RESET']}"
+                formatted_message = f"{self.COLORS['DEBUG']}[{formatted_time}] {severity} {originator}{self.COLORS['DEBUG']}: {message}{self.COLORS['RESET']}"
             else:
-                severity_color = self.COLORS.get(record.levelname, '')
-                bold_severity = f"{self.COLORS['BOLD']}{severity_color}{aligned_severity}{self.COLORS['RESET']}"
-                bold_class = f"{self.COLORS['WHITE_BOLD']}{aligned_class_name}{self.COLORS['RESET']}"
-                formatted_message = f"[{formatted_time}] {bold_severity} {bold_class}: {message}"
+                originator = f"{self.COLORS['WHITE_BOLD']}{aligned_originator}{self.COLORS['RESET']}"
+                formatted_message = f"[{formatted_time}] {severity} {originator}: {message}"
         else:
-            formatted_message = f"[{formatted_time}] {aligned_severity} {aligned_class_name}: {message}"
+            formatted_message = f"[{formatted_time}] {aligned_severity} {aligned_originator}: {message}"
         
         # Handle exceptions
         if record.exc_info:
             exception_text = self.formatException(record.exc_info)
             if self.use_colors and record.levelname != 'DEBUG':
-                aligned_exception_severity = f"{'EXCEPTION':>9}"
-                exception_severity = f"{self.COLORS['CRITICAL']}{aligned_exception_severity}{self.COLORS['RESET']}"
-                bold_class = f"{self.COLORS['WHITE_BOLD']}{aligned_class_name}{self.COLORS['RESET']}"
                 exception_lines = exception_text.split('\n')
-                formatted_exception = [f"[{formatted_time}] {exception_severity} {bold_class}: {exception_lines[0]}"]
+                formatted_exception = [f"[{formatted_time}] {severity} {originator}: {exception_lines[0]}"]
                 # Calculate spaces to align with the message part: [time] + space + severity + space + class + ": "
                 spaces = ' ' * (len(f"[{formatted_time}] ") + 9 + 1 + 15 + 2)  # 9 for "EXCEPTION", 1 for space, 15 for class, 2 for ": "
                 formatted_exception.extend(f"{spaces}{line}" for line in exception_lines[1:] if line)
