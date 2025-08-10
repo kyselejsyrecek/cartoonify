@@ -4,9 +4,10 @@ import os
 import signal
 import sys
 import threading
+import types
 from abc import ABC, abstractmethod
 
-from multiprocessing.managers import BaseManager, dispatch, listener_client
+from multiprocessing.managers import BaseManager, dispatch, listener_client, NamespaceProxy
 
 from app.debugging.logging import getLogger  # Import our enhanced getLogger
 
@@ -15,6 +16,24 @@ from app.debugging.logging import getLogger  # Import our enhanced getLogger
 # Do not access directly from subprocesses! Must always be obtained from event_proxy.
 exit_event = multiprocessing.Event()
 halt_event = multiprocessing.Event()
+
+
+class ClassProxy(NamespaceProxy):
+    """Generic proxy that dynamically exposes all methods and properties of the target class."""
+    
+    def __getattr__(self, name):
+        """Custom attribute access that properly handles properties and methods."""
+        try:
+            result = super().__getattr__(name)
+            if isinstance(result, types.MethodType):
+                def wrapper(*args, **kwargs):
+                    return self._callmethod(name, args, kwargs)
+                return wrapper
+            return result
+        except AttributeError:
+            # If the attribute doesn't exist on the proxy, try calling it anyway
+            # This allows accessing dynamic properties that weren't in _exposed_
+            return lambda *args, **kwargs: self._callmethod(name, args, kwargs)
 
 
 class ProcessInterface(ABC):
@@ -40,6 +59,32 @@ class EventManager(BaseManager):
     _manager_authkey = None
     _worker = None
     _log = getLogger('EventManager')
+    
+    @classmethod
+    def register(cls, typeid, callable=None, proxytype=None, exposed=None, method_to_typeid=None, create_method=True):
+        """Override register to use custom proxy and dynamically discover exposed methods."""
+        if proxytype is None:
+            # Use our generic ClassProxy for all registrations
+            proxytype = ClassProxy
+            
+        # If exposed is not provided and we have a callable, try to auto-discover
+        if exposed is None and callable is not None:
+            try:
+                # Get the object instance (callable might be a lambda or function)
+                if hasattr(callable, '__call__'):
+                    # Try to call it to get the actual object
+                    try:
+                        obj = callable()
+                        # Get all public methods and properties
+                        exposed = tuple(name for name in dir(obj) 
+                                      if not name.startswith('_') or name in ['__getattribute__', '__setattr__', '__delattr__'])
+                    except:
+                        # If calling fails, use default exposed methods
+                        exposed = None
+            except:
+                exposed = None
+                
+        return super().register(typeid, callable, proxytype, exposed, method_to_typeid, create_method)
     
     @classmethod
     def start(cls, manager_address, manager_authkey):
