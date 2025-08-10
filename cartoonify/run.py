@@ -80,6 +80,7 @@ def flatten(xss):
 @click.option('--debug', is_flag=True, help='Output all log messages to console instead of file. Error messages go to stderr, others to stdout.')
 @click.option('--debug-cmdline', is_flag=True, help='Start interactive Python console for debugging instead of event waiting loop. Only compatible with --raspi-headless, --gui and --web-server.')
 def run(**kwargs):
+    print('Starting up, please wait...')
     # Configure logging based on command line options
     config = AttributeDict(kwargs)
     
