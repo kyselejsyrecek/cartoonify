@@ -79,16 +79,28 @@ def flatten(xss):
 @click.option('--key-file', type=str, default=None, help='SSL private key file for HTTPS server.')
 @click.option('--debug', is_flag=True, help='Output all log messages to console instead of file. Error messages go to stderr, others to stdout.')
 @click.option('--debug-cmdline', is_flag=True, help='Start interactive Python console for debugging instead of event waiting loop. Only compatible with --raspi-headless, --gui and --web-server.')
+@click.option('--log-level', type=click.Choice(['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], case_sensitive=False), 
+              default='DEBUG', help='Set logging level (default: DEBUG)')
 def run(**kwargs):
     print('Starting up, please wait...')
     # Configure logging based on command line options
     config = AttributeDict(kwargs)
     
+    # Convert log level string to logging constant
+    log_level_mapping = {
+        'DEBUG': logging.DEBUG,
+        'INFO': logging.INFO,
+        'WARNING': logging.WARNING,
+        'ERROR': logging.ERROR,
+        'CRITICAL': logging.CRITICAL
+    }
+    log_level = log_level_mapping.get(config.log_level.upper(), logging.DEBUG)
+    
     # Setup logging based on debug mode
     if config.debug:
-        original_stdout, original_stderr, stderr_redirector = setup_debug_logging(use_colors=not config.no_log_colors)
+        original_stdout, original_stderr, stderr_redirector = setup_debug_logging(log_level=log_level, use_colors=not config.no_log_colors)
     else:
-        original_stdout, original_stderr, stderr_redirector = setup_file_logging(logs_dir, redirect_stderr=True, use_colors=not config.no_log_colors)
+        original_stdout, original_stderr, stderr_redirector = setup_file_logging(logs_dir, log_level=log_level, redirect_stderr=True, use_colors=not config.no_log_colors)
     
     # Standard error output had to be redirected first to the logging library.
     # Broken TensorFlow library and its CUDA-related dependencies generate a bunch
