@@ -117,22 +117,23 @@ class CustomFormatter(logging.Formatter):
         if (record.levelno < logging.ERROR and 
             original_levelname in ['INFO', 'WARNING', 'DEBUG'] and 
             self._should_promote_to_error(message)):
-            # Temporarily change the level for formatting
+            # Temporarily change the level for formatting.
             record.levelname = 'ERROR'
             record.levelno = logging.ERROR
         
-        # Mark exceptions correctly with their own severity.
+        # Mark exceptions correctly with their own severity and promote them to CRITICAL
+        # (excluding debugging entries).
         if record.exc_info and record.levelname != 'DEBUG':
-            levelname = 'EXCEPTION'
+            record.levelname = 'EXCEPTION'
+            record.levelno = logging.CRITICAL
             aligned_severity = f"{'EXCEPTION':>9}"
         else:
-            levelname = record.levelname
             aligned_severity = f"{record.levelname:>9}"
         aligned_originator = f"{originator:>15}"
         
         # Colorization
         if self.use_colors:
-            severity_color = self.COLORS.get(levelname, '')
+            severity_color = self.COLORS.get(record.levelname, '')
             severity = f"{severity_color}{aligned_severity}{self.COLORS['RESET']}"
             if record.levelname == 'DEBUG':
                 originator = f"{self.COLORS['DEBUG']}{aligned_originator}{self.COLORS['RESET']}"
@@ -153,14 +154,15 @@ class CustomFormatter(logging.Formatter):
             formatted_message += '\n' + '\n'.join(formatted_exception)
         
         # Restore original level if it was temporarily changed.
-        if 'original_levelname' in locals() and record.levelname != original_levelname:
-            record.levelname = original_levelname
-            if original_levelname == 'DEBUG':
-                record.levelno = logging.DEBUG
-            elif original_levelname == 'INFO':
-                record.levelno = logging.INFO
-            elif original_levelname == 'WARNING':
-                record.levelno = logging.WARNING
+        if record.levelname != original_levelname:
+            log_level_mapping = {
+                'DEBUG': logging.DEBUG,
+                'INFO': logging.INFO,
+                'WARNING': logging.WARNING,
+                'ERROR': logging.ERROR,
+                'CRITICAL': logging.CRITICAL
+            }
+            record.levelno = log_level_mapping.get(original_levelname, logging.DEBUG)
         
         return formatted_message
 
