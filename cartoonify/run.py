@@ -137,16 +137,11 @@ def run(**kwargs):
             console.setup(
                 stderr=original_stderr,
                 stdout=original_stdout,
-                locals_dict=locals(),
-                exit_event=exit_event
+                locals_dict=locals()
             )
             
             # Start interactive console session
             console.start()
-            
-            # Cleanup and exit
-            app.close()
-            sys.exit(0)
         else:
             wait_for_events(app, log)
     else:
@@ -211,6 +206,7 @@ def run(**kwargs):
     if stderr_redirector:
         stderr_redirector.restore()
     
+    exit_event.set()
     app.close()
 
 def wait_for_events(app, logger):

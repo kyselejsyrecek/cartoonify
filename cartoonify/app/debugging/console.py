@@ -11,6 +11,7 @@ import code
 import readline
 import atexit
 import sys
+import signal
 from pathlib import Path
 from app.debugging.logging import getLogger
 
@@ -30,24 +31,57 @@ class DebugConsole(code.InteractiveConsole):
         self._stderr = None
         self._stdout = None
         self._locals = None
-        self._exit_event = None
         self._history_file = None
         self._save_history_handler = None
+        self._original_sigint_handler = None
     
-    def setup(self, stderr, stdout, locals_dict, exit_event):
+    def setup(self, stderr, stdout, locals_dict):
         """
         Setup the console with stderr/stdout and local variables.
         
         :param stderr: Original stderr stream for console output
         :param stdout: Original stdout stream for console output  
         :param locals_dict: Local variables to make available in console
-        :param exit_event: Event to set when console exits
         """
         self._stderr = stderr
         self._stdout = stdout
         self._locals = locals_dict
-        self._exit_event = exit_event
         self.locals.update(locals_dict)
+    
+    def raw_input(self, prompt=""):
+        """
+        Override raw_input to properly handle Ctrl+D (EOF) and Ctrl+C.
+        
+        This ensures that EOF is properly propagated to allow console exit,
+        while Ctrl+C just interrupts the current line without exiting console.
+        """
+        try:
+            # Write prompt to stderr if available
+            if self._stderr and prompt:
+                self._stderr.write(prompt)
+                self._stderr.flush()
+            
+            # Use readline directly to get proper EOF and interrupt handling
+            import readline
+            line = sys.stdin.readline()
+            
+            # Check for EOF (empty string when Ctrl+D is pressed)
+            if not line:
+                raise EOFError("EOF when reading a line")
+            
+            # Remove trailing newline
+            return line.rstrip('\n')
+            
+        except EOFError:
+            # Re-raise EOF to allow console to exit
+            raise
+        except KeyboardInterrupt:
+            # For Ctrl+C during input, just show a newline and re-raise
+            # This allows the higher-level handler to manage it
+            if self._stderr:
+                self._stderr.write("\n")
+                self._stderr.flush()
+            raise
     
     def write(self, data):
         """
@@ -123,8 +157,6 @@ class DebugConsole(code.InteractiveConsole):
         This method sets up console history, starts the interactive session,
         and handles cleanup when the session ends.
         """
-        from app.workflow import exit_event
-        
         # Setup console history support
         history_file = self.setup_console_history()
         self._log.info(f'Console history will be saved to: {history_file}')
@@ -135,6 +167,11 @@ class DebugConsole(code.InteractiveConsole):
         original_stdout = sys.stdout
         original_stderr = sys.stderr
         
+        # Save current SIGINT handler and restore default for console
+        self._original_sigint_handler = signal.signal(signal.SIGINT, signal.SIG_DFL)
+        
+        console_exited_normally = False
+        
         try:
             # Redirect both stdout and stderr to original streams for interaction
             if self._stdout:
@@ -143,13 +180,26 @@ class DebugConsole(code.InteractiveConsole):
                 sys.stderr = self._stderr
             
             # Start interactive session
-            self.interact(banner="Interactive debugging console started.\nType 'exit()' or press Ctrl+D to quit.")
+            self.interact(banner="Interactive debugging console started.\nType 'exit()' or press Ctrl+D to quit.\nPress Ctrl+C to interrupt current operation.")
+            console_exited_normally = True
             
+        # FIXME Ctrl+C and Ctrl+D interrupts not working properly.
         except SystemExit:
-            pass
+            console_exited_normally = True
+        except EOFError:
+            # Handle Ctrl+D explicitly
+            self._log.info('Console session ended with Ctrl+D.')
+            console_exited_normally = True
         except KeyboardInterrupt:
-            self._log.info('Console session interrupted by user.')
+            # Handle Ctrl+C - just log it, don't exit the application
+            self._log.info('Console operation interrupted with Ctrl+C.')
+            console_exited_normally = False
         finally:
+            # Restore original SIGINT handler
+            if self._original_sigint_handler is not None:
+                signal.signal(signal.SIGINT, self._original_sigint_handler)
+                self._original_sigint_handler = None
+            
             # Restore redirected streams
             sys.stdout = original_stdout
             sys.stderr = original_stderr
@@ -157,11 +207,18 @@ class DebugConsole(code.InteractiveConsole):
             # Cleanup console history and restore original readline state
             self.cleanup_console_history()
         
-        self._log.info('Interactive console session ended - shutting down.')
-        
-        # Set exit event to trigger application shutdown
-        if self._exit_event:
-            self._exit_event.set()
+        if console_exited_normally:
+            self._log.info('Interactive console session ended normally - shutting down.')
         else:
-            # Fallback if exit_event not available
-            exit_event.set()
+            # Console was interrupted, offer to restart
+            if self._stderr:
+                self._stderr.write("\nConsole interrupted. Restart? (y/n): ")
+                self._stderr.flush()
+                try:
+                    response = input().strip().lower()
+                    if response in ('y', 'yes', ''):
+                        return self.start()  # Restart console
+                except (EOFError, KeyboardInterrupt):
+                    pass
+            
+            self._log.info('Console session aborted by user.')
