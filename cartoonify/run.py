@@ -85,9 +85,9 @@ def run(**kwargs):
     
     # Setup logging based on debug mode
     if config.debug:
-        stderr_redirector = setup_debug_logging(use_colors=not config.no_log_colors)
+        original_stdout, original_stderr, stderr_redirector = setup_debug_logging(use_colors=not config.no_log_colors)
     else:
-        stderr_redirector = setup_file_logging(logs_dir, redirect_stderr=True, use_colors=not config.no_log_colors)
+        original_stdout, original_stderr, stderr_redirector = setup_file_logging(logs_dir, redirect_stderr=True, use_colors=not config.no_log_colors)
     
     # Standard error output had to be redirected first to the logging library.
     # Broken TensorFlow library and its CUDA-related dependencies generate a bunch
@@ -135,8 +135,8 @@ def run(**kwargs):
             # Create and setup debug console
             console = DebugConsole()
             console.setup(
-                stderr=stderr_redirector.original_stderr,
-                stdout=sys.stdout,
+                stderr=original_stderr,
+                stdout=original_stdout,
                 locals_dict=locals(),
                 exit_event=exit_event
             )

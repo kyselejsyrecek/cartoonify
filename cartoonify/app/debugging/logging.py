@@ -3,6 +3,7 @@ import datetime
 import sys
 import os
 import re
+import threading
 from pathlib import Path
 from io import StringIO
 
@@ -70,34 +71,6 @@ class FilteredLogger:
     
     def __getattr__(self, name):
         return getattr(self._log, name)
-
-
-class StderrRedirector:
-    """Redirect stderr to logger"""
-    
-    def __init__(self, logger_name='STDERR'):
-        self._log = logging.getLogger(logger_name)
-        self.buffer = StringIO()
-        self.original_stderr = sys.stderr
-    
-    def write(self, message):
-        self.buffer.write(message)
-        if message.endswith('\n'):
-            content = self.buffer.getvalue().rstrip('\n')
-            if content.strip():
-                # Messages written to stderr are often just informative.
-                self._log.warning(f"STDERR: {content}")
-            self.buffer = StringIO()
-    
-    def flush(self):
-        content = self.buffer.getvalue().rstrip('\n')
-        if content.strip():
-            # Messages written to stderr are often just informative.
-            self._log.warning(f"STDERR: {content}")
-        self.buffer = StringIO()
-    
-    def restore(self):
-        sys.stderr = self.original_stderr
 
 
 class CustomFormatter(logging.Formatter):
@@ -192,6 +165,69 @@ class CustomFormatter(logging.Formatter):
         return formatted_message
 
 
+class StderrRedirector:
+    """Redirect stderr to logger"""
+    
+    def __init__(self, logger_name='STDERR', setup_fd_redirection=False):
+        self._log = logging.getLogger(logger_name)
+        self.buffer = StringIO()
+
+        # Create a new file object from a duplicate of the original file descriptor.
+        # 'closefd=True' ensures that the new file descriptor is automatically closed
+        # when the duplicate_stderr_fd file object is closed.
+        duplicate_stderr_fd = os.dup(sys.stderr.fileno())
+        self._original_stderr = os.fdopen(duplicate_stderr_fd, 'w', closefd=True)
+        
+        # Setup file descriptor level redirection if requested.
+        if setup_fd_redirection:
+            self._setup_fd_redirection()
+    
+    def _setup_fd_redirection(self):
+        """Setup file descriptor level redirection for C libraries."""
+        # Create pipe for C library stderr redirection.
+        self.pipe_read_fd, write_fd = os.pipe()
+        
+        # Redirect stderr at file descriptor level for C libraries.
+        os.dup2(write_fd, sys.stderr.fileno())
+        os.close(write_fd)
+        
+        # Start thread to read from pipe and log messages.
+        def pipe_reader():
+            try:
+                with os.fdopen(self.pipe_read_fd, 'r') as pipe_reader_file:
+                    for line in pipe_reader_file:
+                        if line.strip():
+                            # Messages written to stderr are often just informative.
+                            self._log.warning(line.rstrip('\n'))
+            except:
+                pass
+        
+        threading.Thread(target=pipe_reader, daemon=True).start()
+    
+    def write(self, message):
+        self.buffer.write(message)
+        if message.endswith('\n'):
+            content = self.buffer.getvalue().rstrip('\n')
+            if content.strip():
+                # Messages written to stderr are often just informative.
+                self._log.warning(f"STDERR: {content}")
+            self.buffer = StringIO()
+    
+    def flush(self):
+        content = self.buffer.getvalue().rstrip('\n')
+        if content.strip():
+            # Messages written to stderr are often just informative.
+            self._log.warning(f"STDERR: {content}")
+        self.buffer = StringIO()
+    
+    def restore(self):
+        sys.stderr = self._original_stderr
+
+    @property
+    def original_stderr(self):
+        return self._original_stderr
+
+
 def _create_file_handler(logs_dir, log_level, use_colors=True):
     """Create file handler for logging"""
     logs_dir = Path(logs_dir)
@@ -236,37 +272,17 @@ def setup_file_logging(logs_dir, log_level=logging.DEBUG, redirect_stderr=True, 
     root_logger.addHandler(file_handler)
     root_logger.setLevel(log_level)
     
-    # Setup stderr redirection with proper file descriptor redirection.
+    # Setup stderr redirection if requested.
+    original_stdout = sys.stdout
+    original_stderr = sys.stderr
     stderr_redirector = None
-    if redirect_stderr:
-        stderr_redirector = StderrRedirector()
-        
-        # Redirect stderr at file descriptor level for C libraries.
-        original_stderr_fd = os.dup(sys.stderr.fileno())
-        read_fd, write_fd = os.pipe()
-        os.dup2(write_fd, sys.stderr.fileno())
-        os.close(write_fd)
-        sys.stderr = stderr_redirector
-        
-        # Store file descriptors for cleanup.
-        stderr_redirector.original_stderr_fd = original_stderr_fd
-        stderr_redirector.pipe_read_fd = read_fd
-        
-        # Start thread to read from pipe and log messages.
-        import threading
-        def pipe_reader():
-            try:
-                with os.fdopen(read_fd, 'r') as pipe_reader_file:
-                    for line in pipe_reader_file:
-                        if line.strip():
-                            # Messages written to stderr are often just informative.
-                            stderr_redirector.logger.warning(line.rstrip('\n'))
-            except:
-                pass
-        
-        threading.Thread(target=pipe_reader, daemon=True).start()
     
-    return stderr_redirector
+    if redirect_stderr:
+        stderr_redirector = StderrRedirector(setup_fd_redirection=True)
+        sys.stderr = stderr_redirector
+        original_stderr = stderr_redirector.original_stderr
+    
+    return original_stdout, original_stderr, stderr_redirector
 
 
 def setup_debug_logging(log_level=logging.DEBUG, use_colors=True):
@@ -283,11 +299,15 @@ def setup_debug_logging(log_level=logging.DEBUG, use_colors=True):
     root_logger.addHandler(stderr_handler)
     root_logger.setLevel(log_level)
     
-    # In debug mode, also redirect stderr to get proper formatting.
+    # Setup stderr redirection for proper formatting.
+    original_stdout = sys.stdout
+    original_stderr = sys.stderr
+    
     stderr_redirector = StderrRedirector()
     sys.stderr = stderr_redirector
+    original_stderr = stderr_redirector.original_stderr
     
-    return stderr_redirector
+    return original_stdout, original_stderr, stderr_redirector
 
 
 def getLogger(name=None, filter_ansi=False, custom_filter=None):
