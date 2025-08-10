@@ -96,7 +96,7 @@ def run(**kwargs):
 
     # Import the rest of the application including external libraries like TensorFlow
     # or CUDA-related libraries.
-    from app.workflow import Workflow
+    from app.workflow import Workflow, exit_event
     from app.drawing_dataset import DrawingDataset
     from app.image_processor import ImageProcessor, tensorflow_model_name, model_path
     from app.sketch import SketchGizeh
@@ -147,7 +147,6 @@ def run(**kwargs):
     if config.raspi_headless or config.gui or config.web_server:
         if config.debug_cmdline:
             from app.debugging.console import DebugConsole
-            from app.workflow import exit_event
             
             # Create and setup debug console
             console = DebugConsole()
