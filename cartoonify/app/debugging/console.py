@@ -48,41 +48,6 @@ class DebugConsole(code.InteractiveConsole):
         self._locals = locals_dict
         self.locals.update(locals_dict)
     
-    def raw_input(self, prompt=""):
-        """
-        Override raw_input to properly handle Ctrl+D (EOF) and Ctrl+C.
-        
-        This ensures that EOF is properly propagated to allow console exit,
-        while Ctrl+C just interrupts the current line without exiting console.
-        """
-        try:
-            # Write prompt to stderr if available
-            if self._stderr and prompt:
-                self._stderr.write(prompt)
-                self._stderr.flush()
-            
-            # Use readline directly to get proper EOF and interrupt handling
-            import readline
-            line = sys.stdin.readline()
-            
-            # Check for EOF (empty string when Ctrl+D is pressed)
-            if not line:
-                raise EOFError("EOF when reading a line")
-            
-            # Remove trailing newline
-            return line.rstrip('\n')
-            
-        except EOFError:
-            # Re-raise EOF to allow console to exit
-            raise
-        except KeyboardInterrupt:
-            # For Ctrl+C during input, just show a newline and re-raise
-            # This allows the higher-level handler to manage it
-            if self._stderr:
-                self._stderr.write("\n")
-                self._stderr.flush()
-            raise
-    
     def write(self, data):
         """
         Override write method to send output to original stderr.
