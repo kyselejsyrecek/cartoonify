@@ -41,17 +41,30 @@ class WebGui(App, ProcessInterface):
     """
     gui for the app
     """
+    
+    # Class variables to share data between REMI instances
+    _event_service = None
+    _log = None
+    _i18n = None
+    _cam_only = None
 
     def __init__(self, *args):
         super().__init__(*args)
-        self._event_service = None
-        self._i18n = None
-        self._full_capabilities = True
-        self._log = getLogger("WebGui")
+        # Always use class variables
+        self._event_service = WebGui._event_service
+        self._log = WebGui._log
+        self._i18n = WebGui._i18n
+        self._full_capabilities = not WebGui._cam_only
 
     @staticmethod
     def hook_up(event_service, logger, i18n, cam_only, web_host='0.0.0.0', web_port=8081, start_browser=False, cert_file=None, key_file=None):
         """Static method for multiprocessing integration."""
+        # Store shared data in class variables
+        WebGui._event_service = event_service
+        WebGui._log = logger
+        WebGui._i18n = i18n
+        WebGui._cam_only = cam_only
+        
         start(WebGui, 
               debug=False, 
               address=web_host, 
@@ -65,18 +78,25 @@ class WebGui(App, ProcessInterface):
         # idle function called every update cycle
         # Check for exit_event to gracefully shutdown WebGui
         try:
-            if hasattr(self._event_service, 'exit_event') and self._event_service.exit_event.is_set():
-                self._log.info('Exit event detected in WebGui - closing application.')
+            if WebGui._event_service.exit_event.is_set():
+                WebGui._log.info('Exit event detected in WebGui - closing application.')
                 self.close()
         except Exception as e:
-            self._log.warning(f'Could not check exit_event: {e}')
+            WebGui._log.warning(f'Could not check exit_event: {e}')
         pass
 
     def main(self, event_service, logger, i18n, cam_only):
+        # Override instance variables with the current session data
         self._event_service = event_service
         self._log = logger
         self._i18n = i18n
         self._full_capabilities = not cam_only
+        
+        # Also update class variables for other instances
+        WebGui._event_service = event_service
+        WebGui._log = logger
+        WebGui._i18n = i18n
+        WebGui._cam_only = cam_only
         
         # Check if this is a request for the /say page
         self._log.debug(f'Processing request for path: {self.path}')
@@ -301,13 +321,15 @@ class WebGui(App, ProcessInterface):
     #    self.display_tagged = value
 
     def on_close_pressed(self, *_):
-        self._event_service.close()
+        WebGui._event_service.close()
         self.close()  #closes the application
         # sys.exit()
 
     def on_snap_pressed(self, *_):
         # FIXME Seems to be sometimes still called with a delay when another print operation is in progress.
-        self._event_service.capture() 
+        WebGui._log.debug('Snap button pressed - calling capture()')
+        WebGui._event_service.capture()
+        WebGui._log.debug('Capture() call completed')
 
     def on_open_pressed(self, *_):
         self.fileselectionDialog = gui.FileSelectionDialog(_('File Selection Dialog'), _('Select an image file'), False, '.')
@@ -321,8 +343,8 @@ class WebGui(App, ProcessInterface):
         if len(file_list) != 1:
             return
         original = file_list[0]
-        self._event_service.process(original)
-        annotated, cartoon = self._event_service.save_results() # TODO Refactor.
+        WebGui._event_service.process(original)
+        annotated, cartoon = WebGui._event_service.save_results() # TODO Refactor.
         self.show_image(original, annotated, cartoon)
 
     def show_image(self, original, annotated, cartoon, image_labels):
@@ -341,7 +363,7 @@ class WebGui(App, ProcessInterface):
         """Handle Say button press."""
         text = self.text_input.get_value().strip()
         if text:
-            self._event_service.say(text)
+            WebGui._event_service.say(text)
             self.text_input.set_value('')  # Clear the input field.
         
     def on_back_pressed(self, *_):
