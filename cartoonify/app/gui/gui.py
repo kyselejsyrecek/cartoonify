@@ -49,7 +49,7 @@ class WebGui(App, ProcessInterface):
         super().__init__(*args)
 
     @staticmethod
-    def hook_up(event_service, logger, i18n, cam_only, web_host='0.0.0.0', web_port=8081, start_browser=False, cert_file=None, key_file=None):
+    def hook_up(event_service, logger, exit_event, halt_event, i18n, cam_only, web_host='0.0.0.0', web_port=8081, start_browser=False, cert_file=None, key_file=None):
         """Static method for multiprocessing integration."""
         start(WebGui, 
               debug=False, 
@@ -58,22 +58,24 @@ class WebGui(App, ProcessInterface):
               start_browser=start_browser,
               certfile=cert_file,
               keyfile=key_file,
-              userdata=(event_service, logger, i18n, cam_only))
+              userdata=(event_service, logger, exit_event, halt_event, i18n, cam_only))
 
     def idle(self):
         # idle function called every update cycle
         # Check for exit_event to gracefully shutdown WebGui
         try:
-            if self._event_service.get_exit_event().is_set():
+            if self._exit_event.is_set():
                 self._log.info('Exit event detected in WebGui - closing application.')
                 self.close()
         except Exception as e:
             self._log.warning(f'Could not check exit_event: {e}')
         pass
 
-    def main(self, event_service, logger, i18n, cam_only):
+    def main(self, event_service, logger, exit_event, halt_event, i18n, cam_only):
         self._event_service = event_service
         self._log = logger
+        self._exit_event = exit_event
+        self._halt_event = halt_event
         self._i18n = i18n
         self._full_capabilities = not cam_only
         

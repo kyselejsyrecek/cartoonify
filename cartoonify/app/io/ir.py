@@ -21,8 +21,10 @@ class IrReceiver(ProcessInterface):
     interface to IR receiver
     """
 
-    def __init__(self, log=None):
+    def __init__(self, log=None, exit_event=None, halt_event=None):
         self._log = log or getLogger(self.__class__.__name__)
+        self._exit_event = exit_event
+        self._halt_event = halt_event
 
         self.dev = None
         self.trigger_callback = noop
@@ -32,8 +34,8 @@ class IrReceiver(ProcessInterface):
 
 
     @staticmethod
-    def hook_up(event_service, log, *args, **kwargs):
-        ir_receiver = IrReceiver(log)
+    def hook_up(event_service, log, exit_event, halt_event, *args, **kwargs):
+        ir_receiver = IrReceiver(log, exit_event, halt_event)
         ir_receiver.setup(trigger_callback=event_service.capture,
                             trigger_2s_callback = event_service.delayed_capture,
                             recording_callback=event_service.toggle_recording,

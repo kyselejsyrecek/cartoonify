@@ -41,8 +41,10 @@ class ClapDetector(ProcessInterface):
     Interface to clap detector.
     """
 
-    def __init__(self, log=None):
+    def __init__(self, log=None, exit_event=None, halt_event=None):
         self._log = log or getLogger(self.__class__.__name__)
+        self._exit_event = exit_event
+        self._halt_event = halt_event
         self.listener = None
         self.config = None
         self.thread = None
@@ -52,8 +54,8 @@ class ClapDetector(ProcessInterface):
 
 
     @staticmethod
-    def hook_up(event_service, log, *args, **kwargs):
-        clap_detector = ClapDetector(log)
+    def hook_up(event_service, log, exit_event, halt_event, *args, **kwargs):
+        clap_detector = ClapDetector(log, exit_event, halt_event)
         clap_detector.setup(trigger_callback=event_service.capture,
                             trigger_2s_callback=event_service.delayed_capture,
                             wink_callback=event_service.wink)

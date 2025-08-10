@@ -9,8 +9,10 @@ from app.workflow.multiprocessing import ProcessInterface
 class Accelerometer(ProcessInterface):
     """Accelerometer/gyroscope motion detection using BMI160"""
 
-    def __init__(self, log=None):
+    def __init__(self, log=None, exit_event=None, halt_event=None):
         self._log = log or getLogger(self.__class__.__name__)
+        self._exit_event = exit_event
+        self._halt_event = halt_event
         self._bmi160 = None
         self._sensor = None
         self._monitoring = False
@@ -156,7 +158,7 @@ class Accelerometer(ProcessInterface):
         self._log.info('Accelerometer closed')
 
     @staticmethod
-    def hook_up(event_service, log, accel_threshold=2.0, gyro_threshold=100.0, cooldown_time=5.0, gyro_enabled=True):
+    def hook_up(event_service, log, exit_event, halt_event, accel_threshold=2.0, gyro_threshold=100.0, cooldown_time=5.0, gyro_enabled=True):
         """Static method for multiprocessing integration.
         
         :param event_service: Event service proxy
@@ -166,7 +168,7 @@ class Accelerometer(ProcessInterface):
         :param cooldown_time: Time in seconds between motion detections
         :param gyro_enabled: Whether to enable gyroscope detection
         """
-        accelerometer = Accelerometer(log)
+        accelerometer = Accelerometer(log, exit_event, halt_event)
         accelerometer.setup(
             motion_callback=event_service.dizzy,
             accel_threshold=accel_threshold,

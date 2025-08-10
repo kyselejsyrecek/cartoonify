@@ -213,7 +213,7 @@ class ProcessManager:
                 stderr_thread.start()
         
         p = multiprocessing.Process(target=self._task_wrapper, 
-                                    args=(process_class, pid, args, kwargs, stdout_pipe, stderr_pipe))
+                                    args=(process_class, pid, args, kwargs, stdout_pipe, stderr_pipe, exit_event, halt_event))
         
         # Create Subprocess wrapper
         subprocess = Subprocess(
@@ -239,7 +239,7 @@ class ProcessManager:
         return subprocess
 
     
-    def _task_wrapper(self, process_class, pid, args, kwargs, stdout_pipe, stderr_pipe):
+    def _task_wrapper(self, process_class, pid, args, kwargs, stdout_pipe, stderr_pipe, exit_event, halt_event):
         """
         The main task executed by each child process.
         """
@@ -289,7 +289,7 @@ class ProcessManager:
 
         try:
             # Call the static hook_up method on the process class
-            process_class.hook_up(event_proxy, subprocess_logger, *args, **kwargs)
+            process_class.hook_up(event_proxy, subprocess_logger, exit_event, halt_event, *args, **kwargs)
         finally:
             subprocess_logger.info(f"Child Process {pid} ({process_class.__name__}): Exiting.")
 
