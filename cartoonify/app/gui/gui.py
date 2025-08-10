@@ -64,7 +64,7 @@ class WebGui(App, ProcessInterface):
         # idle function called every update cycle
         # Check for exit_event to gracefully shutdown WebGui
         try:
-            if hasattr(self._event_service, 'exit_event') and self._event_service.exit_event.is_set():
+            if self._event_service.get_exit_event().is_set():
                 self._log.info('Exit event detected in WebGui - closing application.')
                 self.close()
         except Exception as e:

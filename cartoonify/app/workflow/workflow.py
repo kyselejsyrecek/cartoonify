@@ -608,12 +608,10 @@ class Workflow(object):
         finally:
             self._lock.release()
 
-    @property
-    def exit_event(self):
+    def get_exit_event(self):
         """Access to global exit_event for child processes."""
         return exit_event
-
-    @property  
-    def halt_event(self):
+ 
+    def get_halt_event(self):
         """Access to global halt_event for child processes."""
         return halt_event
