@@ -12,17 +12,17 @@ def strip_ansi_codes(text):
     if not isinstance(text, str):
         return text
     
-    # ANSI escape sequence patterns
+    # ANSI escape sequence patterns.
     ansi_csi_pattern = re.compile(r'\x1b\[[0-9;]*[a-zA-Z]')
     ansi_osc_pattern = re.compile(r'\x1b\][^\x07\x1b]*[\x07\x1b\\]')
     ansi_simple_pattern = re.compile(r'\x1b[a-zA-Z]')
     
-    # Remove ANSI escape sequences
+    # Remove ANSI escape sequences.
     text = ansi_csi_pattern.sub('', text)
     text = ansi_osc_pattern.sub('', text)
     text = ansi_simple_pattern.sub('', text)
     
-    # Remove dangerous control characters (preserve \n, \t, \r)
+    # Remove dangerous control characters (preserve \n, \t, \r).
     dangerous_controls = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
     text = dangerous_controls.sub('', text)
     
@@ -39,10 +39,10 @@ class FilteredLogger:
     
     def _filter_message(self, message):
         if isinstance(message, str):
-            # Apply custom filter first if provided
+            # Apply custom filter first if provided.
             if self._custom_filter:
                 message = self._custom_filter(message)
-            # Apply ANSI filter if enabled
+            # Apply ANSI filter if enabled.
             if self._filter_ansi:
                 message = strip_ansi_codes(message)
         return message
@@ -128,7 +128,7 @@ class CustomFormatter(logging.Formatter):
         if not isinstance(message, str):
             return False
         
-        # Keywords that indicate error conditions
+        # Keywords that indicate error conditions.
         error_keywords = ['error', 'fail', 'failure', 'exception']
         message_lower = message.lower()
         
@@ -139,7 +139,7 @@ class CustomFormatter(logging.Formatter):
         formatted_time = self.formatTime(record, '%H:%M:%S.%f')[:-3]
         message = record.getMessage()
         
-        # Check if message should be promoted to ERROR level
+        # Check if message should be promoted to ERROR level.
         original_levelname = record.levelname
         if (record.levelno < logging.ERROR and 
             original_levelname in ['INFO', 'WARNING', 'DEBUG'] and 
@@ -148,6 +148,7 @@ class CustomFormatter(logging.Formatter):
             record.levelname = 'ERROR'
             record.levelno = logging.ERROR
         
+        # Mark exceptions correctly with their own severity.
         if record.exc_info and record.levelname != 'DEBUG':
             levelname = 'EXCEPTION'
             aligned_severity = f"{'EXCEPTION':>9}"
@@ -156,6 +157,7 @@ class CustomFormatter(logging.Formatter):
             aligned_severity = f"{record.levelname:>9}"
         aligned_originator = f"{originator:>15}"
         
+        # Colorization
         if self.use_colors:
             severity_color = self.COLORS.get(levelname, '')
             severity = f"{severity_color}{aligned_severity}{self.COLORS['RESET']}"
@@ -168,20 +170,16 @@ class CustomFormatter(logging.Formatter):
         else:
             formatted_message = f"[{formatted_time}] {aligned_severity} {aligned_originator}: {message}"
         
-        # Handle exceptions
+        # Handle exceptions and indent included tracebacks accordingly.
         if record.exc_info:
             exception_text = self.formatException(record.exc_info)
-            if self.use_colors and record.levelname != 'DEBUG':
-                exception_lines = exception_text.split('\n')
-                formatted_exception = [f"[{formatted_time}] {severity} {originator}: {exception_lines[0]}"]
-                # Calculate spaces to align with the message part: [time] + space + severity + space + class + ": "
-                spaces = ' ' * (len(f"[{formatted_time}] ") + 9 + 1 + 15 + 2)  # 9 for "EXCEPTION", 1 for space, 15 for class, 2 for ": "
-                formatted_exception.extend(f"{spaces}{line}" for line in exception_lines[1:] if line)
-                formatted_message += '\n' + '\n'.join(formatted_exception)
-            else:
-                formatted_message += f"\n{exception_text}"
+            exception_lines = exception_text.split('\n')
+            # Calculate spaces to align with the message part: [time] + space + severity + space + class + ": "
+            spaces = ' ' * (len(f"[{formatted_time}] ") + 9 + 1 + 15 + 2)  # 9 for "EXCEPTION", 1 for space, 15 for class, 2 for ": "
+            formatted_exception = [f"{spaces}{line}" for line in exception_lines if line]
+            formatted_message += '\n' + '\n'.join(formatted_exception)
         
-        # Restore original level if it was temporarily changed
+        # Restore original level if it was temporarily changed.
         if 'original_levelname' in locals() and record.levelname != original_levelname:
             record.levelname = original_levelname
             if original_levelname == 'DEBUG':
@@ -229,32 +227,32 @@ def setup_file_logging(logs_dir, log_level=logging.DEBUG, redirect_stderr=True, 
     """Setup file-only logging (normal mode)"""
     root_logger = logging.getLogger()
     
-    # Clear existing handlers
+    # Clear existing handlers.
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
     
-    # Add file handler
+    # Add file handler.
     file_handler = _create_file_handler(logs_dir, log_level, use_colors)
     root_logger.addHandler(file_handler)
     root_logger.setLevel(log_level)
     
-    # Setup stderr redirection with proper file descriptor redirection
+    # Setup stderr redirection with proper file descriptor redirection.
     stderr_redirector = None
     if redirect_stderr:
         stderr_redirector = StderrRedirector()
         
-        # Redirect stderr at file descriptor level for C libraries
+        # Redirect stderr at file descriptor level for C libraries.
         original_stderr_fd = os.dup(sys.stderr.fileno())
         read_fd, write_fd = os.pipe()
         os.dup2(write_fd, sys.stderr.fileno())
         os.close(write_fd)
         sys.stderr = stderr_redirector
         
-        # Store file descriptors for cleanup
+        # Store file descriptors for cleanup.
         stderr_redirector.original_stderr_fd = original_stderr_fd
         stderr_redirector.pipe_read_fd = read_fd
         
-        # Start thread to read from pipe and log messages
+        # Start thread to read from pipe and log messages.
         import threading
         def pipe_reader():
             try:
@@ -275,17 +273,17 @@ def setup_debug_logging(log_level=logging.DEBUG, use_colors=True):
     """Setup console-only logging (debug mode)"""
     root_logger = logging.getLogger()
     
-    # Clear existing handlers
+    # Clear existing handlers.
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
     
-    # Add console handlers
+    # Add console handlers.
     stdout_handler, stderr_handler = _create_console_handlers(log_level, use_colors)
     root_logger.addHandler(stdout_handler)
     root_logger.addHandler(stderr_handler)
     root_logger.setLevel(log_level)
     
-    # In debug mode, also redirect stderr to get proper formatting
+    # In debug mode, also redirect stderr to get proper formatting.
     stderr_redirector = StderrRedirector()
     sys.stderr = stderr_redirector
     
