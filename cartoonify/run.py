@@ -121,7 +121,23 @@ def run(**kwargs):
         config.camera = True
     
     app = Workflow(dataset, imageprocessor, config, i18n=_)
-    app.setup(setup_gpio=config.raspi_headless)
+    
+    try:
+        app.setup(setup_gpio=config.raspi_headless)
+    except OSError as e:
+        if e.errno == 98:  # Address already in use
+            error_msg = ("Error: Address already in use by another process.\n"
+                        "Another instance of the application may be running.\n"
+                        "Please stop any existing instances and try again.")
+            if original_stderr:
+                original_stderr.write(error_msg + "\n")
+                original_stderr.flush()
+            else:
+                print(error_msg, file=sys.stderr)
+            sys.exit(1)
+        else:
+            # Re-raise other OSErrors
+            raise
 
     # Create logger after workflow setup
     log = getLogger(__name__)
