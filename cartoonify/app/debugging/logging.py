@@ -222,6 +222,17 @@ class StderrRedirector:
     
     def restore(self):
         sys.stderr = self._original_stderr
+    
+    def close(self):
+        """Close method expected by logging handlers during shutdown."""
+        # Flush any remaining content in buffer
+        self.flush()
+        # Close the original stderr file object if it exists
+        if hasattr(self, '_original_stderr') and self._original_stderr:
+            try:
+                self._original_stderr.close()
+            except Exception:
+                pass  # Ignore errors during shutdown
 
     @property
     def original_stderr(self):
