@@ -26,8 +26,9 @@ class Gpio:
     interface to Rapberry Pi GPIO
     """
 
-    def __init__(self):
+    def __init__(self, no_printer: bool = False):
         self._log = getLogger(self.__class__.__name__)
+        self._no_printer = no_printer
 
         # References to imported libraries
         self.gpio = None
@@ -241,10 +242,13 @@ class Gpio:
         self.led_busy.on()
         time.sleep(2)
         
-        if e != "":
-            process = Popen(['lp', '-o', 'cpi=13'], stdin=PIPE, stdout=PIPE, stderr=PIPE)
-            output, err = process.communicate(error_msg)
-            self._wait_for_print_job(output)
+        if error_msg != "":
+            if self._no_printer:
+                self._log.debug('Printing skipped (no-printer mode).')
+            else:
+                process = Popen(['lp', '-o', 'cpi=13'], stdin=PIPE, stdout=PIPE, stderr=PIPE)
+                output, err = process.communicate(error_msg)
+                self._wait_for_print_job(output)
         
         self.set_ready()
 
@@ -255,6 +259,9 @@ class Gpio:
         if not self.available():
             return
         
+        if self._no_printer:
+            self._log.debug('Printing skipped (no-printer mode).')
+            return
         self.led_busy.on()
         # Media dimensions come from width of printable area (for 58mm paper) and cartoon width
         # which appears as height of the print when printed in landscape orientation.

@@ -75,6 +75,7 @@ def flatten(xss):
 @click.option('--tts-language', type=str, default='cs', help='Text-to-speech language code (default: cs for Czech)')
 @click.option('--no-log-colors', is_flag=True, help='Disable colored output in log messages')
 @click.option('--no-sound', is_flag=True, default=False, help='Disable all sounds.')
+@click.option('--no-printer', is_flag=True, default=False, help='Disable printing output.')
 @click.option('--cert-file', type=str, default=None, help='SSL certificate file for HTTPS server.')
 @click.option('--key-file', type=str, default=None, help='SSL private key file for HTTPS server.')
 @click.option('--debug', is_flag=True, help='Output all log messages to console instead of file. Error messages go to stderr, others to stdout.')

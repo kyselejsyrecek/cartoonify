@@ -60,6 +60,7 @@ class Workflow(AsyncExecutor):
             "video_raw_stream": False,
             "volume": 1.0,
             "no_accelerometer": False,
+            "no_printer": False,
             "alsa_numid": 4,
             "tts_language": "cs",
             "raspi_headless": False,
@@ -86,7 +87,7 @@ class Workflow(AsyncExecutor):
         self._dataset = dataset
         self._image_processor = imageprocessor
         self._camera = Camera() if self._config.camera else None
-        self._gpio = Gpio()
+        self._gpio = Gpio(no_printer=self._config.no_printer)
         self._ir_receiver = None
         self._clap_detector = None
         self._sound = PlaySound(enabled=not self._config.no_sound)
