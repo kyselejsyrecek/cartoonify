@@ -21,7 +21,7 @@ from app.utils.attributedict import AttributeDict
 from app.debugging import profiling
 from app.debugging.logging import getLogger  # Import our enhanced getLogger
 from app.workflow.multiprocessing import *
-from app.utils.asynctask import AsyncExecutor, async_task
+from app.utils.asynctask import AsyncExecutor, async_task, exclusive
 
 
 def signal_handler(signum, frame):
@@ -77,8 +77,9 @@ class Workflow(AsyncExecutor):
         # Initialize the AsyncExecutor (ThreadPoolExecutor)
         # We discard any operations requested when another operation is in progress.
         # However, to make that possible at least 2 worker threads are required by current solution.
-        AsyncExecutor.__init__(self, max_workers=2, logger=self._log)
+        # Initialize executor with named lock registry. 'event' lock coordinates event handlers.
         self._lock = Lock()
+        AsyncExecutor.__init__(self, max_workers=2, logger=self._log, locks={'event': self._lock})
 
         self._path = Path('')
         self._image_path = Path('')
@@ -398,216 +399,165 @@ class Workflow(AsyncExecutor):
         self._next_image_number = (self._next_image_number + 1) % self._config.max_image_number
         self._last_original_image_number = self._next_image_number - 1
 
+    @async_task
+    @exclusive('event', blocking=True)
     def _set_initial_state(self):
         """Set initial state for GPIO and play awake sound simultaneously"""
-        if not self._lock.acquire(blocking=True):
-            self._log.error('Error setting initial state.')
-            self.close()
-        try:
-            self._log.info('Setting initial state...')
-            # Run both operations concurrently
-            self._execute_concurrent_tasks(
-                self._sound.awake,
-                self._gpio.set_initial_state
-            )
-            self._log.info('Initial state set.')
-        finally:
-            self._lock.release()
+        self._log.info('Setting initial state...')
+        self._execute_concurrent_tasks(
+            self._sound.awake,
+            self._gpio.set_initial_state
+        )
+        self._log.info('Initial state set.')
 
     # Event handlers
     @async_task
+    @exclusive('event', blocking=True)
     def system_halt(self, e=None):
         """Handle system halt button press
         
         :param Button e: Originator of the event (gpiozero object).
         """
         self._log.info('System halt button pressed - waiting for current operation to finish...')
-        # Wait for any current operation to finish (blocking acquire)
-        self._lock.acquire(blocking=True)
-        try:
-            self._log.info('Initiating system shutdown.')
-            # Set halt event to signal shutdown
-            halt_event.set()
-            # Set exit event to exit all sub-processes
-            exit_event.set()
-            # Block the event thread until the main thread stops the process.
-            time.sleep(5)
-        finally:
-            self._lock.release()
+        self._log.info('Initiating system shutdown.')
+        # Set halt event to signal shutdown
+        halt_event.set()
+        # Set exit event to exit all sub-processes
+        exit_event.set()
+        # Block the event thread until the main thread stops the process.
+        time.sleep(5)
 
 
     @async_task
+    @exclusive('event')
     def capture(self, e=None):
         """Capture a photo, convert it to cartoon and then print it if possible.
 
         :param SmartButton e: Originator of the event (gpiozero object). None if called from WebGUI.
         """
-        if not self._lock.acquire(blocking=False):
-            self._log.info('Capture event ignored because another operation is in progress.')
-            return
-        try:
-            self._log.info('Capture button pressed.')
-            self._execute_concurrent_tasks(
-                self._sound.capture,
-                lambda: self.run(print_cartoon=True)
-            )
-        finally:
-            self._lock.release()
+        self._log.info('Capture button pressed.')
+        self._execute_concurrent_tasks(
+            self._sound.capture,
+            lambda: self.run(print_cartoon=True)
+        )
 
 
     @async_task
+    @exclusive('event')
     def delayed_capture(self, e=None):
         """Capture a photo after 2 seconds, convert it to cartoon and then print it if possible.
 
         :param SmartButton e: Originator of the event (gpiozero object). None if called from IrReceiver.
         """
-        if not self._lock.acquire(blocking=False):
-            self._log.info('Delayed capture event ignored because another operation is in progress.')
-            return
-        try:
-            self._log.info('Button for delayed capture pressed.')
-            self._gpio.set_recording_state(not self._is_recording)
-            time.sleep(0.2)
-            self._gpio.set_recording_state(self._is_recording)
-            time.sleep(0.8)
-            self._gpio.set_recording_state(not self._is_recording)
-            time.sleep(0.2)
-            self._gpio.set_recording_state(self._is_recording)
-            time.sleep(0.8)
-            self._execute_concurrent_tasks(
-                self._sound.capture,
-                lambda: self.run(print_cartoon=True)
-            )
-        finally:
-            self._lock.release()
+        self._log.info('Button for delayed capture pressed.')
+        self._gpio.set_recording_state(not self._is_recording)
+        time.sleep(0.2)
+        self._gpio.set_recording_state(self._is_recording)
+        time.sleep(0.8)
+        self._gpio.set_recording_state(not self._is_recording)
+        time.sleep(0.2)
+        self._gpio.set_recording_state(self._is_recording)
+        time.sleep(0.8)
+        self._execute_concurrent_tasks(
+            self._sound.capture,
+            lambda: self.run(print_cartoon=True)
+        )
 
 
     @async_task
+    @exclusive('event')
     def print_previous_original(self, e=None):
         """Print previous original. 
            When called multiple times, prints originals in backward order.
         """
-        if not self._lock.acquire(blocking=False):
-            self._log.info('Not printing previous original because another operation is in progress.')
-            return
-        try:
-            start_num = self._last_original_image_number
-            if self._last_original_image_number <= 0:
-                self._log.info(f'Refusing to print previous original as no previous photo is available. Original image number: {self._last_original_image_number}.')
-            else:
-                self._log.info('Capture button held - printing original photo.')
-                while True:
-                    path = self._path / ('image' + str(self._last_original_image_number) + '.jpg')
-                    if Path(path).is_file():
-                        break
-                    else:
-                        # Not all cartoons must have originated from a camera capture.  We could create symlinks
-                        # when images from non-standard paths are processed but that would bring its own drawbacks.
-                        # For now, skip photos that do not exist.
-                        self._last_original_image_number = (self._last_original_image_number - 1) % self._next_image_number
-                        if self._last_original_image_number == start_num:
-                            self._log.info('No original photo found.')
-                            return
+        start_num = self._last_original_image_number
+        if self._last_original_image_number <= 0:
+            self._log.info(f'Refusing to print previous original as no previous photo is available. Original image number: {self._last_original_image_number}.')
+        else:
+            self._log.info('Capture button held - printing original photo.')
+            while True:
+                path = self._path / ('image' + str(self._last_original_image_number) + '.jpg')
+                if Path(path).is_file():
+                    break
+                else:
+                    # Not all cartoons must have originated from a camera capture.  We could create symlinks
+                    # when images from non-standard paths are processed but that would bring its own drawbacks.
+                    # For now, skip photos that do not exist.
+                    self._last_original_image_number = (self._last_original_image_number - 1) % self._next_image_number
+                    if self._last_original_image_number == start_num:
+                        self._log.info('No original photo found.')
+                        return
 
-                self._execute_concurrent_tasks(
-                    self._sound.capture,
-                    lambda: self._gpio.print(str(path))
-                )
-                self._last_original_image_number = (self._last_original_image_number - 1) % self._next_image_number
-        finally:
-            self._lock.release()
+            self._execute_concurrent_tasks(
+                self._sound.capture,
+                lambda: self._gpio.print(str(path))
+            )
+            self._last_original_image_number = (self._last_original_image_number - 1) % self._next_image_number
 
 
     @async_task
+    @exclusive('event')
     def toggle_recording(self, e=None):
         """Toggle video recording.
 
         :param SmartButton e: Originator of the event (gpiozero object). None if called from IrReceiver.
         """
-        if not self._lock.acquire(blocking=False):
-            self._log.info('Event toggle recording ignored because another operation is in progress.')
-            return
-        try:
-            self._log.info('Button toggling video recording pressed.')
-            self._is_recording = not self._is_recording
-            self._gpio.set_recording_state(self._is_recording)
-            
-            if self._camera is not None:
-                if self._is_recording:
-                    self._camera.start_recording()
-                else:
-                    self._camera.stop_recording()
-        finally:
-            self._lock.release()
+        self._log.info('Button toggling video recording pressed.')
+        self._is_recording = not self._is_recording
+        self._gpio.set_recording_state(self._is_recording)
+        if self._camera is not None:
+            if self._is_recording:
+                self._camera.start_recording()
+            else:
+                self._camera.stop_recording()
 
 
     @async_task
+    @exclusive('event')
     def wink(self, e=None):
         """Wink the bigger eye.
 
         :param SmartButton e: Originator of the event (gpiozero object). None if called from IrReceiver.
         """
-        if not self._lock.acquire(blocking=False):
-            self._log.info('Event wink ignored because another operation is in progress.')
-            return
-        try:
-            self._log.info('Wink button pressed.')
-            self._gpio.wink()
-        finally:
-            self._lock.release()
+        self._log.info('Wink button pressed.')
+        self._gpio.wink()
 
     
     @async_task
+    @exclusive('event')
     def someone_approached(self, e=None):
         """React to detected proximity of an object.
 
         :param DigitalInputDevice e: Originator of the event (gpiozero object).
         """
-        if not self._lock.acquire(blocking=False):
-            self._log.info('Approach event ignored because another operation is in progress.')
-            return
-        try:
-            self._log.info('Someone approached.')
-            self._execute_concurrent_tasks(
-                self._sound.greeting,
-                self._gpio.blink_eyes
-            )
-        finally:
-            self._lock.release()
+        self._log.info('Someone approached.')
+        self._execute_concurrent_tasks(
+            self._sound.greeting,
+            self._gpio.blink_eyes
+        )
 
     @async_task
+    @exclusive('event')
     def dizzy(self, e=None):
         """Handle dizzy motion detection event
         
         :param e: Originator of the event
         """
-        if not self._lock.acquire(blocking=False):
-            self._log.info('Dizzy motion event ignored because another operation is in progress.')
-            return
-        try:
-            self._log.info('Motion detected - triggering dizzy response.')
-            # Execute dizzy sound and eye blink concurrently
-            self._execute_concurrent_tasks(
-                self._sound.dizzy,
-                self._gpio.blink_eyes
-            )
-        finally:
-            self._lock.release()
+        self._log.info('Motion detected - triggering dizzy response.')
+        self._execute_concurrent_tasks(
+            self._sound.dizzy,
+            self._gpio.blink_eyes
+        )
 
     @async_task
+    @exclusive('event')
     def say(self, text):
         """Speak text using text-to-speech
         
         :param text: Text to speak
         """
-        if not self._lock.acquire(blocking=False):
-            self._log.info('TTS event ignored because another operation is in progress.')
-            return
-        try:
-            self._log.info(f'TTS requested: "{text}"')
-            self._sound.say(text)
-        finally:
-            self._lock.release()
+        self._log.info(f'TTS requested: "{text}"')
+        self._sound.say(text)
 
     def get_exit_event(self):
         """Access to global exit_event for child processes."""

@@ -2,7 +2,7 @@ import concurrent.futures
 import functools
 import threading
 import uuid
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Union
 
 from app.debugging.logging import getLogger
 
@@ -45,13 +45,24 @@ class AsyncExecutor:
     of submitted futures by task_id. Designed to work both in-process and
     across multiprocessing boundaries (via TaskRef pickling to task_id).
     """
-
-    def __init__(self, max_workers: int = 5, logger=None):
+    def __init__(self, max_workers: int = 5, logger=None, locks: Optional[Dict[str, threading.Lock]] = None):
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
         self._futures: Dict[str, concurrent.futures.Future] = {}
         self._lock = threading.Lock()
         self._log = logger if logger is not None else getLogger(self.__class__.__name__)
         self._log.debug(f"AsyncExecutor initialized with {max_workers} worker threads.")
+        # Named lock registry for exclusive task execution semantics.
+        self._locks: Dict[str, threading.Lock] = locks or {}
+
+    def add_lock(self, name: str, lock: Optional[threading.Lock] = None):
+        """Register a named lock (creates one if not provided)."""
+        if lock is None:
+            lock = threading.Lock()
+        self._locks[name] = lock
+        return lock
+
+    def get_lock(self, name: str) -> Optional[threading.Lock]:
+        return self._locks.get(name)
 
     def submit(self, fn: Callable, *args, **kwargs) -> TaskRef:
         task_id = uuid.uuid4().hex
@@ -92,14 +103,22 @@ class AsyncExecutor:
         return fut
 
     def shutdown(self, wait: bool = True):
-    self._executor.shutdown(wait=wait)
-    self._log.debug("AsyncExecutor shut down.")
+        self._executor.shutdown(wait=wait)
+        self._log.debug("AsyncExecutor shut down.")
 
 
 # Decorator for instance methods ---
 class async_task: # Lowercase because it's meant to be used like a function call, e.g., @async_task
+    """Asynchronous task decorator.
+
+    Only submits the (possibly pre-wrapped) method to the AsyncExecutor. Locking, if any,
+    is handled entirely by the @exclusive decorator (which must be placed underneath so
+    it executes first and returns a wrapped callable containing lock logic executed in
+    the worker thread, not at submission time).
+    """
+
     def __init__(self, func):
-        self._func = func # Store the original function
+        self._func = func # Store the original function (can be lock wrapper but handler extra metadata)
 
     def __set_name__(self, owner, name):
         # This method is called when the attribute is assigned to a class.
@@ -128,3 +147,75 @@ class async_task: # Lowercase because it's meant to be used like a function call
                 return instance.submit(self._func, instance, *args, **kwargs)
 
             return wrapper
+
+
+def exclusive(lock_spec: Union[str, threading.Lock, Callable[[Any], Optional[threading.Lock]]], *, blocking: bool = False):
+    """Decorator enforcing exclusive (single-at-a-time) execution using a lock.
+
+    Ordering: place @exclusive BELOW @async_task so that @exclusive runs first and returns a
+    wrapper containing the locking logic. @async_task then submits that wrapper unchanged,
+    meaning the lock is acquired inside the worker thread (not blocking the caller on submit).
+
+        @async_task
+        @exclusive('event', blocking=False)
+        def capture(self): ...
+
+    lock_spec:
+        - str: name of a lock in the instance's named lock registry (preferred) or an attribute.
+        - threading.Lock: the lock object itself.
+        - callable(self) -> lock | None: dynamically resolve and return a lock.
+    blocking:
+        - False: non-blocking acquire; task is skipped if lock cannot be obtained immediately.
+        - True: blocks the worker thread until the lock is acquired.
+    """
+    def decorator(func: Callable):
+        @functools.wraps(func)
+        def locked(self, *args, **kwargs):
+            # Resolve the lock each execution (allows dynamic replacement if needed).
+            resolved_lock = None
+            try:
+                if isinstance(lock_spec, str):
+                    if hasattr(self, 'get_lock'):
+                        resolved_lock = getattr(self, 'get_lock')(lock_spec)  # type: ignore
+                    if resolved_lock is None:
+                        resolved_lock = getattr(self, lock_spec, None)
+                elif callable(lock_spec) and not isinstance(lock_spec, threading.Lock):
+                    resolved_lock = lock_spec(self)
+                else:
+                    resolved_lock = lock_spec  # Might be a Lock or None
+            except Exception:
+                if hasattr(self, '_log'):
+                    self._log.exception(f"Failed to resolve lock for '{func.__name__}'. Aborting task.")
+                return None
+
+            if resolved_lock is None:
+                # If no lock object is available, abort the task; never run unlocked implicitly.
+                if hasattr(self, '_log'):
+                    self._log.exception(f"No lock resolved for '{func.__name__}'. Aborting task.")
+                return None
+
+            # Try to acquire the lock (blocking or non-blocking per parameter). If acquisition fails or raises,
+            # abort the task without executing the wrapped function.
+            try:
+                acquired = resolved_lock.acquire(blocking=blocking)
+            except Exception:
+                if hasattr(self, '_log'):
+                    self._log.exception(f"Exception while acquiring lock for '{func.__name__}'. Aborting task.")
+                return None
+            if not acquired:
+                # Non-blocking failed to acquire OR lock reported false; skip execution.
+                if hasattr(self, '_log'):
+                    self._log.info(f"Task '{func.__name__}' skipped: another operation in progress.")
+                return None
+
+            try:
+                return func(self, *args, **kwargs)
+            finally:
+                # Release only if we actually acquired (true by construction here).
+                try:
+                    resolved_lock.release()
+                except Exception:
+                    if hasattr(self, '_log'):
+                        self._log.exception(f"Failed to release lock in '{func.__name__}'.")
+        return locked
+    return decorator
