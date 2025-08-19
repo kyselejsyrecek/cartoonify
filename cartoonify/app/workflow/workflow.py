@@ -21,7 +21,7 @@ from app.utils.attributedict import AttributeDict
 from app.debugging import profiling
 from app.debugging.logging import getLogger  # Import our enhanced getLogger
 from app.workflow.multiprocessing import *
-from app.utils.asynctask import *
+from app.utils.asynctask import AsyncExecutor, async_task
 
 
 def signal_handler(signum, frame):
@@ -33,7 +33,7 @@ def signal_handler(signum, frame):
     #workflow._terminate()
 
 
-class Workflow(object):
+class Workflow(AsyncExecutor):
     """controls execution of app
     """
 
@@ -69,15 +69,15 @@ class Workflow(object):
             "cert_file": None,
             "key_file": None
         })
-        self._lock = Lock()
         self._log = getLogger(self.__class__.__name__)  # Use enhanced getLogger
         self._config.update(config)
         self._i18n = i18n
 
-        # Initialize the AsyncExecutor decorator.
+        # Initialize the AsyncExecutor (ThreadPoolExecutor)
         # We discard any operations requested when another operation is in progress.
         # However, to make that possible at least 2 worker threads are required by current solution.
-        self._async_executor = AsyncExecutor(max_workers=2)
+        AsyncExecutor.__init__(self, max_workers=2)
+        self._lock = Lock()
 
         self._path = Path('')
         self._image_path = Path('')
@@ -104,6 +104,7 @@ class Workflow(object):
         self._is_initialized = False
 
         # Register this instance as the event handler service.
+        # All public methods (including task_wait/task_result/...) will be accessible via proxy.
         EventManager.register('event_service', callable=lambda: self)
         # Proces manager has to register its own objects. Instantiate it before EventManager is started.
         self._process_manager = ProcessManager(self._event_manager_address, self._event_manager_authkey)
@@ -164,9 +165,8 @@ class Workflow(object):
 
     def __del__(self):
         try:
-            # Shut down the asynchronous task pool.
-            if hasattr(self, '_async_executor') and self._async_executor:
-                self._async_executor.shutdown()
+            # Shut down the AsyncExecutor worker thread.
+            self.shutdown()
         except Exception as e:
             # Log error if logger is available, otherwise just ignore
             if hasattr(self, '_log') and self._log:
