@@ -76,7 +76,7 @@ class Workflow(AsyncExecutor):
         # Initialize the AsyncExecutor (ThreadPoolExecutor)
         # We discard any operations requested when another operation is in progress.
         # However, to make that possible at least 2 worker threads are required by current solution.
-        AsyncExecutor.__init__(self, max_workers=2)
+        AsyncExecutor.__init__(self, max_workers=2, logger=self._log)
         self._lock = Lock()
 
         self._path = Path('')

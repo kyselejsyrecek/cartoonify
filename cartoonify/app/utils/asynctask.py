@@ -4,6 +4,8 @@ import threading
 import uuid
 from typing import Any, Callable, Dict, Optional
 
+from app.debugging.logging import getLogger
+
 
 class TaskRef:
     """
@@ -44,11 +46,12 @@ class AsyncExecutor:
     across multiprocessing boundaries (via TaskRef pickling to task_id).
     """
 
-    def __init__(self, max_workers: int = 5):
+    def __init__(self, max_workers: int = 5, logger=None):
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
         self._futures: Dict[str, concurrent.futures.Future] = {}
         self._lock = threading.Lock()
-        #print(f"ThreadPoolExecutor initialized with {max_workers} threads.")
+        self._log = logger if logger is not None else getLogger(self.__class__.__name__)
+        self._log.debug(f"AsyncExecutor initialized with {max_workers} worker threads.")
 
     def submit(self, fn: Callable, *args, **kwargs) -> TaskRef:
         task_id = uuid.uuid4().hex
@@ -89,8 +92,8 @@ class AsyncExecutor:
         return fut
 
     def shutdown(self, wait: bool = True):
-        self._executor.shutdown(wait=wait)
-        #print("ThreadPoolExecutor has been shut down.")
+    self._executor.shutdown(wait=wait)
+    self._log.debug("AsyncExecutor shut down.")
 
 
 # Decorator for instance methods ---
@@ -120,8 +123,8 @@ class async_task: # Lowercase because it's meant to be used like a function call
             def wrapper(*args, **kwargs):
                 if not isinstance(instance, AsyncExecutor):
                     raise RuntimeError("Instance must inherit from AsyncExecutor to use @async_task.")
-                #print(f"Submitting task '{self._func.__name__}' to asynchronous pool.")
-                # Submit the bound method directly into the AsyncExecutor's pool
+                # Submit the bound method directly into the AsyncExecutor's pool.
+                instance._log.debug(f"Submitting task '{self._func.__name__}' to asynchronous pool.")
                 return instance.submit(self._func, instance, *args, **kwargs)
 
             return wrapper
