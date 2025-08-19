@@ -26,9 +26,31 @@ class PlaySound(object):
         self._mp3_player = None
         self._ogg_player = None
         self._enabled = enabled
+        # Predefined list of supported sounds.
+        # These names must correspond to file name prefixes inside the resources path.
+        self._sound_names = [
+            'awake', 'dizzy', 'error', 'greeting', 'ready', 'sad', 'capture'
+        ]
+        # Cache mapping sound name -> list[Path] of resolved files (populated in setup()).
+        self._sound_files: dict[str, list[Path]] = {}
         
         if not self._enabled:
             self._log.info('Sound system disabled')
+
+
+    # Dynamic sound access (e.g., sound.awake())
+    def __getattr__(self, item: str):
+        """Provide dynamic sound methods for predefined sound names.
+
+        Calling self.awake() will be equivalent to self.play('awake').
+        The 'say' method is explicitly defined and not handled here.
+        """
+        if item in self._sound_names:
+            def _sound_wrapper(volume: float = 1.0):
+                return self.play(item, volume=volume)
+            return _sound_wrapper
+        # Fall back to default behaviour to raise AttributeError for unknown attributes.
+        raise AttributeError(f"{self.__class__.__name__} object has no attribute '{item}'")
     
 
     def setup(self, audio_backend=None, volume=1.0, alsa_numid=4, tts_language='cs'):
@@ -140,6 +162,9 @@ class PlaySound(object):
             if self._audio_backend == 'alsa':
                 self._detect_audio_players()
 
+        # Preload available sound files for each logical sound name.
+        self._index_sound_files()
+
     def close(self):
         """Cleanup audio resources"""
         if not self._enabled:
@@ -198,43 +223,6 @@ class PlaySound(object):
         
         return Path(selected_file)
 
-    def play(self, audio_file, volume=1.0):
-        """Play audio file using available method
-        
-        :param audio_file: Path to audio file, filename with wildcards, or list of paths/filenames for random selection
-        :param volume: Relative volume (0.0 to 1.0, relative to max volume)
-        """
-        if not self._enabled:
-            return
-            
-        # Resolve file pattern to actual file
-        full_path = self._resolve_audio_file(audio_file)
-        if not full_path or not full_path.exists():
-            if full_path:
-                self._log.warning(f'Audio file not found: {full_path}')
-            return
-        
-        # Calculate final volume
-        final_volume = self._max_volume * max(0.0, min(1.0, volume))
-        
-        # Set temporary volume if different from max
-        if volume != 1.0 and self._audio_backend in ['pulseaudio', 'alsa']:
-            self._set_system_volume(final_volume)
-        
-        # Use the detected backend
-        if self._audio_backend == 'pulseaudio':
-            self._play_pulseaudio(str(full_path))
-        elif self._audio_backend == 'alsa':
-            self._play_alsa(str(full_path))
-        elif self._audio_backend == 'native':
-            self._play_native(str(full_path), volume)
-        else:
-            self._log.error('No audio backend available for playback')
-            
-        # Restore max volume if it was temporarily changed
-        if volume != 1.0 and self._audio_backend in ['pulseaudio', 'alsa']:
-            self._set_system_volume(self._max_volume)
-
     def _set_system_volume(self, volume):
         """Set system volume using appropriate method
         
@@ -255,6 +243,83 @@ class PlaySound(object):
                              
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             self._log.warning(f'Failed to set system volume: {e}')
+
+    def _detect_audio_players(self):
+        """Detect available audio players for different formats"""
+        # Detect MP3 player
+        try:
+            subprocess.run(['mpg123', '--version'], capture_output=True, check=True)
+            self._mp3_player = 'mpg123'
+            self._log.info('Detected MP3 player: mpg123')
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            try:
+                subprocess.run(['ffplay', '-version'], capture_output=True, check=True)
+                self._mp3_player = 'ffplay'
+                self._log.info('Detected MP3 player: ffplay')
+            except (FileNotFoundError, subprocess.CalledProcessError):
+                self._log.warning('No MP3 player found (install mpg123 or ffmpeg)')
+        
+        # Detect OGG player
+        try:
+            subprocess.run(['ogg123', '--version'], capture_output=True, check=True)
+            self._ogg_player = 'ogg123'
+            self._log.info('Detected OGG player: ogg123')
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            try:
+                subprocess.run(['ffplay', '-version'], capture_output=True, check=True)
+                self._ogg_player = 'ffplay'
+                self._log.info('Detected OGG player: ffplay')
+            except (FileNotFoundError, subprocess.CalledProcessError):
+                self._log.warning('No OGG player found (install vorbis-tools or ffmpeg)')
+
+    def list_sounds(self) -> list[str]:
+        """Return list of all supported logical sound names (available or not)."""
+        return list(self._sound_names)
+
+    def list_available_sounds(self) -> list[str]:
+        """Return list of sound names that currently have at least one file."""
+        return [name for name, files in self._sound_files.items() if files]
+
+    def _index_sound_files(self):
+        """Populate cache of available files for each logical sound name.
+
+        Each sound name corresponds to a glob pattern '<name>*.*' inside the resources directory.
+        Missing sounds are logged at debug level only; play() will rely on this cache without
+        re-scanning the filesystem.
+        """
+        self._sound_files.clear()
+        if not self._enabled:
+            return
+        for name in self._sound_names:
+            pattern = str(self._resources_path / f"{name}*.*")
+            matched = [Path(p) for p in glob.glob(pattern)]
+            if matched:
+                self._sound_files[name] = matched
+            else:
+                self._sound_files[name] = []
+                self._log.debug(f'No files found for sound "{name}" during preload.')
+
+    def _play_file(self, full_path: Path, volume: float):
+        """Internal helper to play a resolved concrete file path with volume handling."""
+        # Calculate final volume
+        final_volume = self._max_volume * max(0.0, min(1.0, volume))
+        # Temporary system volume for ALSA / PulseAudio
+        if volume != 1.0 and self._audio_backend in ['pulseaudio', 'alsa']:
+            self._set_system_volume(final_volume)
+        try:
+            # Use the detected backend
+            if self._audio_backend == 'pulseaudio':
+                self._play_pulseaudio(str(full_path))
+            elif self._audio_backend == 'alsa':
+                self._play_alsa(str(full_path))
+            elif self._audio_backend == 'native':
+                self._play_native(str(full_path), volume)
+            else:
+                self._log.error('No audio backend available for playback')
+        finally:
+            # Restore max volume if it was temporarily changed
+            if volume != 1.0 and self._audio_backend in ['pulseaudio', 'alsa']:
+                self._set_system_volume(self._max_volume)
 
     def _play_alsa(self, audio_file):
         """Play audio file using ALSA
@@ -493,62 +558,47 @@ class PlaySound(object):
         except Exception as e:
             self._log.exception(f'OGG playback failed: {e}')
 
-    def _detect_audio_players(self):
-        """Detect available audio players for different formats"""
-        # Detect MP3 player
-        try:
-            subprocess.run(['mpg123', '--version'], capture_output=True, check=True)
-            self._mp3_player = 'mpg123'
-            self._log.info('Detected MP3 player: mpg123')
-        except (FileNotFoundError, subprocess.CalledProcessError):
-            try:
-                subprocess.run(['ffplay', '-version'], capture_output=True, check=True)
-                self._mp3_player = 'ffplay'
-                self._log.info('Detected MP3 player: ffplay')
-            except (FileNotFoundError, subprocess.CalledProcessError):
-                self._log.warning('No MP3 player found (install mpg123 or ffmpeg)')
-        
-        # Detect OGG player
-        try:
-            subprocess.run(['ogg123', '--version'], capture_output=True, check=True)
-            self._ogg_player = 'ogg123'
-            self._log.info('Detected OGG player: ogg123')
-        except (FileNotFoundError, subprocess.CalledProcessError):
-            try:
-                subprocess.run(['ffplay', '-version'], capture_output=True, check=True)
-                self._ogg_player = 'ffplay'
-                self._log.info('Detected OGG player: ffplay')
-            except (FileNotFoundError, subprocess.CalledProcessError):
-                self._log.warning('No OGG player found (install vorbis-tools or ffmpeg)')
+    def play_file(self, audio_path: Path | str, volume: float = 1.0):
+        """Play explicit audio file path or wildcard pattern/list.
 
-    # Sound definitions
-    def awake(self):
-        """Play awake sound"""
-        self.play('awake*.*')
+        Supports wildcards '*' and '?'. If a pattern expands to multiple files, one is chosen at random.
+        Relative paths/patterns are resolved inside the sound resources directory. Absolute paths are used as-is.
 
-    def dizzy(self):
-        """Play dizzy sound"""
-        self.play('dizzy*.*')
 
-    def error(self):
-        """Play error sound"""
-        self.play('error*.*')
+        :param audio_path: Path, glob pattern or list of patterns / paths.
+        :param volume: Relative volume (0.0–1.0) multiplied by the maximum volume.
+        """
+        if not self._enabled:
+            return
+        # Convert Path -> str (resolver expects string or list of strings).
+        if isinstance(audio_path, Path):
+            audio_path = str(audio_path)
 
-    def greeting(self):
-        """Play greeting sound"""
-        self.play('greeting*.*')
+        resolved = self._resolve_audio_file(audio_path)
+        if not resolved or not resolved.exists():
+            if resolved:  # Path does not exist.
+                self._log.warning(f'Audio file not found: {resolved}')
+            return
+        self._play_file(resolved, volume)
 
-    def ready(self):
-        """Play ready sound"""
-        self.play('ready*.*')
+    def play(self, sound_name: str, volume: float = 1.0):
+        """Play a logical sound by its predefined name using preloaded file list.
 
-    def sad(self):
-        """Play sad sound"""
-        self.play('sad*.*')
-
-    def capture(self):
-        """Play sound of a capture"""
-        self.play('capture*.*')
+        :param sound_name: Name of the logical sound (e.g., 'dizzy').
+        :param volume: Relative volume (0.0 to 1.0, relative to max volume).
+        """
+        if not self._enabled:
+            return
+        if sound_name not in self._sound_names:
+            self._log.debug(f'Unknown sound name requested: {sound_name}')
+            return
+        files = self._sound_files.get(sound_name, [])
+        if not files:
+            # Sound declared but no files found during preload.
+            self._log.debug(f'Sound "{sound_name}" not available (no files).')
+            return
+        full_path = random.choice(files)
+        self._play_file(full_path, volume)
 
     def say(self, text):
         """Speak text using text-to-speech
