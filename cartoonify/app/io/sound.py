@@ -7,11 +7,15 @@ import sys
 from pathlib import Path
 
 
-class PlaySound(object):
-    """Controls audio playback functionality"""
+class SoundPlayer(object):
+    """Controls audio playback functionality and exposes sounds via the `fx` collection.
+
+    Access sounds as callables, e.g. `sound.fx.awake()`, using the `play()` method or play a sound file
+    using the `play_file()` method.
+    """
 
     def __init__(self, enabled=True):
-        """Initialize PlaySound with optional enabled flag
+        """Initialize SoundPlayer with optional enabled flag
         
         :param enabled: If False, all sound operations are silently ignored
         """
@@ -34,23 +38,8 @@ class PlaySound(object):
         # Cache mapping sound name -> list[Path] of resolved files (populated in setup()).
         self._sound_files: dict[str, list[Path]] = {}
         
-        if not self._enabled:
-            self._log.info('Sound system disabled')
-
-
-    # Dynamic sound access (e.g., sound.awake())
-    def __getattr__(self, item: str):
-        """Provide dynamic sound methods for predefined sound names.
-
-        Calling self.awake() will be equivalent to self.play('awake').
-        The 'say' method is explicitly defined and not handled here.
-        """
-        if item in self._sound_names:
-            def _sound_wrapper(volume: float = 1.0):
-                return self.play(item, volume=volume)
-            return _sound_wrapper
-        # Fall back to default behaviour to raise AttributeError for unknown attributes.
-        raise AttributeError(f"{self.__class__.__name__} object has no attribute '{item}'")
+        # Attach collection object for sound effects under the `fx` namespace.
+        self.fx = _SoundEffects(self)
     
 
     def setup(self, audio_backend=None, volume=1.0, alsa_numid=4, tts_language='cs'):
@@ -71,6 +60,7 @@ class PlaySound(object):
 
         # Disable now, after having stored all parameters
         if not self._enabled:
+            self._log.info('Sound system disabled')
             return
         
         # Try to import pydub
@@ -273,7 +263,7 @@ class PlaySound(object):
                 self._log.warning('No OGG player found (install vorbis-tools or ffmpeg)')
 
     def list_sounds(self) -> list[str]:
-        """Return list of all supported logical sound names (available or not)."""
+        """Return list of all supported sound names (available or not)."""
         return list(self._sound_names)
 
     def list_available_sounds(self) -> list[str]:
@@ -281,7 +271,7 @@ class PlaySound(object):
         return [name for name, files in self._sound_files.items() if files]
 
     def _index_sound_files(self):
-        """Populate cache of available files for each logical sound name.
+        """Populate cache of available files for each sound name.
 
         Each sound name corresponds to a glob pattern '<name>*.*' inside the resources directory.
         Missing sounds are logged at debug level only; play() will rely on this cache without
@@ -297,7 +287,7 @@ class PlaySound(object):
                 self._sound_files[name] = matched
             else:
                 self._sound_files[name] = []
-                self._log.debug(f'No files found for sound "{name}" during preload.')
+                self._log.warning(f'No files found for sound "{name}" during preload.')
 
     def _play_file(self, full_path: Path, volume: float):
         """Internal helper to play a resolved concrete file path with volume handling."""
@@ -623,3 +613,24 @@ class PlaySound(object):
             self._log.exception(f'Text-to-speech failed: {e}')
         except FileNotFoundError:
             self._log.error('spd-say command not found - install speech-dispatcher package')
+
+
+class _SoundEffects:
+    """Collection of sound effect callables.
+
+    Provides an attribute per sound name. Access returns a callable that plays the sound.
+    """
+    __slots__ = ("_player",)
+
+    def __init__(self, player: SoundPlayer):
+        self._player = player
+
+    def __getattr__(self, name: str):
+        if name in self._player._sound_names:
+            def _wrapper(volume: float = 1.0):
+                return self._player.play(name, volume=volume)
+            return _wrapper
+        raise AttributeError(f"Sound '{name}' is not defined.")
+
+    def list(self):  # Optional helper
+        return list(self._player._sound_names)

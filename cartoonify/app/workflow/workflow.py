@@ -16,7 +16,7 @@ from tempfile import NamedTemporaryFile
 from threading import Lock
 
 from app.sketch import SketchGizeh
-from app.io import Gpio, IrReceiver, ClapDetector, PlaySound, Camera, Accelerometer
+from app.io import Gpio, IrReceiver, ClapDetector, SoundPlayer, Camera, Accelerometer
 from app.utils.attributedict import AttributeDict
 from app.debugging import profiling
 from app.debugging.logging import getLogger  # Import our enhanced getLogger
@@ -91,7 +91,7 @@ class Workflow(AsyncExecutor):
         self._gpio = Gpio(no_printer=self._config.no_printer)
         self._ir_receiver = None
         self._clap_detector = None
-        self._sound = PlaySound(enabled=not self._config.no_sound)
+        self._sound = SoundPlayer(enabled=not self._config.no_sound)
         self._sketcher = None
         self._web_gui = None
         self._image = None
@@ -405,7 +405,7 @@ class Workflow(AsyncExecutor):
         """Set initial state for GPIO and play awake sound simultaneously"""
         self._log.info('Setting initial state...')
         self._execute_concurrent_tasks(
-            self._sound.awake,
+            self._sound.fx.awake,
             self._gpio.set_initial_state
         )
         self._log.info('Initial state set.')
@@ -437,7 +437,7 @@ class Workflow(AsyncExecutor):
         """
         self._log.info('Capture button pressed.')
         self._execute_concurrent_tasks(
-            self._sound.capture,
+            self._sound.fx.capture,
             lambda: self.run(print_cartoon=True)
         )
 
@@ -459,7 +459,7 @@ class Workflow(AsyncExecutor):
         self._gpio.set_recording_state(self._is_recording)
         time.sleep(0.8)
         self._execute_concurrent_tasks(
-            self._sound.capture,
+            self._sound.fx.capture,
             lambda: self.run(print_cartoon=True)
         )
 
@@ -489,7 +489,7 @@ class Workflow(AsyncExecutor):
                         return
 
             self._execute_concurrent_tasks(
-                self._sound.capture,
+                self._sound.fx.capture,
                 lambda: self._gpio.print(str(path))
             )
             self._last_original_image_number = (self._last_original_image_number - 1) % self._next_image_number
@@ -532,7 +532,7 @@ class Workflow(AsyncExecutor):
         """
         self._log.info('Someone approached.')
         self._execute_concurrent_tasks(
-            self._sound.greeting,
+            self._sound.fx.greeting,
             self._gpio.blink_eyes
         )
 
@@ -545,7 +545,7 @@ class Workflow(AsyncExecutor):
         """
         self._log.info('Motion detected - triggering dizzy response.')
         self._execute_concurrent_tasks(
-            self._sound.dizzy,
+            self._sound.fx.dizzy,
             self._gpio.blink_eyes
         )
 
