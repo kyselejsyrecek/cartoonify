@@ -116,7 +116,8 @@ class CustomFormatter(logging.Formatter):
         original_levelname = record.levelname
         if (record.levelno < logging.ERROR and 
             original_levelname in ['INFO', 'WARNING', 'DEBUG'] and 
-            self._should_promote_to_error(message)):
+            self._should_promote_to_error(message) and
+            not getattr(logging.getLogger(record.name), '_disable_error_promotion', False)):
             # Temporarily change the level for formatting.
             record.levelname = 'ERROR'
             record.levelno = logging.ERROR
@@ -323,11 +324,19 @@ def setup_debug_logging(log_level=logging.DEBUG, use_colors=True):
     return original_stdout, original_stderr, stderr_redirector
 
 
-def getLogger(name=None, filter_ansi=False, custom_filter=None):
-    """Get logger with optional ANSI filtering and custom message filtering"""
+def getLogger(name=None, filter_ansi=False, custom_filter=None, disable_error_promotion=False):
+    """Get logger with optional ANSI filtering, custom message filtering and ability to disable auto promotion.
+
+    :param name: Logger name.
+    :param filter_ansi: If True, ANSI escape codes are stripped.
+    :param custom_filter: Optional callable to pre-filter messages.
+    :param disable_error_promotion: If True, this logger will not auto-promote messages containing error keywords.
+    """
     base_logger = logging.getLogger(name)
-    
+    if disable_error_promotion:
+        # Marker attribute inspected by CustomFormatter to skip promotion for this logger only.
+        setattr(base_logger, '_disable_error_promotion', True)
+
     if filter_ansi or custom_filter:
         return FilteredLogger(base_logger, filter_ansi=filter_ansi, custom_filter=custom_filter)
-    else:
-        return base_logger
+    return base_logger

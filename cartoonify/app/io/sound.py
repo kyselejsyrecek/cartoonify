@@ -20,7 +20,8 @@ class SoundPlayer(object):
         
         :param enabled: If False, all sound operations are silently ignored
         """
-        self._log = getLogger(self.__class__.__name__)
+        # Disable auto-promotion because some debug messages legitimately contain the word 'error' as part of sound names.
+        self._log = getLogger(self.__class__.__name__, disable_error_promotion=True)
         self._pa = None
         self._resources_path = Path(__file__).parent.parent.parent / 'sound'
         self._audio_backend = None  # Will be set in setup()
