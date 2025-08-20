@@ -2,6 +2,7 @@ from app.debugging.logging import getLogger
 import glob
 import importlib
 import random
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -36,10 +37,13 @@ class SoundPlayer(object):
         # New names may be discovered dynamically.
         self._predefined_sound_names = ['awake', 'dizzy', 'error', 'greeting', 'ready', 'sad', 'capture']
         self._sound_names = list(self._predefined_sound_names)
-        # Cache mapping sound name -> list[Path] of resolved files (populated in setup()).
-        self._sound_files: dict[str, list[Path]] = {}
+        # Active theme name.
         self._theme = 'default'
-        
+        # All indexed themes: theme -> { sound_name -> [Path, ...] }.
+        self._themes: dict[str, dict[str, list[Path]]] = {}
+        # Active mapping (points to self._themes[self._theme]).
+        self._sound_files: dict[str, list[Path]] = {}
+
         # Attach collection object for sound effects under the `fx` namespace.
         self.fx = _SoundEffects(self)
     
@@ -68,7 +72,13 @@ class SoundPlayer(object):
         
         self._init_libraries()
         self._init_audio_backend(audio_backend)
-        self._index_sound_files()  # Populate according to theme and dynamic detection.
+        self._index_all_themes()
+        self._apply_active_theme(log_missing=True)
+        
+        # Log themes summary
+        themes_list = self.list_themes()
+        themes_str = ', '.join(themes_list) if themes_list else '(none)'
+        self._log.info(f'Available sound themes: {themes_str}. Selected theme: {self._theme}')
 
     def close(self):
         """Cleanup audio resources"""
@@ -185,45 +195,85 @@ class SoundPlayer(object):
         """Return list of sound names that currently have at least one file."""
         return [name for name, files in self._sound_files.items() if files]
 
-    def _index_sound_files(self):
-    """Populate cache of available sound files for the active theme only.
+    def _index_all_themes(self):
+        """Index all theme subdirectories and discover extra sounds.
 
-    Sound discovery logic:
-    - Each file name (without extension) is normalized by replacing any sequence of non-alphanumeric
-        characters with a single underscore and trimming leading/trailing underscores.
-    - Trailing numeric groups (optionally preceded by '_' or '-') are removed to obtain the logical base name.
-        Examples:
-                dizzy.wav           -> dizzy
-                dizzy2.wav          -> dizzy
-                dizzy-2.wav         -> dizzy
-                dizzy__003.wav      -> dizzy
-    - Names with spaces / special chars are collapsed: "dizzy scream.wav" -> dizzy_scream
-    - The effective glob-style matching concept is thus similar to '<name>*.*' in the theme directory.
-    - New logical names discovered at runtime are appended to the list of known sound names.
-    - After indexing, a warning is emitted for any predefined (seed) sound name missing in the theme.
-    """
-        self._sound_files.clear()
-        theme_dir = self._resources_path / self._theme
-        if not theme_dir.is_dir():
-            self._log.warning(f'Sound theme directory not found: {theme_dir}')
+        Discovery logic (per theme):
+        - Normalize file stem: collapse any run of non-alphanumeric chars to single underscore; trim edges.
+        - Strip trailing numeric groups (optionally preceded by '_' or '-') to form logical base name.
+          Examples:
+              dizzy.wav -> dizzy
+              dizzy2.wav -> dizzy
+              dizzy-2.wav -> dizzy
+              dizzy__003.wav -> dizzy
+        - Collapse spaces/special chars: "dizzy scream.wav" -> dizzy_scream
+        - Effectively similar to matching '<name>*.*' inside the theme directory.
+        - New logical names merged into global set of sound names (union across themes + seeds).
+        - Seeds ensured in every theme map (possibly empty list).
+        Debug log prints compact summary per theme: theme 'X': name(count)=file1,file2; name2(0); ...
+        """
+        self._themes.clear()
+        base = self._resources_path
+        if not base.exists():
+            self._log.warning(f'Sound resources directory not found: {base}')
             return
-                files = [p for p in theme_dir.rglob('*') if p.is_file() and p.suffix.lower() in self._supported_exts]
-        import re
-        discovered = {}
-        for f in files:
-            norm = re.sub(r'[^A-Za-z0-9]+', '_', f.stem).strip('_')
-            base_name = re.sub(r'([_-]?\d+)+$', '', norm) or norm
-            discovered.setdefault(base_name, []).append(f)
-        for name, paths in discovered.items():
-            if name not in self._sound_names:
-                self._sound_names.append(name)
-            self._sound_files[name] = paths
-        for name in self._sound_names:
-            self._sound_files.setdefault(name, [])
-            # Warn about missing predefined sounds (only those in the original seed list).
+        
+        for tdir in [d for d in base.iterdir() if d.is_dir()]:
+            tname = tdir.name
+            files = [p for p in tdir.rglob('*') if p.is_file() and p.suffix.lower() in self._supported_exts]
+            theme_map: dict[str, list[Path]] = {}
+            for f in files:
+                norm = re.sub(r'[^A-Za-z0-9]+', '_', f.stem).strip('_')
+                base_name = re.sub(r'([_-]?\d+)+$', '', norm) or norm
+                theme_map.setdefault(base_name, []).append(f)
+            # Ensure seeds exist
+            for seed in self._predefined_sound_names:
+                theme_map.setdefault(seed, [])
+            self._themes[tname] = theme_map
+        # Merge all discovered names into global list
+        discovered_all = set(self._predefined_sound_names)
+        for theme_map in self._themes.values():
+            discovered_all.update(theme_map.keys())
+        self._sound_names = sorted(discovered_all)
+        # Debug summaries
+        for tname, theme_map in self._themes.items():
+            parts = []
+            for sname, paths in sorted(theme_map.items()):
+                if paths:
+                    file_list = ','.join(p.name for p in paths)
+                    parts.append(f"{sname}({len(paths)})={file_list}")
+                else:
+                    parts.append(f"{sname}(0)")
+            self._log.debug(f"Theme '{tname}': {'; '.join(parts)}")
+
+    def _apply_active_theme(self, log_missing=False):
+        """Activate currently selected theme mapping."""
+        if self._theme in self._themes:
+            self._sound_files = self._themes[self._theme]
+        else:
+            self._log.warning(f"Selected theme '{self._theme}' not indexed; no sounds loaded.")
+            self._sound_files = {}
+        active_keys = set(self._sound_files.keys()) if self._sound_files else set()
+        self._sound_names = sorted({*self._predefined_sound_names, *active_keys})
+        if log_missing:
             for seed in self._predefined_sound_names:
                 if not self._sound_files.get(seed):
                     self._log.warning(f'No files found for sound "{seed}" in theme "{self._theme}".')
+
+    def list_themes(self) -> list[str]:
+        """Return list of indexed sound themes."""
+        return sorted(self._themes.keys())
+
+    def set_theme(self, theme: str):
+        """Switch active theme at runtime and apply mapping."""
+        if theme == self._theme:
+            return
+        if theme not in self._themes:
+            self._log.warning(f"Theme '{theme}' not available.")
+            return
+        self._theme = theme
+        self._apply_active_theme(log_missing=True)
+        self._log.info(f"Switched sound theme to '{theme}'.")
 
     def _init_libraries(self):
         """Import optional media libraries (pydub, wave)."""
