@@ -218,7 +218,7 @@ class SoundPlayer(object):
             self._log.warning(f'Sound resources directory not found: {base}')
             return
         
-        for tdir in [d for d in base.iterdir() if d.is_dir()]:
+        for tdir in [d for d in base.iterdir() if d.is_dir() and not d.name.startswith('.')]:
             tname = tdir.name
             files = [p for p in tdir.rglob('*') if p.is_file() and p.suffix.lower() in self._supported_exts]
             theme_map: dict[str, list[Path]] = {}
