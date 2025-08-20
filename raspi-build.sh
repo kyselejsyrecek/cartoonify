@@ -30,7 +30,7 @@ fi
 
 # thermal printer
 if [ ! -d "zj-58" ]; then
-git clone https://github.com/kyselejsyrecek/zj-58
+  git clone https://github.com/kyselejsyrecek/zj-58
   cd zj-58
   cmake .
   cmake --build .
@@ -44,6 +44,13 @@ git clone https://github.com/kyselejsyrecek/zj-58
   sudo usermod -a -G lp "$USER" # FIXME TODO
   #su - "$USER" # Reload group settings. # TODO May be required in raspi-run.sh as well! # FIXME Requires Password and loses CWD. # FIXME Reboot may be necessary to take effect.
   sudo lpadmin -d ZJ-58
+  cd ..
+fi
+
+# sound resources
+if [ ! -d "cartoonify/sound" ]; then
+  cd cartoonify
+  git clone https://github.com/kyselejsyrecek/cartoonify-sounds sound
   cd ..
 fi
 
