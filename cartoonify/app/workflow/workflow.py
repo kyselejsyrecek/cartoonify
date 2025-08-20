@@ -16,7 +16,7 @@ from tempfile import NamedTemporaryFile
 from threading import Lock
 
 from app.sketch import SketchGizeh
-from app.io import Gpio, IrReceiver, ClapDetector, SoundPlayer, Camera, Accelerometer
+from app.io import Gpio, IrReceiver, ClapDetector, SoundPlayer, Camera, Accelerometer, Printer
 from app.utils.attributedict import AttributeDict
 from app.debugging import profiling
 from app.debugging.logging import getLogger  # Import our enhanced getLogger
@@ -89,7 +89,8 @@ class Workflow(AsyncExecutor):
         self._dataset = dataset
         self._image_processor = imageprocessor
         self._camera = Camera() if self._config.camera else None
-        self._gpio = Gpio(no_printer=self._config.no_printer)
+        self._gpio = Gpio()
+        self._printer = Printer()
         self._ir_receiver = None
         self._clap_detector = None
         self._sound = SoundPlayer(enabled=not self._config.no_sound)
@@ -252,6 +253,8 @@ class Workflow(AsyncExecutor):
             alsa_numid=self._config.alsa_numid,
             tts_language=self._config.tts_language,
             theme=self._config.sound_theme)
+        # Configure printer availability.
+        self._printer.setup(enabled=not self._config.no_printer)
         self._log.info('done')
         self._log.info('loading cartoon dataset...')
         self._dataset.setup()
@@ -296,7 +299,7 @@ class Workflow(AsyncExecutor):
             self.process()
             annotated, cartoon, image_labels = self.save_results()
             if print_cartoon:
-                self._gpio.print(str(cartoon))
+                self._print_image(cartoon)
         except Exception as e:
             self._log.exception(e)
         
@@ -404,6 +407,22 @@ class Workflow(AsyncExecutor):
         self._next_image_number = (self._next_image_number + 1) % self._config.max_image_number
         self._last_original_image_number = self._next_image_number - 1
 
+    def _print_image(self, image_path):
+        """Print image with busy LED indication and wait for completion if job submitted."""
+        if self._gpio.available():
+            self._gpio.led_busy.on()
+        lp_out = self._printer.print_image(str(image_path))
+        if lp_out:
+            self._printer.wait(lp_out)
+        if self._gpio.available():
+            self._gpio.led_busy.off()
+
+    def _print_text(self, text):
+        """Print plain text (no LED state changes here)."""
+        lp_out = self._printer.print_text(text)
+        if lp_out:
+            self._printer.wait(lp_out)
+
     @async_task
     @exclusive('event', blocking=True)
     def _set_initial_state(self):
@@ -495,7 +514,7 @@ class Workflow(AsyncExecutor):
 
             self._execute_concurrent_tasks(
                 self._sound.fx.capture,
-                lambda: self._gpio.print(str(path))
+                lambda: self._print_image(path)
             )
             self._last_original_image_number = (self._last_original_image_number - 1) % self._next_image_number
 

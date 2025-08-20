@@ -1,6 +1,5 @@
 import importlib
 from app.debugging.logging import getLogger
-import re
 import time
 
 from subprocess import *
@@ -26,9 +25,8 @@ class Gpio:
     interface to Rapberry Pi GPIO
     """
 
-    def __init__(self, no_printer: bool = False):
+    def __init__(self):
         self._log = getLogger(self.__class__.__name__)
-        self._no_printer = no_printer
 
         # References to imported libraries
         self.gpio = None
@@ -241,44 +239,6 @@ class Gpio:
         self.led_recording.on()
         self.led_busy.on()
         time.sleep(2)
-        
-        if error_msg != "":
-            if self._no_printer:
-                self._log.debug('Printing skipped (no-printer mode).')
-            else:
-                process = Popen(['lp', '-o', 'cpi=13'], stdin=PIPE, stdout=PIPE, stderr=PIPE)
-                output, err = process.communicate(error_msg)
-                self._wait_for_print_job(output)
-        
-        self.set_ready()
-
-
-    def print(self, image_file):
-        """Print the image (and text).
-        """
-        if not self.available():
-            return
-        
-        if self._no_printer:
-            self._log.debug('Printing skipped (no-printer mode).')
-            return
-        self.led_busy.on()
-        # Media dimensions come from width of printable area (for 58mm paper) and cartoon width
-        # which appears as height of the print when printed in landscape orientation.
-        output = check_output(['lp', '-o', 'orientation-requested=5', '-o', 'media=Custom.57.86x102.87mm', '-o', 'fit-to-page', image_file])
-        self._wait_for_print_job(output)
-        self.led_busy.off()
-    
-
-    def _wait_for_print_job(self, lp_output):
-        """Waits until the given print job is finished.
-        """
-        job_id = re.search('request id is (.*) \\(.*', str(lp_output)).group(1)
-        while True:
-            result = run(['lpstat'], stdout=PIPE, stderr=PIPE, text=True)
-            if not re.match(f'^{job_id}', result.stdout):
-                break
-            time.sleep(1)
 
     def available(self):
         """return true if gpio package is available
