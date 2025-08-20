@@ -30,19 +30,21 @@ class SoundPlayer(object):
         self._mp3_player = None
         self._ogg_player = None
         self._enabled = enabled
-        # Predefined list of supported sounds.
-        # These names must correspond to file name prefixes inside the resources path.
-        self._sound_names = [
-            'awake', 'dizzy', 'error', 'greeting', 'ready', 'sad', 'capture'
-        ]
+        # Supported audio file extensions.
+        self._supported_exts = ('.wav', '.mp3', '.ogg', '.pcm')
+        # Predefined list of supported sounds. These names must correspond to file name prefixes inside the resources path.
+        # New names may be discovered dynamically.
+        self._predefined_sound_names = ['awake', 'dizzy', 'error', 'greeting', 'ready', 'sad', 'capture']
+        self._sound_names = list(self._predefined_sound_names)
         # Cache mapping sound name -> list[Path] of resolved files (populated in setup()).
         self._sound_files: dict[str, list[Path]] = {}
+        self._theme = 'default'
         
         # Attach collection object for sound effects under the `fx` namespace.
         self.fx = _SoundEffects(self)
     
 
-    def setup(self, audio_backend=None, volume=1.0, alsa_numid=4, tts_language='cs'):
+    def setup(self, audio_backend=None, volume=1.0, alsa_numid=4, tts_language='cs', theme='default'):
         """Setup audio system
         
         :param audio_backend: Preferred audio backend ('pulseaudio', 'alsa', 'native')
@@ -57,103 +59,16 @@ class SoundPlayer(object):
         self._max_volume = max(0.0, min(1.0, volume))  # Clamp between 0.0 and 1.0
         self._alsa_numid = alsa_numid
         self._tts_language = tts_language
+        self._theme = theme
 
         # Disable now, after having stored all parameters
         if not self._enabled:
             self._log.info('Sound system disabled')
             return
         
-        # Try to import pydub
-        try:
-            self._pydub = importlib.import_module('pydub')
-            self._pydub_available = True
-            self._log.info('pydub is available')
-        except ImportError:
-            self._pydub_available = False
-            self._log.warning('pydub not available - MP3/OGG support limited')
-        
-        # Try to import wave module
-        try:
-            self._wave = importlib.import_module('wave')
-            self._log.info('wave module is available')
-        except ImportError:
-            self._wave = None
-            self._log.warning('wave module not available')
-        
-        # Detect and set preferred audio backend
-        self._audio_backend = None
-        
-        # Define backend detection functions
-        def try_pulseaudio():
-            try:
-                subprocess.run(['pulseaudio', '--check'], check=True, capture_output=True)
-                self._log.info('PulseAudio is available')
-                return True
-            except (subprocess.CalledProcessError, FileNotFoundError):
-                self._log.warning('PulseAudio not available or not running')
-                return False
-        
-        def try_alsa():
-            try:
-                subprocess.run(['aplay', '--version'], check=True, capture_output=True)
-                self._log.info('ALSA is available')
-                return True
-            except (subprocess.CalledProcessError, FileNotFoundError):
-                self._log.warning('ALSA not available')
-                return False
-        
-        def try_native():
-            try:
-                pyaudio_module = importlib.import_module('pyaudio')
-                self._pa = pyaudio_module.PyAudio()
-                self._log.info('PyAudio initialized successfully')
-                return True
-            except (ImportError, Exception) as e:
-                self._log.warning(f'PyAudio initialization failed: {e}')
-                self._pa = None
-                return False
-        
-        # Try backends in order based on preference
-        backends_to_try = []
-        if audio_backend:
-            # If specific backend requested, try that first
-            backends_to_try.append(audio_backend)
-            # Add remaining backends in default priority order
-            default_order = ['pulseaudio', 'alsa', 'native']
-            for backend in default_order:
-                if backend != audio_backend:
-                    backends_to_try.append(backend)
-        else:
-            # Use default priority order
-            backends_to_try = ['pulseaudio', 'alsa', 'native']
-        
-        # Try each backend until one works
-        for backend in backends_to_try:
-            if backend == 'pulseaudio' and try_pulseaudio():
-                self._audio_backend = 'pulseaudio'
-                break
-            elif backend == 'alsa' and try_alsa():
-                self._audio_backend = 'alsa'
-                break
-            elif backend == 'native' and try_native():
-                self._audio_backend = 'native'
-                break
-        
-        if self._audio_backend is None:
-            self._log.error('No audio backend available')
-        else:
-            self._log.info(f'Using audio backend: {self._audio_backend}')
-            self._log.info(f'Maximum volume set to: {self._max_volume:.1%}')
-            
-            # Set system volume if using PulseAudio or ALSA
-            self._set_system_volume(self._max_volume)
-            
-            # Detect available audio players for ALSA backend
-            if self._audio_backend == 'alsa':
-                self._detect_audio_players()
-
-        # Preload available sound files for each logical sound name.
-        self._index_sound_files()
+        self._init_libraries()
+        self._init_audio_backend(audio_backend)
+        self._index_sound_files()  # Populate according to theme and dynamic detection.
 
     def close(self):
         """Cleanup audio resources"""
@@ -174,11 +89,12 @@ class SoundPlayer(object):
         self.setup(self._audio_backend, self._max_volume, self._alsa_numid, self._tts_language)
 
     def _resolve_audio_file(self, audio_file):
-        """Resolve audio file pattern to actual file path
-        
-        :param audio_file: Single file path/pattern or list of patterns
+        """Resolve audio file pattern to actual file path inside current theme.
+
+        :param audio_file: Single file path/pattern or list of patterns (relative to theme dir unless absolute).
         :return: Path object of selected file or None if not found
         """
+        theme_dir = self._resources_path / self._theme
         all_files = []
         
         # Convert single item to list for uniform processing
@@ -192,12 +108,11 @@ class SoundPlayer(object):
         for item in items:
             if '*' in item or '?' in item:
                 # Wildcard pattern - convert to full path and glob
-                pattern = str(self._resources_path / item) if not Path(item).is_absolute() else item
-                matched_files = glob.glob(pattern)
-                all_files.extend(matched_files)
+                pattern = str(theme_dir / item) if not Path(item).is_absolute() else item
+                all_files.extend(glob.glob(pattern))
             else:
                 # Regular file - convert to full path
-                full_path = self._resources_path / item if not Path(item).is_absolute() else Path(item)
+                full_path = theme_dir / item if not Path(item).is_absolute() else Path(item)
                 all_files.append(str(full_path))
         
         if not all_files:
@@ -271,23 +186,123 @@ class SoundPlayer(object):
         return [name for name, files in self._sound_files.items() if files]
 
     def _index_sound_files(self):
-        """Populate cache of available files for each sound name.
+    """Populate cache of available sound files for the active theme only.
 
-        Each sound name corresponds to a glob pattern '<name>*.*' inside the resources directory.
-        Missing sounds are logged at debug level only; play() will rely on this cache without
-        re-scanning the filesystem.
-        """
+    Sound discovery logic:
+    - Each file name (without extension) is normalized by replacing any sequence of non-alphanumeric
+        characters with a single underscore and trimming leading/trailing underscores.
+    - Trailing numeric groups (optionally preceded by '_' or '-') are removed to obtain the logical base name.
+        Examples:
+                dizzy.wav           -> dizzy
+                dizzy2.wav          -> dizzy
+                dizzy-2.wav         -> dizzy
+                dizzy__003.wav      -> dizzy
+    - Names with spaces / special chars are collapsed: "dizzy scream.wav" -> dizzy_scream
+    - The effective glob-style matching concept is thus similar to '<name>*.*' in the theme directory.
+    - New logical names discovered at runtime are appended to the list of known sound names.
+    - After indexing, a warning is emitted for any predefined (seed) sound name missing in the theme.
+    """
         self._sound_files.clear()
-        if not self._enabled:
+        theme_dir = self._resources_path / self._theme
+        if not theme_dir.is_dir():
+            self._log.warning(f'Sound theme directory not found: {theme_dir}')
             return
+                files = [p for p in theme_dir.rglob('*') if p.is_file() and p.suffix.lower() in self._supported_exts]
+        import re
+        discovered = {}
+        for f in files:
+            norm = re.sub(r'[^A-Za-z0-9]+', '_', f.stem).strip('_')
+            base_name = re.sub(r'([_-]?\d+)+$', '', norm) or norm
+            discovered.setdefault(base_name, []).append(f)
+        for name, paths in discovered.items():
+            if name not in self._sound_names:
+                self._sound_names.append(name)
+            self._sound_files[name] = paths
         for name in self._sound_names:
-            pattern = str(self._resources_path / f"{name}*.*")
-            matched = [Path(p) for p in glob.glob(pattern)]
-            if matched:
-                self._sound_files[name] = matched
-            else:
-                self._sound_files[name] = []
-                self._log.warning(f'No files found for sound "{name}" during preload.')
+            self._sound_files.setdefault(name, [])
+            # Warn about missing predefined sounds (only those in the original seed list).
+            for seed in self._predefined_sound_names:
+                if not self._sound_files.get(seed):
+                    self._log.warning(f'No files found for sound "{seed}" in theme "{self._theme}".')
+
+    def _init_libraries(self):
+        """Import optional media libraries (pydub, wave)."""
+        try:
+            self._pydub = importlib.import_module('pydub')
+            self._pydub_available = True
+            self._log.info('pydub is available')
+        except ImportError:
+            self._pydub_available = False
+            self._log.warning('pydub not available - MP3/OGG support limited')
+        try:
+            self._wave = importlib.import_module('wave')
+            self._log.info('wave module is available')
+        except ImportError:
+            self._wave = None
+            self._log.warning('wave module not available')
+
+    def _init_audio_backend(self, preferred):
+        """Detect and initialize an audio backend."""
+        self._audio_backend = None
+
+        def try_pulseaudio():
+            try:
+                subprocess.run(['pulseaudio', '--check'], check=True, capture_output=True)
+                self._log.info('PulseAudio is available')
+                return True
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                self._log.warning('PulseAudio not available or not running')
+                return False
+
+        def try_alsa():
+            try:
+                subprocess.run(['aplay', '--version'], check=True, capture_output=True)
+                self._log.info('ALSA is available')
+                return True
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                self._log.warning('ALSA not available')
+                return False
+
+        def try_native():
+            try:
+                pyaudio_module = importlib.import_module('pyaudio')
+                self._pa = pyaudio_module.PyAudio()
+                self._log.info('PyAudio initialized successfully')
+                return True
+            except (ImportError, Exception) as e:
+                self._log.warning(f'PyAudio initialization failed: {e}')
+                self._pa = None
+                return False
+
+        order = []
+        if preferred:
+            order.append(preferred)
+            for b in ['pulseaudio', 'alsa', 'native']:
+                if b != preferred:
+                    order.append(b)
+        else:
+            order = ['pulseaudio', 'alsa', 'native']
+
+        for b in order:
+            if b == 'pulseaudio' and try_pulseaudio():
+                self._audio_backend = 'pulseaudio'
+                break
+            if b == 'alsa' and try_alsa():
+                self._audio_backend = 'alsa'
+                break
+            if b == 'native' and try_native():
+                self._audio_backend = 'native'
+                break
+
+        if self._audio_backend is None:
+            self._log.error('No audio backend available')
+            return
+
+        self._log.info(f'Using audio backend: {self._audio_backend}')
+        self._log.info(f'Maximum volume set to: {self._max_volume:.1%}')
+        self._set_system_volume(self._max_volume)
+        if self._audio_backend == 'alsa':
+            self._detect_audio_players()
 
     def _play_file(self, full_path: Path, volume: float):
         """Internal helper to play a resolved concrete file path with volume handling."""

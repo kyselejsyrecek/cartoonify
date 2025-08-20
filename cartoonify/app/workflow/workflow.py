@@ -63,6 +63,7 @@ class Workflow(AsyncExecutor):
             "no_printer": False,
             "alsa_numid": 4,
             "tts_language": "cs",
+            "sound_theme": "default",
             "raspi_headless": False,
             "ip": "0.0.0.0",
             "port": 8081,
@@ -246,7 +247,11 @@ class Workflow(AsyncExecutor):
         
         # Setup sound system
         self._log.info('setting up sound system...')
-        self._sound.setup(audio_backend=self._config.audio_backend, volume=self._config.volume, alsa_numid=self._config.alsa_numid, tts_language=self._config.tts_language)
+        self._sound.setup(audio_backend=self._config.audio_backend,
+            volume=self._config.volume,
+            alsa_numid=self._config.alsa_numid,
+            tts_language=self._config.tts_language,
+            theme=self._config.sound_theme)
         self._log.info('done')
         self._log.info('loading cartoon dataset...')
         self._dataset.setup()

@@ -71,6 +71,8 @@ def flatten(xss):
               help='Audio volume (0.0 = mute, 1.0 = 100%%)')
 @click.option('--alsa-numid', type=int, default=4,
               help='ALSA mixer control numid for volume adjustment')
+@click.option('--sound-theme', type=str, default='default',
+              help='Sound theme directory name located under the sound resources directory (default: \'default\').')
 @click.option('--no-accelerometer', is_flag=True, help='Disable accelerometer motion detection')
 @click.option('--tts-language', type=str, default='cs', help='Text-to-speech language code (default: cs for Czech)')
 @click.option('--no-log-colors', is_flag=True, help='Disable colored output in log messages')
