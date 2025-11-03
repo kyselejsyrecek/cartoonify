@@ -51,6 +51,7 @@ class Workflow(AsyncExecutor):
             "fast_init": False,
             "camera": False,
             "rotate_180deg": False,
+            "no_camera": False,
             "no_clap_detector": False,
             "no_ir_receiver": False,
             "audio_backend": None,
@@ -89,7 +90,7 @@ class Workflow(AsyncExecutor):
         self._event_manager_authkey = b'489r4gs/r2*!-B.u'
         self._dataset = dataset
         self._image_processor = imageprocessor
-        self._camera = Camera(enabled=self._config.camera)
+        self._camera = Camera(enabled=self._config.camera and not self._config.no_camera)
         self._gpio = Gpio(enabled=not self._config.no_gpio or self._config.raspi_headless or self._config.gui or self._config.web_server)
         self._printer = Printer(enabled=not self._config.no_printer)
         self._ir_receiver = None

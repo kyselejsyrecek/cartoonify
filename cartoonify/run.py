@@ -74,6 +74,7 @@ def flatten(xss):
 @click.option('--sound-theme', type=str, default='default',
               help='Sound theme directory name located under the sound resources directory (default: \'default\').')
 @click.option('--no-accelerometer', is_flag=True, help='Disable accelerometer motion detection')
+@click.option('--no-camera', is_flag=True, help='Disable camera in --raspi-headless mode')
 @click.option('--no-gpio', is_flag=True, help='Disable GPIO (LEDs, buttons, sensors)')
 @click.option('--tts-language', type=str, default='cs', help='Text-to-speech language code (default: cs for Czech)')
 @click.option('--no-log-colors', is_flag=True, help='Disable colored output in log messages')
