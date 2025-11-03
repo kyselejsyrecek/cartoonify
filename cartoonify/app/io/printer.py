@@ -3,10 +3,13 @@ from subprocess import Popen, PIPE, check_output, run
 import re
 import time
 from pathlib import Path
+
 from app.debugging.logging import getLogger
 
+from .base import BaseIODevice
 
-class Printer:
+
+class Printer(BaseIODevice):
     """Thermal printer abstraction.
 
     Handles printing of images and arbitrary text. Availability (enabled/disabled)
@@ -14,17 +17,19 @@ class Printer:
     The class itself does not gate operations via a 'no_printer' flag; callers decide.
     """
 
-    def __init__(self):
-        self._log = getLogger(self.__class__.__name__)
-        self._enabled = True
+    def __init__(self, enabled: bool = True):
+        BaseIODevice.__init__(self, enabled=enabled)
 
-    def setup(self, enabled: bool = True):
-        """Configure printer availability.
-
-        :param enabled: If False, subsequent print requests are ignored.
+    def setup(self, enabled: bool | None = None):
+        """Setup printer and determine availability.
+        
+        :param enabled: Optional override of enabled flag (None keeps constructor state).
         """
-        self._enabled = enabled
-        if not enabled:
+        super().setup(enabled=enabled)
+        # Determine availability (simple heuristic: lp command existence could be probed later).
+        # For now assume available; could add shutil.which('lp').
+        self._available = True
+        if not self._enabled:
             self._log.info('Printer disabled.')
 
     # -- Text Printing -------------------------------------------------

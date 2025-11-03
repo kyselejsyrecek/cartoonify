@@ -74,6 +74,7 @@ def flatten(xss):
 @click.option('--sound-theme', type=str, default='default',
               help='Sound theme directory name located under the sound resources directory (default: \'default\').')
 @click.option('--no-accelerometer', is_flag=True, help='Disable accelerometer motion detection')
+@click.option('--no-gpio', is_flag=True, help='Disable GPIO (LEDs, buttons, sensors)')
 @click.option('--tts-language', type=str, default='cs', help='Text-to-speech language code (default: cs for Czech)')
 @click.option('--no-log-colors', is_flag=True, help='Disable colored output in log messages')
 @click.option('--no-sound', is_flag=True, default=False, help='Disable all sounds.')
@@ -139,7 +140,7 @@ def run(**kwargs):
     app = Workflow(dataset, imageprocessor, config, i18n=_)
     
     try:
-        app.setup(setup_gpio=config.raspi_headless)
+        app.setup()
     except OSError as e:
         if e.errno == 98:  # Address already in use
             error_msg = ("Error: Address already in use by another process.\n"

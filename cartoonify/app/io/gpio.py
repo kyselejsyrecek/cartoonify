@@ -1,9 +1,11 @@
 import importlib
-from app.debugging.logging import getLogger
 import time
-
 from subprocess import *
 import atexit
+
+from app.debugging.logging import getLogger
+
+from .base import BaseIODevice
 
 
 # GPIO PINS (BCM numbering)
@@ -20,12 +22,14 @@ HALT_BUTTON = 6
 PROXIMITY_SENSOR = 13 # Or 29
 
 
-class Gpio:
+class Gpio(BaseIODevice):
     """
     interface to Rapberry Pi GPIO
     """
 
-    def __init__(self):
+    def __init__(self, enabled: bool = True):
+        BaseIODevice.__init__(self, enabled=enabled)
+        
         self._log = getLogger(self.__class__.__name__)
 
         # References to imported libraries
@@ -52,23 +56,33 @@ class Gpio:
             self._log.info('raspi gpio module not found, continuing...')
 
     def __del__(self):
-        if not self.available():
+        if not self.is_available:
             return
 
-        # Revert power LED back to its initial state which signals that the app is not running (heartbeat pattern).
+        # Revert power LED back to its initial state which signals that the app is not running (heartbeat pattern).
         try:
             self.led_alive.off()
         except:
             pass
         call(['sudo', 'sh', '-c', 'echo heartbeat > /sys/class/leds/power_led/trigger'])
 
-    def setup(self, fast_init=False, trigger_release_callback=None, trigger_held_callback=None, trigger_hold_time=1.5, approach_callback=None, halt_callback=None):
-        """setup GPIO pin to trigger callback function when capture pin goes low
+    def setup(self, fast_init=False, trigger_release_callback=None, trigger_held_callback=None, trigger_hold_time=1.5, approach_callback=None, halt_callback=None, enabled: bool | None = None):
+        """Setup GPIO pins and attach callback functions.
 
-        :return:
+        :param fast_init: Skip awakening animation if True
+        :param trigger_release_callback: Function called when capture button is released
+        :param trigger_held_callback: Function called when capture button is held
+        :param trigger_hold_time: Duration (seconds) before held callback triggers
+        :param approach_callback: Function called when proximity sensor detects object
+        :param halt_callback: Function called when halt button is pressed
+        :param enabled: Optional override of enabled flag (None keeps constructor state)
+        :return: None
         """
+        super().setup(enabled=enabled)
         if self.gpio is None:
+            self._available = False
             return
+        self._available = True
             
         # Hook-up all objects.
         atexit.register(self.__del__)
@@ -135,7 +149,7 @@ class Gpio:
         :param bool ready:
         :return:
         """
-        if not self.available():
+        if not self.is_available:
             return
         
         self.flash_eyes_individually()
@@ -143,7 +157,7 @@ class Gpio:
 
 
     def set_initial_state(self):
-        if not self.available():
+        if not self.is_available:
             return
             
         if not self.fast_init:
@@ -158,7 +172,7 @@ class Gpio:
     def flash_eyes_individually(self):
         """Flash the eye LEDs in a pattern.
         """
-        if not self.available():
+        if not self.is_available:
             return
         
         self.led_big_eye.off()
@@ -185,7 +199,7 @@ class Gpio:
     def blink_eyes(self):
         """Flash the eye LEDs in a pattern.
         """
-        if not self.available():
+        if not self.is_available:
             return
 
         self.led_big_eye.off()
@@ -204,7 +218,7 @@ class Gpio:
     def wink(self):
         """Wink the bigger eye.
         """
-        if not self.available():
+        if not self.is_available:
             return
 
         self.led_big_eye.off()
@@ -240,16 +254,9 @@ class Gpio:
         self.led_busy.on()
         time.sleep(2)
 
-    def available(self):
-        """return true if gpio package is available
-
-        :return:
-        """
-        return self.gpio is not None and self.initialized
-
     def close(self):
         """Cleanup GPIO resources"""
-        if self.available():
+        if self.is_available:
           self.led_alive.close()
           self.led_recording.close()
           self.led_busy.close()

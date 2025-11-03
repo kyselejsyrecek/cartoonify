@@ -1,4 +1,3 @@
-from app.debugging.logging import getLogger
 import glob
 import importlib
 import random
@@ -7,8 +6,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+from app.debugging.logging import getLogger
 
-class SoundPlayer(object):
+from .base import BaseIODevice
+
+
+class SoundPlayer(BaseIODevice):
     """Controls audio playback functionality and exposes sounds via the `fx` collection.
 
     Access sounds as callables, e.g. `sound.fx.awake()`, using the `play()` method or play a sound file
@@ -20,6 +23,8 @@ class SoundPlayer(object):
         
         :param enabled: If False, all sound operations are silently ignored
         """
+        BaseIODevice.__init__(self, enabled=enabled)
+        
         # Disable auto-promotion because some debug messages legitimately contain the word 'error' as part of sound names.
         self._log = getLogger(self.__class__.__name__, disable_error_promotion=True)
         self._pa = None
@@ -31,7 +36,6 @@ class SoundPlayer(object):
         self._tts_language = 'cs'
         self._mp3_player = None
         self._ogg_player = None
-        self._enabled = enabled
         # Supported audio file extensions.
         self._supported_exts = ('.wav', '.mp3', '.ogg', '.pcm')
         # Predefined list of supported sounds. These names must correspond to file name prefixes inside the resources path.
@@ -49,14 +53,17 @@ class SoundPlayer(object):
         self.fx = _SoundEffects(self)
     
 
-    def setup(self, audio_backend=None, volume=1.0, alsa_numid=4, tts_language='cs', theme='default'):
+    def setup(self, audio_backend=None, volume=1.0, alsa_numid=4, tts_language='cs', theme='default', enabled: bool | None = None):
         """Setup audio system
         
         :param audio_backend: Preferred audio backend ('pulseaudio', 'alsa', 'native')
         :param volume: Maximum volume level (0.0 to 1.0)
         :param alsa_numid: ALSA mixer control numid for volume adjustment
         :param tts_language: Text-to-speech language code
+        :param theme: Sound theme to use (default 'default')
+        :param enabled: Optional override of enabled flag (None keeps constructor state)
         """
+        super().setup(enabled=enabled)
             
         self._log.info('Setting up audio system...')
         
@@ -66,7 +73,6 @@ class SoundPlayer(object):
         self._tts_language = tts_language
         self._theme = theme
 
-        # Disable now, after having stored all parameters
         if not self._enabled:
             self._log.info('Sound system disabled')
             return
@@ -90,10 +96,6 @@ class SoundPlayer(object):
             self._pa.terminate()
             self._pa = None
         self._log.info('Audio system closed')
-
-    @property
-    def is_enabled(self):
-        return self._enabled
 
     def toggle(self):
         self._enabled = not self._enabled

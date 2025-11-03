@@ -51,8 +51,8 @@ class Workflow(AsyncExecutor):
             "fast_init": False,
             "camera": False,
             "rotate_180deg": False,
-            "clap_detector": False,
-            "no_ir_sensor": False,
+            "no_clap_detector": False,
+            "no_ir_receiver": False,
             "audio_backend": None,
             "video_format": "h264",
             "video_resolution": "1080p", 
@@ -61,6 +61,7 @@ class Workflow(AsyncExecutor):
             "volume": 1.0,
             "no_accelerometer": False,
             "no_printer": False,
+            "no_gpio": False,
             "alsa_numid": 4,
             "tts_language": "cs",
             "sound_theme": "default",
@@ -88,9 +89,9 @@ class Workflow(AsyncExecutor):
         self._event_manager_authkey = b'489r4gs/r2*!-B.u'
         self._dataset = dataset
         self._image_processor = imageprocessor
-        self._camera = Camera() if self._config.camera else None
-        self._gpio = Gpio()
-        self._printer = Printer()
+        self._camera = Camera(enabled=self._config.camera)
+        self._gpio = Gpio(enabled=not self._config.no_gpio or self._config.raspi_headless or self._config.gui or self._config.web_server)
+        self._printer = Printer(enabled=not self._config.no_printer)
         self._ir_receiver = None
         self._clap_detector = None
         self._sound = SoundPlayer(enabled=not self._config.no_sound)
@@ -181,7 +182,7 @@ class Workflow(AsyncExecutor):
         self._terminate()
 
 
-    def setup(self, setup_gpio=True):
+    def setup(self):
         # Set up the SIGINT handler for the parent process
         signal.signal(signal.SIGINT, signal_handler)
 
@@ -189,7 +190,7 @@ class Workflow(AsyncExecutor):
         EventManager.start(self._event_manager_address, self._event_manager_authkey)
 
         # TODO aplay -D plughw:CARD=Device,DEV=0 -t raw -c 1 -r 22050 -f S16_LE /tmp/file.pcm
-        if setup_gpio:
+        if self._gpio.is_enabled:
             self._log.info('setting up GPIO...')
             self._gpio.setup(fast_init=self._config.fast_init,
                              trigger_release_callback=self.capture,
@@ -235,7 +236,7 @@ class Workflow(AsyncExecutor):
                 print(f'HTTP server running on address {self._config.ip}:{self._config.port}.')
         
         # Setup camera system
-        if self._camera is not None:
+        if self._camera.is_enabled:
             self._log.info('setting up camera...')
             self._camera.setup(
                 rotate_180deg=self._config.rotate_180deg,
@@ -254,7 +255,7 @@ class Workflow(AsyncExecutor):
             tts_language=self._config.tts_language,
             theme=self._config.sound_theme)
         # Configure printer availability.
-        self._printer.setup(enabled=not self._config.no_printer)
+        self._printer.setup()
         self._log.info('done')
         self._log.info('loading cartoon dataset...')
         self._dataset.setup()
@@ -309,14 +310,13 @@ class Workflow(AsyncExecutor):
             self._web_gui.show_image(original, annotated, cartoon, image_labels)
 
     def _capture(self, path=None):
-        if self._camera is not None:
-            if path is None:
-                path = self._path / ('image' + str(self._next_image_number) + '.jpg')
-            self._log.info('capturing image')
-            self._camera.capture_file(str(path))
-            self._gpio.blink_eyes()
-        else:
-            raise AttributeError("app wasn't started with --camera flag, so you can't use the camera to capture images.")
+        if not self._camera.is_enabled:
+            raise AttributeError("App wasn't started with --camera flag, so you can't use the camera to capture images.")
+        if path is None:
+            path = self._path / ('image' + str(self._next_image_number) + '.jpg')
+        self._log.info('capturing image')
+        self._camera.capture_file(str(path))
+        self._gpio.blink_eyes()
         return path
 
     def process(self, image_path=None, threshold=None, max_objects=None):
@@ -409,12 +409,12 @@ class Workflow(AsyncExecutor):
 
     def _print_image(self, image_path):
         """Print image with busy LED indication and wait for completion if job submitted."""
-        if self._gpio.available():
+        if self._gpio.is_available:
             self._gpio.led_busy.on()
         lp_out = self._printer.print_image(str(image_path))
         if lp_out:
             self._printer.wait(lp_out)
-        if self._gpio.available():
+        if self._gpio.is_available:
             self._gpio.led_busy.off()
 
     def _print_text(self, text):

@@ -5,11 +5,16 @@ from pathlib import Path
 
 from app.debugging.logging import getLogger
 
+from .base import BaseIODevice
 
-class Camera(object):
-    """Controls camera functionality using Picamera2"""
 
-    def __init__(self):
+class Camera(BaseIODevice):
+    """Controls camera functionality using Picamera2.
+    """
+
+    def __init__(self, enabled: bool = True):
+        BaseIODevice.__init__(self, enabled=enabled)
+        
         self._log = getLogger(self.__class__.__name__)
         self._cam = None
         self._video_encoder = None
@@ -23,8 +28,9 @@ class Camera(object):
         self._video_resolution = None
         self._video_fps = None
         self._video_raw_stream = None
+        self._available = False
 
-    def setup(self, rotate_180deg=False, video_format='h264', video_resolution='1080p', video_fps=30, video_raw_stream=False):
+    def setup(self, rotate_180deg=False, video_format='h264', video_resolution='1080p', video_fps=30, video_raw_stream=False, enabled: bool | None = None):
         """Setup camera system
         
         :param rotate_180deg: Whether to rotate camera image by 180 degrees
@@ -32,7 +38,13 @@ class Camera(object):
         :param video_resolution: Video resolution ('480p', '720p', '1080p', 'max')
         :param video_fps: Video frame rate (30, 50, 60, 100, 120)
         :param video_raw_stream: Whether to save as raw stream or container format
+        :param enabled: Optional override of enabled flag (None keeps constructor state)
         """
+        super().setup(enabled=enabled)
+        if not self._enabled:
+            self._log.info('Camera disabled.')
+            return
+
         self._log.info('Setting up camera system...')
         
         # Store video settings
@@ -56,10 +68,10 @@ class Camera(object):
             from picamera2.outputs import FfmpegOutput
             self._encoders = encoders  # Store reference for use in other methods
             self._FfmpegOutput = FfmpegOutput  # Store reference for container output
-        except ImportError as e:
-            print('picamera2 module missing, please install using:\n     pip install picamera2')
-            self._log.error('picamera2 module not available')
-            sys.exit()
+        except ImportError:
+            self._log.error('picamera2 module missing, please install using:\n     pip install picamera2')
+            self._available = False
+            return
         
         self._cam = picamera2.Picamera2()
         
@@ -182,6 +194,8 @@ class Camera(object):
                     # MJPEG in AVI container.
                     self._video_encoder = self._encoders.MJPEGEncoder()
 
+            # Mark available only after successful init.
+            self._available = True
             #request = self._cam.capture_request()
             #request.save("main", "test.jpg")
             #metadata = request.get_metadata()
@@ -193,7 +207,9 @@ class Camera(object):
         
         :param path: Path to save the JPEG image (DNG will have same name with .dng extension)
         """
-        if self._cam is not None:
+        if not self._enabled:
+            raise AttributeError('Camera disabled')
+        if self._available:
             self._log.info('capturing image')
             
             # Generate paths for both JPEG and DNG
@@ -214,16 +230,19 @@ class Camera(object):
             finally:
                 request.release()
         else:
-            raise AttributeError("Camera not initialized")
+            raise AttributeError('Camera not initialized or unavailable')
 
     def start_recording(self):
         """Start video recording in background thread"""
+        if not self._enabled:
+            self._log.warning('Camera disabled; ignoring start_recording.')
+            return
         if self._recording:
             self._log.warning('Recording already in progress')
             return
             
-        if self._cam is None:
-            self._log.error('Camera not initialized')
+        if self._cam is None or not self._available:
+            self._log.error('Camera not initialized or unavailable')
             return
             
         # Generate video filename based on format and raw stream setting.
