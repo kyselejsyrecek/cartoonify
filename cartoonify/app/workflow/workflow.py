@@ -190,92 +190,97 @@ class Workflow(AsyncExecutor):
         # Initialize and start event manager using static method
         EventManager.start(self._event_manager_address, self._event_manager_authkey)
 
-        # TODO aplay -D plughw:CARD=Device,DEV=0 -t raw -c 1 -r 22050 -f S16_LE /tmp/file.pcm
-        if self._gpio.is_enabled:
-            self._log.info('setting up GPIO...')
-            self._gpio.setup(fast_init=self._config.fast_init,
-                             trigger_release_callback=self.capture,
-                             trigger_held_callback=self.print_previous_original,
-                             approach_callback=self.someone_approached,
-                             halt_callback=self.system_halt)
-            if not self._config.no_ir_receiver:
-                self._ir_receiver = self._process_manager.start_process(IrReceiver)
-            if not self._config.no_clap_detector:
-                self._clap_detector = self._process_manager.start_process(ClapDetector)
-            if not self._config.no_accelerometer:
-                self._accelerometer = self._process_manager.start_process(Accelerometer)
+        try:
+            # TODO aplay -D plughw:CARD=Device,DEV=0 -t raw -c 1 -r 22050 -f S16_LE /tmp/file.pcm
+            if self._gpio.is_enabled:
+                self._log.info('setting up GPIO...')
+                self._gpio.setup(fast_init=self._config.fast_init,
+                                trigger_release_callback=self.capture,
+                                trigger_held_callback=self.print_previous_original,
+                                approach_callback=self.someone_approached,
+                                halt_callback=self.system_halt)
+                if not self._config.no_ir_receiver:
+                    self._ir_receiver = self._process_manager.start_process(IrReceiver)
+                if not self._config.no_clap_detector:
+                    self._clap_detector = self._process_manager.start_process(ClapDetector)
+                if not self._config.no_accelerometer:
+                    self._accelerometer = self._process_manager.start_process(Accelerometer)
+                self._log.info('done')
+            
+            # Start web GUI if requested
+            if self._config.gui or self._config.web_server:
+                from app.gui import WebGui
+                
+                if self._config.gui:
+                    self._log.info('Starting GUI...')
+                    print('Starting GUI...')
+                elif self._config.web_server:
+                    self._log.info(f'Starting HTTP server on address {self._config.ip}:{self._config.port}...')
+                
+                self._web_gui = self._process_manager.start_process(
+                    WebGui, 
+                    self._i18n,  # i18n object from run.py
+                    self._config.raspi_headless,  # cam_only mode - limits GUI features to camera operations only
+                    self._config.ip, 
+                    self._config.port,
+                    self._config.gui,  # start_browser - True for GUI mode, False for web_server mode
+                    self._config.cert_file,  # SSL certificate file
+                    self._config.key_file,   # SSL private key file
+                    capture_stdout=False,  # Allow WebGUI stdout to go to console
+                    capture_stderr=False,  # Allow WebGUI stderr to go to console
+                    filter_ansi=False      # Don't filter ANSI codes from WebGUI
+                )
+                
+                if self._config.gui:
+                    self._log.info('GUI started successfully')
+                elif self._config.web_server:
+                    self._log.info('HTTP server started successfully')
+                    print(f'HTTP server running on address {self._config.ip}:{self._config.port}.')
+            
+            # Setup camera system
+            if self._camera.is_enabled:
+                self._log.info('setting up camera...')
+                self._camera.setup(
+                    rotate_180deg=self._config.rotate_180deg,
+                    video_format=self._config.video_format,
+                    video_resolution=self._config.video_resolution,
+                    video_fps=self._config.video_fps,
+                    video_raw_stream=self._config.video_raw_stream
+                )
+                self._log.info('done')
+            
+            # Setup sound system
+            self._log.info('setting up sound system...')
+            self._sound.setup(audio_backend=self._config.audio_backend,
+                volume=self._config.volume,
+                alsa_numid=self._config.alsa_numid,
+                tts_language=self._config.tts_language,
+                theme=self._config.sound_theme)
+            # Configure printer availability.
+            self._printer.setup()
             self._log.info('done')
-        
-        # Start web GUI if requested
-        if self._config.gui or self._config.web_server:
-            from app.gui import WebGui
-            
-            if self._config.gui:
-                self._log.info('Starting GUI...')
-                print('Starting GUI...')
-            elif self._config.web_server:
-                self._log.info(f'Starting HTTP server on address {self._config.ip}:{self._config.port}...')
-            
-            self._web_gui = self._process_manager.start_process(
-                WebGui, 
-                self._i18n,  # i18n object from run.py
-                self._config.raspi_headless,  # cam_only mode - limits GUI features to camera operations only
-                self._config.ip, 
-                self._config.port,
-                self._config.gui,  # start_browser - True for GUI mode, False for web_server mode
-                self._config.cert_file,  # SSL certificate file
-                self._config.key_file,   # SSL private key file
-                capture_stdout=False,  # Allow WebGUI stdout to go to console
-                capture_stderr=False,  # Allow WebGUI stderr to go to console
-                filter_ansi=False      # Don't filter ANSI codes from WebGUI
-            )
-            
-            if self._config.gui:
-                self._log.info('GUI started successfully')
-            elif self._config.web_server:
-                self._log.info('HTTP server started successfully')
-                print(f'HTTP server running on address {self._config.ip}:{self._config.port}.')
-        
-        # Setup camera system
-        if self._camera.is_enabled:
-            self._log.info('setting up camera...')
-            self._camera.setup(
-                rotate_180deg=self._config.rotate_180deg,
-                video_format=self._config.video_format,
-                video_resolution=self._config.video_resolution,
-                video_fps=self._config.video_fps,
-                video_raw_stream=self._config.video_raw_stream
-            )
-            self._log.info('done')
-        
-        # Setup sound system
-        self._log.info('setting up sound system...')
-        self._sound.setup(audio_backend=self._config.audio_backend,
-            volume=self._config.volume,
-            alsa_numid=self._config.alsa_numid,
-            tts_language=self._config.tts_language,
-            theme=self._config.sound_theme)
-        # Configure printer availability.
-        self._printer.setup()
-        self._log.info('done')
-        self._log.info('loading cartoon dataset...')
-        self._dataset.setup()
-        self._log.info('Done')
-        self._sketcher = SketchGizeh()
-        self._sketcher.setup()
-        self._log.info('loading tensorflow model...')
-        self._image_processor.setup()
-        self._log.info('Done')
-        self._path = Path(__file__).parent / '..' / '..' / 'images'
-        if not self._path.exists():
-            self._path.mkdir()
-        # The number of cartoon*.png files should be greater than or equal to that of image*.jpg files.
-        # Cartoons originate also from other sources than just the camera (which is what produces image*.jpg files).
-        image_numbers = sorted(list(map(lambda x: int(os.path.basename(x).split('cartoon')[1].split('.')[0]), self._path.glob('cartoon?*.png'))))
-        self._next_image_number = image_numbers[-1] + 1 if len(image_numbers) > 0 else 0
-        self._last_original_image_number = self._next_image_number - 1
-        self._set_initial_state()
-        self._log.info('setup finished.')
+            self._log.info('loading cartoon dataset...')
+            self._dataset.setup()
+            self._log.info('Done')
+            self._sketcher = SketchGizeh()
+            self._sketcher.setup()
+            self._log.info('loading tensorflow model...')
+            self._image_processor.setup()
+            self._log.info('Done')
+            self._path = Path(__file__).parent / '..' / '..' / 'images'
+            if not self._path.exists():
+                self._path.mkdir()
+            # The number of cartoon*.png files should be greater than or equal to that of image*.jpg files.
+            # Cartoons originate also from other sources than just the camera (which is what produces image*.jpg files).
+            image_numbers = sorted(list(map(lambda x: int(os.path.basename(x).split('cartoon')[1].split('.')[0]), self._path.glob('cartoon?*.png'))))
+            self._next_image_number = image_numbers[-1] + 1 if len(image_numbers) > 0 else 0
+            self._last_original_image_number = self._next_image_number - 1
+            self._set_initial_state()
+            self._log.info('setup finished.')
+        except Exception as e:
+            self._log.exception(f'Error intializing interfaces: {e}') 
+            self.close()
+            raise e
 
     def _execute_concurrent_tasks(self, *tasks):
         """Execute multiple tasks concurrently and wait for completion
