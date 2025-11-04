@@ -61,11 +61,11 @@ class IrReceiver(ProcessInterface):
 
 
     def close(self): # FIXME Unused, not functional.
-        print("Closing dev.")
+        self._log.debug("Closing dev.")
         if self.dev is not None:
             self.dev.close()
-            print("Dev closed.")
-        print("End of close().")
+            self._log.debug("Dev closed.")
+        self._log.debug("End of close().")
 
 
     def get_ir_device(self):
@@ -83,6 +83,7 @@ class IrReceiver(ProcessInterface):
         """Worker thread.
         """
         self._processing_loop()
+        self._log.info('IR receiver stopped.')
         
 
     def _processing_loop(self):
@@ -92,13 +93,18 @@ class IrReceiver(ProcessInterface):
         cmd = None
         while True:
             try:
+                if self._exit_event.is_set():
+                    self._log.info('Stopping IR receiver...')
+                    self.close()
+                    return
+
                 for event in self.dev.read():
                     self._log.debug(f'Received IR command: 0x{event.value:08x}')
                     if cmd is None:
                         cmd = event.value
                     else:
                         if event.value == 0:
-                            if cmd is not None and cmd > 0:
+                            if cmd > 0:
                                 self._log.debug('Received terminating IR string. Processing command.')
                                 if cmd in BUTTON_IMMEDIATE_TRIGGER:
                                     self._log.debug('Invoking immediate trigger.')
@@ -114,12 +120,16 @@ class IrReceiver(ProcessInterface):
                                     self.wink_callback()
                                 else:
                                     self._log.debug('Unknown IR command, ignoring.')
-                                cmd = None
+                            cmd = None
                         else:
                             self._log.debug('Received unsupported multi-integer command. Ignoring.')
                             cmd = -1
-                time.sleep(0.1)  # Small delay to prevent busy waiting
+                    time.sleep(0.1) # Safety interval to ignore long signals.
                         
+            except BlockingIOError:
+                #self._log.debug('No IR commands received.')
+                pass
             except Exception as e:
                 self._log.exception(f'Error in IR processing: {e}')
-                time.sleep(1)  # Wait before retrying
+            finally:
+                time.sleep(1) # Wait before retrying

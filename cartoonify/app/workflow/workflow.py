@@ -163,7 +163,9 @@ class Workflow(AsyncExecutor):
             if self._sound:
                 self._sound.close()
         except Exception as e:
-            self._log.exception(f'Error closing sound: {e}')        #if not self._config.no_ir_receiver:
+            self._log.exception(f'Error closing sound: {e}')
+        
+        #if not self._config.no_ir_receiver:
         #    self._ir_receiver.close()
         
         self._terminate()
