@@ -2,6 +2,8 @@ from app.debugging.logging import getLogger
 from piclap import *
 from threading import Thread
 from app.workflow.multiprocessing import ProcessInterface
+import os
+import sys
 
 
 def noop():
@@ -45,6 +47,7 @@ class ClapDetector(ProcessInterface):
         self._log = log or getLogger(self.__class__.__name__)
         self._exit_event = exit_event
         self._halt_event = halt_event
+        self._available = False
         self.listener = None
         self.config = None
         self.thread = None
@@ -70,30 +73,76 @@ class ClapDetector(ProcessInterface):
             self.trigger_2s_callback = trigger_2s_callback
         if wink_callback:
             self.wink_callback = wink_callback
+        
+        # Check if audio input device is available before initializing
+        if not self._check_audio_input_available():
+            self._log.info('No audio input device available - clap detector disabled.')
+            self._available = False
+            return
+        
         self.config = Config(trigger_callback, trigger_2s_callback, wink_callback)
         try:
             # Suppress interactive input by setting calibrate=False and using default settings.
             self.listener = Listener(config=self.config, calibrate=False)
+            self._available = True
             self._log.info('Clap detector initialized successfully.')
         except (EOFError, KeyboardInterrupt) as e:
             self._log.warning('Clap detector initialization failed - no interactive input available.')
             self.listener = None
+            self._available = False
         except Exception as e:
             self._log.warning(f'Clap detector initialization failed: {e}')
             self.listener = None
+            self._available = False
+
+    def _check_audio_input_available(self):
+        """Check if any audio input device is available by testing PyAudio initialization.
+        
+        Suppresses ALSA error messages during check.
+        
+        :return: True if audio input is available, False otherwise
+        """
+        try:
+            import pyaudio
+            
+            # Temporarily redirect stderr to suppress ALSA errors during check
+            stderr_fd = sys.stderr.fileno()
+            old_stderr = os.dup(stderr_fd)
+            devnull = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(devnull, stderr_fd)
+            
+            try:
+                p = pyaudio.PyAudio()
+                # Check for at least one input device
+                has_input = False
+                for i in range(p.get_device_count()):
+                    dev_info = p.get_device_info_by_index(i)
+                    if dev_info.get('maxInputChannels', 0) > 0:
+                        has_input = True
+                        break
+                p.terminate()
+                return has_input
+            finally:
+                # Restore stderr
+                os.dup2(old_stderr, stderr_fd)
+                os.close(old_stderr)
+                os.close(devnull)
+        except Exception as e:
+            self._log.error(f'Error checking audio input availability: {e}')
+            return False
 
     def start(self):
         """Start worker thread."""
-        if self.listener is None:
-            self._log.warning('Clap detector not initialized - skipping detection.')
+        if not self._available:
+            self._log.info('Clap detector not available - skipping detection.')
             return
         
         self._processing_loop()
 
     def _processing_loop(self):
         """Main processing loop for clap detection (synchronous)."""
-        if self.listener is None:
-            self._log.warning('Cannot start clap detection - listener not initialized.')
+        if not self._available:
+            self._log.warning('Cannot start clap detection - not available.')
             return
             
         self._log.info('Starting clap detector processing loop...')
