@@ -17,9 +17,9 @@ Cartoonify is a Python-based polaroid camera that captures photos and converts t
 4. **Web Interface**: `app/gui/gui.py` - REMI-based web GUI for remote control
 
 ### Build & Deployment Patterns
-- **Desktop**: `ubuntu-build.sh` + `requirements_desktop.txt` 
-- **Raspberry Pi**: `raspi-build.sh` + `requirements_raspi.txt` - includes GPIO, camera, system service setup
-- **ICR Mode**: `icr-build.sh` + `requirements_icr.txt` - for Advantech ICR compatible systems
+- **Desktop**: `ubuntu-build` + `requirements_desktop.txt` 
+- **Raspberry Pi**: `raspi-build` + `requirements_raspi.txt` - includes GPIO, camera, system service setup
+- **ICR Mode**: `icr-build` + `requirements_icr.txt` - for Advantech ICR compatible systems
 - All builds use Python virtual environments with `python -m venv virtualenv`
 
 ## Development Workflows
@@ -95,7 +95,7 @@ def capture(self, e=None):
 - Thermal printer: ZJ-58 via CUPS with custom PPD files in `zj-58/`
 
 ### Service Management (Raspberry Pi)
-- System service: `/etc/init.d/cartoonify.sh` runs application on boot
+- System service: `/etc/init.d/cartoonify` runs application on boot
 - Handles GPIO initialization, swap disable, Wi-Fi hotspot setup
 - Exit code 42 triggers system shutdown via halt button
 

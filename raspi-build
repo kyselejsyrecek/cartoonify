@@ -42,7 +42,7 @@ if [ ! -d "zj-58" ]; then
   sudo lpadmin -p ZJ-58 -E -v parallel:/dev/usb/lp0 -m zjiang/zj58.ppd
   sudo usermod -a -G lpadmin "$USER" # FIXME TODO
   sudo usermod -a -G lp "$USER" # FIXME TODO
-  #su - "$USER" # Reload group settings. # TODO May be required in raspi-run.sh as well! # FIXME Requires Password and loses CWD. # FIXME Reboot may be necessary to take effect.
+  #su - "$USER" # Reload group settings. # TODO May be required in raspi-run as well! # FIXME Requires Password and loses CWD. # FIXME Reboot may be necessary to take effect.
   sudo lpadmin -d ZJ-58
   cd ..
 fi
@@ -56,20 +56,22 @@ fi
 
 # Install start-up scripts.
 echo "Installing cartoonify service..."
-sudo cp raspi/cartoonify.sh /etc/init.d/
-sudo sed -i "s;CARTOONIFY_DIR=;CARTOONIFY_DIR=\"$PWD\";g" /etc/init.d/cartoonify.sh
-sudo chmod +x /etc/init.d/cartoonify.sh
-sudo update-rc.d cartoonify.sh defaults
+sudo cp raspi/cartoonify /etc/init.d/
+sudo sed -i "s;CARTOONIFY_DIR=;CARTOONIFY_DIR=\"$PWD\";g" /etc/init.d/cartoonify
+sudo chmod +x /etc/init.d/cartoonify
+sudo update-rc.d cartoonify defaults
+# Uninstall with:
+#   sudo update-rc.d -f cartoonify remove
 
 # XXX Legacy code. GPIO pin 6 (BCM numbering) is used instead. See README for more information.
 # Install the shutdown listener script.
 # Shutdown listener runs on startup and shuts down the system when GPIO3 goes low.
 #sudo cp raspi/listen-for-shutdown.py /usr/local/bin/
-#sudo cp raspi/listen-for-shutdown.sh /etc/init.d/
+#sudo cp raspi/listen-for-shutdown /etc/init.d/
 #echo "setting script to run on boot..."
-#sudo update-rc.d listen-for-shutdown.sh defaults
+#sudo update-rc.d listen-for-shutdown defaults
 #echo "Starting scripts..."
-#sudo /etc/init.d/listen-for-shutdown.sh start
+#sudo /etc/init.d/listen-for-shutdown start
 
 # Disable Wi-Fi power save to resolve network lags.
 sudo nmcli con mod preconfigured wifi.powersave disable

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 ### BEGIN INIT INFO
-# Provides:          cartoonify.py
+# Provides:          cartoonify
 # Required-Start:    $remote_fs $syslog
 # Required-Stop:     $remote_fs $syslog
 # Default-Start:     2 3 4 5
@@ -76,7 +76,7 @@ daemon() {
   trap "gpio_init; exit 1" SIGINT
   cd "$CARTOONIFY_DIR"
   while true; do
-    ./raspi-run.sh
+    ./raspi-run
     EXIT_CODE=$?
     
     # Check for shutdown exit code
@@ -111,7 +111,7 @@ case "$1" in
     start_daemon
     ;;
   *)
-    echo "Usage: /etc/init.d/cartoonify.sh {start|stop|restart}"
+    echo "Usage: /etc/init.d/cartoonify {start|stop|restart}"
     exit 1
     ;;
 esac
