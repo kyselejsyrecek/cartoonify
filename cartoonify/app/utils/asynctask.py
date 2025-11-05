@@ -1,5 +1,6 @@
 import concurrent.futures
 import functools
+import os
 import threading
 import uuid
 from typing import Any, Callable, Dict, Optional, Union
@@ -172,6 +173,7 @@ def exclusive(lock_spec: Union[str, threading.Lock, Callable[[Any], Optional[thr
         @functools.wraps(func)
         def locked(self, *args, **kwargs):
             # Resolve the lock each execution (allows dynamic replacement if needed).
+            self._log.debug(f"Trying to lock task '{func.__name__}' from PID {os.getpid()}.")
             resolved_lock = None
             try:
                 if isinstance(lock_spec, str):

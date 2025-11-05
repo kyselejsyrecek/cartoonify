@@ -260,12 +260,12 @@ class ProcessManager:
                 if 'event_proxy' in locals() and 'subprocess_logger' in locals():
                     if event_proxy.get_exit_event().is_set():
                         return  # Already exiting, return immediately.
-                    subprocess_logger.info(f"Child Process {pid} ({process_class.__name__}): Received signal {signum}, exiting.")
+                    subprocess_logger.info(f"Child Process {pid} ({process_class.__name__}), PID {os.getpid()}: Received signal {signum}, exiting.")
                     event_proxy.get_exit_event().set()
             except:
                 # Cannot access exit_event, just exit.
                 if 'subprocess_logger' in locals():
-                    subprocess_logger.info(f"Child Process {pid} ({process_class.__name__}): Received signal {signum}, exiting.")
+                    subprocess_logger.info(f"Child Process {pid} ({process_class.__name__}), PID {os.getpid()}: Received signal {signum}, exiting.")
             sys.exit(0)
 
         # Set up the SIGINT handler for the child process.
@@ -282,16 +282,16 @@ class ProcessManager:
             subprocess_logger = event_manager.logger(pid)
         except Exception as e:
             # Fallback to stderr if connection fails
-            print(f"Child Process {pid} ({process_class.__name__}): Failed to connect to manager: {e}", file=sys.stderr)
+            print(f"Child Process {pid} ({process_class.__name__}), PID {os.getpid()}: Failed to connect to manager: {e}", file=sys.stderr)
             sys.exit(1)
 
-        subprocess_logger.info(f"Child Process {pid} ({process_class.__name__}): Starting. PID: {os.getpid()}")
+        subprocess_logger.info(f"Child Process {pid} ({process_class.__name__}), PID {os.getpid()}: Starting. ")
 
         try:
             # Call the static hook_up method on the process class
             process_class.hook_up(event_proxy, subprocess_logger, exit_event, halt_event, *args, **kwargs)
         finally:
-            subprocess_logger.info(f"Child Process {pid} ({process_class.__name__}): Exiting.")
+            subprocess_logger.info(f"Child Process {pid} ({process_class.__name__}), PID {os.getpid()}: Exiting.")
 
 
     def terminate(self):
