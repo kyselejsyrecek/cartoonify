@@ -172,7 +172,7 @@ def exclusive(lock_spec: Union[str, threading.Lock, Callable[[Any], Optional[thr
     """
     def decorator(func: Callable):
         @functools.wraps(func)
-        @trace(recursive=False)
+        @trace
         def locked(self, *args, **kwargs):
             # Resolve the lock each execution (allows dynamic replacement if needed).
             self._log.debug(f"Trying to lock task '{func.__name__}' from PID {os.getpid()}.")
