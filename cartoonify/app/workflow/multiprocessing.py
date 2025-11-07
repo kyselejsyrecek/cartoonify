@@ -296,19 +296,46 @@ class ProcessManager:
             subprocess_logger.debug(f"Child Process {pid} ({process_class.__name__}), PID {os.getpid()}: Exiting.")
 
 
-    def terminate(self):
+    def terminate(self, timeout=5.0):
         """Terminates all subprocesses.
+        
+        :param timeout: Total time in seconds to wait for graceful shutdown of all processes before killing. If 0, kill immediately.
         """
         self._log.info('Terminating child processes...')
-        # Attempt to gracefully terminate all child processes.
-        for subprocess in self._subprocesses:
-            if subprocess.is_alive():
-                subprocess.terminate() # Request child to terminate.
-                subprocess.join(timeout=1) # Wait for termination with a timeout.
-                if subprocess.is_alive():
-                    # If child hasn't terminated, forcibly kill it.
-                    self._log.warning(f"Subprocess {subprocess.pid} ({subprocess.process_class.__name__}) did not terminate gracefully, killing.")
-                    os.kill(subprocess.pid, signal.SIGKILL)
+        
+        if timeout > 0:
+            # Wait for graceful termination with shared timeout across all processes.
+            import time
+            start_time = time.time()
             
-            # Clean up pipes
-            subprocess.cleanup_pipes()
+            for subprocess in self._subprocesses:
+                if subprocess.is_alive():
+                    # Calculate remaining timeout.
+                    elapsed = time.time() - start_time
+                    remaining_timeout = max(0, timeout - elapsed)
+                    
+                    if remaining_timeout > 0:
+                        subprocess.join(timeout=remaining_timeout)
+                    
+                    if subprocess.is_alive():
+                        # If child hasn't terminated, forcibly kill it.
+                        self._log.warning(f"Subprocess {subprocess.pid} ({subprocess.process_class.__name__}) did not terminate gracefully, killing.")
+                        subprocess.terminate()
+                        subprocess.join(timeout=1)
+                        if subprocess.is_alive():
+                            os.kill(subprocess.pid, signal.SIGKILL)
+                
+                # Clean up pipes.
+                subprocess.cleanup_pipes()
+        else:
+            # Kill immediately.
+            for subprocess in self._subprocesses:
+                if subprocess.is_alive():
+                    self._log.debug(f"Killing subprocess {subprocess.pid} ({subprocess.process_class.__name__}) immediately.")
+                    subprocess.terminate()
+                    subprocess.join(timeout=0.5)
+                    if subprocess.is_alive():
+                        os.kill(subprocess.pid, signal.SIGKILL)
+                
+                # Clean up pipes.
+                subprocess.cleanup_pipes()

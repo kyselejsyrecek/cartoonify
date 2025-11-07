@@ -117,8 +117,11 @@ class Workflow(AsyncExecutor):
         self._is_initialized = True
 
 
-    def _terminate(self):
-        """Terminate all resources safely. Can be called multiple times."""
+    def _terminate(self, timeout=5.0):
+        """Terminate all resources safely. Can be called multiple times.
+        
+        :param timeout: Time in seconds to wait for graceful shutdown. If 0, terminate immediately.
+        """
         if not self._is_initialized:
             return  # Not fully initialized yet, nothing to terminate
             
@@ -126,14 +129,14 @@ class Workflow(AsyncExecutor):
         self._log.info('Starting workflow termination...')
         
         try:
-            # Terminate process manager and child processes
+            # Terminate process manager and child processes.
             if hasattr(self, '_process_manager') and self._process_manager:
-                self._process_manager.terminate()
+                self._process_manager.terminate(timeout=timeout)
         except Exception as e:
             self._log.exception(f'Error terminating process manager: {e}')
 
         try:
-            # Terminate the event manager process using the static method
+            # Terminate the event manager process using the static method.
             EventManager.terminate()
         except Exception as e:
             self._log.exception(f'Error terminating event manager process: {e}')
@@ -165,8 +168,10 @@ class Workflow(AsyncExecutor):
         except Exception as e:
             self._log.exception(f'Error closing sound: {e}')
         
-        #if not self._config.no_ir_receiver:
-        #    self._ir_receiver.close()
+        # Note: IR receiver, clap detector, and accelerometer run in separate processes.
+        # They will be terminated by _terminate() -> _process_manager.terminate()
+        # and their close() methods will be called within their own processes.
+        
         
         self._terminate()
 
@@ -176,13 +181,13 @@ class Workflow(AsyncExecutor):
             # Shut down the AsyncExecutor worker thread.
             self.shutdown()
         except Exception as e:
-            # Log error if logger is available, otherwise just ignore
+            # Log error if logger is available, otherwise just ignore.
             if hasattr(self, '_log') and self._log:
                 self._log.exception(f'Error shutting down async executor: {e}')
         
-        # Free resources
+        # Free resources immediately without waiting.
         # TODO self.close()?
-        self._terminate()
+        self._terminate(timeout=0)
 
 
     def setup(self):

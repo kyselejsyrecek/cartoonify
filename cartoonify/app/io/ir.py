@@ -248,12 +248,8 @@ class IrReceiver(ProcessInterface):
         self._log.info('Starting IR receiver processing loop...')
         
         cmd = None
-        while True:
+        while not self._exit_event.is_set():
             try:
-                if self._exit_event.is_set():
-                    self._log.info('Stopping IR receiver...')
-                    return
-
                 for event in self.dev.read():
                     self._log.debug(f'Received IR command: 0x{event.value:08x}')
                     if cmd is None:
@@ -281,11 +277,13 @@ class IrReceiver(ProcessInterface):
                             self._log.debug('Received unsupported multi-integer command. Ignoring.')
                             cmd = -1
                     time.sleep(0.1) # Safety interval to ignore long signals.
-                        
+
             except BlockingIOError:
                 #self._log.debug('No IR commands received.')
                 pass
+
             except Exception as e:
                 self._log.exception(f'Error in IR processing: {e}')
-            finally:
-                time.sleep(1) # Wait before retrying
+                time.sleep(0.5) # Wait before retrying after error.
+        
+        self._log.info('Stopping IR receiver...')
