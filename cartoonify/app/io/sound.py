@@ -175,12 +175,12 @@ class SoundPlayer(BaseIODevice):
         try:
             subprocess.run(['mpg123', '--version'], capture_output=True, check=True)
             self._mp3_player = 'mpg123'
-            self._log.info('Detected MP3 player: mpg123')
+            self._log.debug('Detected MP3 player: mpg123')
         except (FileNotFoundError, subprocess.CalledProcessError):
             try:
                 subprocess.run(['ffplay', '-version'], capture_output=True, check=True)
                 self._mp3_player = 'ffplay'
-                self._log.info('Detected MP3 player: ffplay')
+                self._log.debug('Detected MP3 player: ffplay')
             except (FileNotFoundError, subprocess.CalledProcessError):
                 self._log.warning('No MP3 player found (install mpg123 or ffmpeg)')
         
@@ -188,12 +188,12 @@ class SoundPlayer(BaseIODevice):
         try:
             subprocess.run(['ogg123', '--version'], capture_output=True, check=True)
             self._ogg_player = 'ogg123'
-            self._log.info('Detected OGG player: ogg123')
+            self._log.debug('Detected OGG player: ogg123')
         except (FileNotFoundError, subprocess.CalledProcessError):
             try:
                 subprocess.run(['ffplay', '-version'], capture_output=True, check=True)
                 self._ogg_player = 'ffplay'
-                self._log.info('Detected OGG player: ffplay')
+                self._log.debug('Detected OGG player: ffplay')
             except (FileNotFoundError, subprocess.CalledProcessError):
                 self._log.warning('No OGG player found (install vorbis-tools or ffmpeg)')
 
@@ -261,7 +261,7 @@ class SoundPlayer(BaseIODevice):
                     # Restore stderr.
                     restore_stderr()
             
-            self._log.info(f'Audio output available via {self._audio_backend} backend.')
+            self._log.debug(f'Audio output available via {self._audio_backend} backend.')
             
         except (subprocess.CalledProcessError, FileNotFoundError, OSError) as e:
             self._log.warning(f'Audio output availability check failed: {e}')
@@ -360,13 +360,13 @@ class SoundPlayer(BaseIODevice):
         try:
             self._pydub = importlib.import_module('pydub')
             self._pydub_available = True
-            self._log.info('pydub is available')
+            self._log.debug('pydub is available')
         except ImportError:
             self._pydub_available = False
             self._log.warning('pydub not available - MP3/OGG support limited')
         try:
             self._wave = importlib.import_module('wave')
-            self._log.info('wave module is available')
+            self._log.debug('wave module is available')
         except ImportError:
             self._wave = None
             self._log.warning('wave module not available')
@@ -378,7 +378,7 @@ class SoundPlayer(BaseIODevice):
         def try_pulseaudio():
             try:
                 subprocess.run(['pulseaudio', '--check'], check=True, capture_output=True)
-                self._log.info('PulseAudio is available')
+                self._log.debug('PulseAudio is available')
                 return True
             except (subprocess.CalledProcessError, FileNotFoundError):
                 self._log.warning('PulseAudio not available or not running')
@@ -387,7 +387,7 @@ class SoundPlayer(BaseIODevice):
         def try_alsa():
             try:
                 subprocess.run(['aplay', '--version'], check=True, capture_output=True)
-                self._log.info('ALSA is available')
+                self._log.debug('ALSA is available')
                 return True
             except (subprocess.CalledProcessError, FileNotFoundError):
                 self._log.warning('ALSA not available')
@@ -397,7 +397,7 @@ class SoundPlayer(BaseIODevice):
             try:
                 pyaudio_module = importlib.import_module('pyaudio')
                 self._pa = pyaudio_module.PyAudio()
-                self._log.info('PyAudio initialized successfully')
+                self._log.debug('PyAudio initialized successfully')
                 return True
             except (ImportError, Exception) as e:
                 self._log.warning(f'PyAudio initialization failed: {e}')
@@ -428,8 +428,8 @@ class SoundPlayer(BaseIODevice):
             self._log.error('No audio backend available')
             return
 
-        self._log.info(f'Using audio backend: {self._audio_backend}')
-        self._log.info(f'Maximum volume set to: {self._max_volume:.1%}')
+        self._log.debug(f'Using audio backend: {self._audio_backend}')
+        self._log.debug(f'Maximum volume set to: {self._max_volume:.1%}')
         self._set_system_volume(self._max_volume)
         if self._audio_backend == 'alsa':
             self._detect_audio_players()
