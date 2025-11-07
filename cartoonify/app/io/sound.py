@@ -7,7 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from app.debugging.logging import getLogger
+from app.debugging.logging import getLogger, suppress_stderr, restore_stderr
 
 from .base import BaseIODevice
 
@@ -238,11 +238,9 @@ class SoundPlayer(BaseIODevice):
                     self._available = False
                     return
                 
-                # Redirect stderr to suppress ALSA errors.
-                stderr_fd = sys.stderr.fileno()
-                old_stderr = os.dup(stderr_fd)
-                devnull_fd = os.open(os.devnull, os.O_WRONLY)
-                os.dup2(devnull_fd, stderr_fd)
+                # Temporarily redirect stderr to suppress ALSA errors.
+                # ALSA writes directly to FD 2, not through Python's sys.stderr object.
+                suppress_stderr()
                 
                 try:
                     device_count = self._pa.get_device_count()
@@ -261,9 +259,7 @@ class SoundPlayer(BaseIODevice):
                         
                 finally:
                     # Restore stderr.
-                    os.dup2(old_stderr, stderr_fd)
-                    os.close(old_stderr)
-                    os.close(devnull_fd)
+                    restore_stderr()
             
             self._log.info(f'Audio output available via {self._audio_backend} backend.')
             

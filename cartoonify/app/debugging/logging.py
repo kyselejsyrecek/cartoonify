@@ -8,6 +8,11 @@ from pathlib import Path
 from io import StringIO
 
 
+# Global variables for stderr suppression state (per-process).
+_suppressed_stderr_fd = None
+_suppressed_devnull_fd = None
+
+
 def strip_ansi_codes(text):
     """Remove ANSI escape sequences and dangerous control characters from text"""
     if not isinstance(text, str):
@@ -340,3 +345,43 @@ def getLogger(name=None, filter_ansi=False, custom_filter=None, disable_error_pr
     if filter_ansi or custom_filter:
         return FilteredLogger(base_logger, filter_ansi=filter_ansi, custom_filter=custom_filter)
     return base_logger
+
+
+def suppress_stderr():
+    """Suppress stderr output by redirecting file descriptor 2 to /dev/null.
+    
+    This works even when sys.stderr is already redirected to a custom object.
+    C libraries write directly to FD 2, not through Python's sys.stderr.
+    
+    Stores file descriptors in global variables for later restoration.
+    Can be called multiple times safely - subsequent calls are no-op if already suppressed.
+    """
+    global _suppressed_stderr_fd, _suppressed_devnull_fd
+    
+    # Already suppressed, do nothing.
+    if _suppressed_stderr_fd is not None:
+        return
+    
+    _suppressed_stderr_fd = os.dup(2)
+    _suppressed_devnull_fd = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(_suppressed_devnull_fd, 2)
+
+
+def restore_stderr():
+    """Restore stderr file descriptor to its original state.
+    
+    Uses file descriptors stored by suppress_stderr().
+    Can be called multiple times safely - subsequent calls are no-op if not suppressed.
+    """
+    global _suppressed_stderr_fd, _suppressed_devnull_fd
+    
+    # Not suppressed, do nothing.
+    if _suppressed_stderr_fd is None:
+        return
+    
+    os.dup2(_suppressed_stderr_fd, 2)
+    os.close(_suppressed_stderr_fd)
+    os.close(_suppressed_devnull_fd)
+    
+    _suppressed_stderr_fd = None
+    _suppressed_devnull_fd = None

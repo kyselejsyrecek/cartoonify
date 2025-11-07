@@ -1,4 +1,4 @@
-from app.debugging.logging import getLogger
+from app.debugging.logging import getLogger, suppress_stderr, restore_stderr
 from piclap import *
 from threading import Thread
 from app.workflow.multiprocessing import ProcessInterface
@@ -98,22 +98,21 @@ class ClapDetector(ProcessInterface):
     def _check_audio_input_available(self):
         """Check if any audio input device is available by testing PyAudio initialization.
         
-        Suppresses ALSA error messages during check.
+        Suppresses ALSA error messages during check by redirecting file descriptor 2 (stderr).
+        Works even when sys.stderr is already redirected to a custom object.
         
         :return: True if audio input is available, False otherwise
         """
         try:
             import pyaudio
             
-            # Temporarily redirect stderr to suppress ALSA errors during check
-            stderr_fd = sys.stderr.fileno()
-            old_stderr = os.dup(stderr_fd)
-            devnull = os.open(os.devnull, os.O_WRONLY)
-            os.dup2(devnull, stderr_fd)
+            # Temporarily redirect stderr to suppress ALSA errors.
+            # ALSA writes directly to FD 2, not through Python's sys.stderr object.
+            suppress_stderr()
             
             try:
                 p = pyaudio.PyAudio()
-                # Check for at least one input device
+                # Check for at least one input device.
                 has_input = False
                 for i in range(p.get_device_count()):
                     dev_info = p.get_device_info_by_index(i)
@@ -123,10 +122,8 @@ class ClapDetector(ProcessInterface):
                 p.terminate()
                 return has_input
             finally:
-                # Restore stderr
-                os.dup2(old_stderr, stderr_fd)
-                os.close(old_stderr)
-                os.close(devnull)
+                # Restore stderr.
+                restore_stderr()
         except Exception as e:
             self._log.error(f'Error checking audio input availability: {e}')
             return False
