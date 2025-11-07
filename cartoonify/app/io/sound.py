@@ -96,7 +96,7 @@ class SoundPlayer(BaseIODevice):
 
     def close(self):
         """Cleanup audio resources"""
-        if not self._enabled:
+        if not self._available:
             return
             
         if self._pa is not None:
@@ -707,7 +707,7 @@ class SoundPlayer(BaseIODevice):
         :param audio_path: Path, glob pattern or list of patterns / paths.
         :param volume: Relative volume (0.0–1.0) multiplied by the maximum volume.
         """
-        if not self._enabled:
+        if not self._enabled or not self._available:
             return
         # Convert Path -> str (resolver expects string or list of strings).
         if isinstance(audio_path, Path):
@@ -726,7 +726,7 @@ class SoundPlayer(BaseIODevice):
         :param sound_name: Name of the logical sound (e.g., 'dizzy').
         :param volume: Relative volume (0.0 to 1.0, relative to max volume).
         """
-        if not self._enabled:
+        if not self._enabled or not self._available:
             return
         if sound_name not in self._sound_names:
             self._log.debug(f'Unknown sound name requested: {sound_name}')
@@ -744,7 +744,7 @@ class SoundPlayer(BaseIODevice):
         
         :param text: Text to speak
         """
-        if not self._enabled:
+        if not self._enabled or not self._available:
             return
             
         if not text or not text.strip():

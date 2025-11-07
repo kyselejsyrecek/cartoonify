@@ -29,7 +29,7 @@ class Printer(BaseIODevice):
         # Determine availability (simple heuristic: lp command existence could be probed later).
         # For now assume available; could add shutil.which('lp').
         self._available = True
-        if not self._enabled:
+        if not self._enabled or not self._available:
             self._log.info('Printer disabled.')
 
     # -- Text Printing -------------------------------------------------
@@ -39,7 +39,7 @@ class Printer(BaseIODevice):
         Returns raw lp output bytes decoded to string if a job was queued, otherwise None.
         The returned identifier can be passed to wait() for completion monitoring.
         """
-        if not self._enabled:
+        if not self._enabled or not self._available:
             return None
         if not text:
             return None
@@ -56,7 +56,7 @@ class Printer(BaseIODevice):
 
         Returns lp output (decoded) for use with wait().
         """
-        if not self._enabled:
+        if not self._enabled or not self._available:
             return None
         image_path = str(image_path)
         try:

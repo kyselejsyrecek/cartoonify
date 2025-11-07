@@ -7,6 +7,9 @@ class BaseIODevice:
     Subclasses should override setup() to perform initialization but call
     super().setup(enabled=...) early to register state. Availability should
     be detected and stored in self._available.
+    
+    Note: Currently availability is only checked when device is enabled.
+    TODO: Check availability even when disabled to allow runtime enabling.
     """
     def __init__(self, enabled: bool = True):
         self._log = getLogger(self.__class__.__name__)
