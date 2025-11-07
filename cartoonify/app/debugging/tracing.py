@@ -5,25 +5,31 @@ from contextlib import contextmanager
 from pathlib import Path
 
 
-def _trace_function(frame, event, arg, output=None):
+def _trace_function(frame, event, arg, output=None, target_frame=None, recursive=True):
     """Internal trace function that prints executed lines.
     
     :param frame: Current stack frame
     :param event: Event type ('call', 'line', 'return', etc.)
     :param arg: Event argument
     :param output: File-like object to write to (default: sys.stdout)
+    :param target_frame: Target frame to trace (for non-recursive mode)
+    :param recursive: If True, trace all called functions; if False, trace only target frame
     :return: Trace function for continued tracing
     """
     if output is None:
         output = sys.stdout
     
     if event == "line":
+        # Non-recursive mode: only trace the target frame.
+        if not recursive and target_frame is not None and frame != target_frame:
+            return lambda f, e, a: _trace_function(f, e, a, output, target_frame, recursive)
+        
         lineno = frame.f_lineno
         filename = frame.f_code.co_filename
         
         # Skip tracing internal files (tracing.py itself and contextlib.py).
         if filename.endswith('/tracing.py') or filename.endswith('\\tracing.py'):
-            return lambda f, e, a: _trace_function(f, e, a, output)
+            return lambda f, e, a: _trace_function(f, e, a, output, target_frame, recursive)
         
         # Get relative path if inside project.
         try:
@@ -43,7 +49,7 @@ def _trace_function(frame, event, arg, output=None):
         output.write(f"+ {filename}:{lineno}: {line}\n")
         output.flush()
     
-    return lambda f, e, a: _trace_function(f, e, a, output)
+    return lambda f, e, a: _trace_function(f, e, a, output, target_frame, recursive)
 
 
 class trace:
@@ -57,7 +63,7 @@ class trace:
             x = a + b
             return x
         
-        @trace(output=sys.stderr)
+        @trace(output=sys.stderr, recursive=False)
         def another_function():
             pass
     
@@ -67,21 +73,23 @@ class trace:
             y = x * 3
             print(y)
         
-        with trace(output=open('trace.log', 'w')):
+        with trace(output=open('trace.log', 'w'), recursive=False):
             some_function()
     
     Usage as wrapper:
         result = trace(my_function)(arg1, arg2)
     """
     
-    def __init__(self, func=None, *, output=None):
+    def __init__(self, func=None, *, output=None, recursive=True):
         """Initialize trace decorator/context manager.
         
         :param func: Function to decorate (provided automatically when used as @trace)
         :param output: File-like object to write trace output to (default: sys.stdout)
+        :param recursive: If True, trace all called functions; if False, trace only the decorated function
         """
         self.func = func
         self.output = output
+        self.recursive = recursive
         self.old_trace = None
     
     def __call__(self, *args, **kwargs):
@@ -91,12 +99,19 @@ class trace:
             # First argument should be the function to decorate.
             if len(args) == 1 and callable(args[0]) and not kwargs:
                 # Being used as @trace(...)(func)
-                return trace(args[0], output=self.output)
+                return trace(args[0], output=self.output, recursive=self.recursive)
             else:
                 raise TypeError('trace() takes a callable as first argument when called')
         
         # We have a function, so we're being called to execute it with tracing.
-        trace_func = lambda frame, event, arg: _trace_function(frame, event, arg, self.output)
+        # Capture the current frame (will be the frame of the decorated function).
+        import inspect
+        target_frame = None
+        if not self.recursive:
+            # Get the frame that will execute the function body.
+            target_frame = inspect.currentframe()
+        
+        trace_func = lambda frame, event, arg: _trace_function(frame, event, arg, self.output, target_frame, self.recursive)
         
         old_trace = sys.gettrace()
         sys.settrace(trace_func)
@@ -107,7 +122,13 @@ class trace:
     
     def __enter__(self):
         """Enter context manager - start tracing."""
-        trace_func = lambda frame, event, arg: _trace_function(frame, event, arg, self.output)
+        import inspect
+        target_frame = None
+        if not self.recursive:
+            # Get the frame that called __enter__.
+            target_frame = inspect.currentframe().f_back
+        
+        trace_func = lambda frame, event, arg: _trace_function(frame, event, arg, self.output, target_frame, self.recursive)
         self.old_trace = sys.gettrace()
         sys.settrace(trace_func)
         return self
