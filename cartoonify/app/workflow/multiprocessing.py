@@ -301,41 +301,67 @@ class ProcessManager:
         
         :param timeout: Total time in seconds to wait for graceful shutdown of all processes before killing. If 0, kill immediately.
         """
-        self._log.info('Terminating child processes...')
+        self._log.info(f'Terminating child processes... (timeout={timeout}s)')
+        
+        if not self._subprocesses:
+            self._log.debug('No subprocesses to terminate.')
+            return
+        
+        self._log.debug(f'Total subprocesses to terminate: {len(self._subprocesses)}')
+        for i, subprocess in enumerate(self._subprocesses):
+            if subprocess.is_alive():
+                self._log.debug(f'Child Process {i+1} ({subprocess.process_class.__name__}), PID {subprocess.pid}')
+            else:
+                self._log.debug(f'Child Process {i+1} ({subprocess.process_class.__name__}) already dead.')
         
         if timeout > 0:
             # Wait for graceful termination with shared timeout across all processes.
             import time
             start_time = time.time()
             
-            for subprocess in self._subprocesses:
+            for i, subprocess in enumerate(self._subprocesses):
                 if subprocess.is_alive():
                     # Calculate remaining timeout.
                     elapsed = time.time() - start_time
                     remaining_timeout = max(0, timeout - elapsed)
+                    
+                    self._log.debug(f'Child Process {i+1} ({subprocess.process_class.__name__}), PID {subprocess.pid}: Waiting for graceful termination (timeout={remaining_timeout:.2f}s)...')
                     
                     if remaining_timeout > 0:
                         subprocess.join(timeout=remaining_timeout)
                     
                     if subprocess.is_alive():
                         # If child hasn't terminated, forcibly kill it.
-                        self._log.warning(f"Subprocess {subprocess.pid} ({subprocess.process_class.__name__}) did not terminate gracefully, killing.")
+                        self._log.warning(f'Child Process {i+1} ({subprocess.process_class.__name__}), PID {subprocess.pid}: Did not terminate gracefully, sending SIGTERM.')
                         subprocess.terminate()
                         subprocess.join(timeout=1)
                         if subprocess.is_alive():
+                            self._log.warning(f'Child Process {i+1} ({subprocess.process_class.__name__}), PID {subprocess.pid}: Still alive after SIGTERM, sending SIGKILL.')
                             os.kill(subprocess.pid, signal.SIGKILL)
+                            subprocess.join(timeout=0.5)
+                    else:
+                        self._log.debug(f'Child Process {i+1} ({subprocess.process_class.__name__}), PID {subprocess.pid}: Terminated gracefully.')
+                else:
+                    self._log.debug(f'Child Process {i+1} ({subprocess.process_class.__name__}) already dead.')
                 
                 # Clean up pipes.
                 subprocess.cleanup_pipes()
+            
+            total_elapsed = time.time() - start_time
+            self._log.info(f'All child processes terminated in {total_elapsed:.2f}s.')
         else:
             # Kill immediately.
-            for subprocess in self._subprocesses:
+            self._log.debug('Killing all subprocesses immediately (timeout=0).')
+            for i, subprocess in enumerate(self._subprocesses):
                 if subprocess.is_alive():
-                    self._log.debug(f"Killing subprocess {subprocess.pid} ({subprocess.process_class.__name__}) immediately.")
+                    self._log.debug(f'Child Process {i+1} ({subprocess.process_class.__name__}), PID {subprocess.pid}: Killing immediately.')
                     subprocess.terminate()
                     subprocess.join(timeout=0.5)
                     if subprocess.is_alive():
+                        self._log.debug(f'Child Process {i+1} ({subprocess.process_class.__name__}), PID {subprocess.pid}: Still alive, sending SIGKILL.')
                         os.kill(subprocess.pid, signal.SIGKILL)
                 
                 # Clean up pipes.
                 subprocess.cleanup_pipes()
+            
+            self._log.info('All child processes killed.')
