@@ -1,5 +1,6 @@
 import glob
 import importlib
+import os
 import random
 import re
 import subprocess
@@ -79,6 +80,12 @@ class SoundPlayer(BaseIODevice):
         
         self._init_libraries()
         self._init_audio_backend(audio_backend)
+        self._check_audio_output_available()
+        
+        if not self._available:
+            self._log.error('No audio output device available - sound system disabled.')
+            return
+        
         self._index_all_themes()
         self._apply_active_theme(log_missing=True)
         
@@ -189,6 +196,80 @@ class SoundPlayer(BaseIODevice):
                 self._log.info('Detected OGG player: ffplay')
             except (FileNotFoundError, subprocess.CalledProcessError):
                 self._log.warning('No OGG player found (install vorbis-tools or ffmpeg)')
+
+    def _check_audio_output_available(self):
+        """Check if audio output device is available for current backend.
+        
+        Tests audio output availability using backend-specific methods:
+        - pulseaudio: Check for available sinks via pactl
+        - alsa: Check for playback devices via aplay
+        - native: Check PyAudio for output devices with maxOutputChannels > 0
+        
+        Sets _available to False if no output device is found.
+        """
+        if not self._audio_backend:
+            self._log.warning('No audio backend initialized - cannot check output availability.')
+            self._available = False
+            return
+        
+        try:
+            if self._audio_backend == 'pulseaudio':
+                # Check for available PulseAudio sinks.
+                result = subprocess.run(['pactl', 'list', 'short', 'sinks'], 
+                                      capture_output=True, check=True, text=True)
+                if not result.stdout.strip():
+                    self._log.warning('No PulseAudio sinks found.')
+                    self._available = False
+                    return
+                    
+            elif self._audio_backend == 'alsa':
+                # Check for ALSA playback devices.
+                result = subprocess.run(['aplay', '-l'], 
+                                      capture_output=True, check=True, text=True)
+                if 'no soundcards found' in result.stdout.lower() or not result.stdout.strip():
+                    self._log.warning('No ALSA playback devices found.')
+                    self._available = False
+                    return
+                    
+            elif self._audio_backend == 'native':
+                # Check PyAudio for output devices (suppress ALSA errors).
+                if not self._pa:
+                    self._log.warning('PyAudio not initialized - cannot check output availability.')
+                    self._available = False
+                    return
+                
+                # Redirect stderr to suppress ALSA errors.
+                stderr_fd = sys.stderr.fileno()
+                old_stderr = os.dup(stderr_fd)
+                devnull_fd = os.open(os.devnull, os.O_WRONLY)
+                os.dup2(devnull_fd, stderr_fd)
+                
+                try:
+                    device_count = self._pa.get_device_count()
+                    has_output = False
+                    
+                    for i in range(device_count):
+                        device_info = self._pa.get_device_info_by_index(i)
+                        if device_info.get('maxOutputChannels', 0) > 0:
+                            has_output = True
+                            break
+                    
+                    if not has_output:
+                        self._log.warning('No PyAudio output devices found.')
+                        self._available = False
+                        return
+                        
+                finally:
+                    # Restore stderr.
+                    os.dup2(old_stderr, stderr_fd)
+                    os.close(old_stderr)
+                    os.close(devnull_fd)
+            
+            self._log.info(f'Audio output available via {self._audio_backend} backend.')
+            
+        except (subprocess.CalledProcessError, FileNotFoundError, OSError) as e:
+            self._log.warning(f'Audio output availability check failed: {e}')
+            self._available = False
 
     def list_sounds(self) -> list[str]:
         """Return list of all supported sound names (available or not)."""
