@@ -257,11 +257,39 @@ class Gpio(BaseIODevice):
     def close(self):
         """Cleanup GPIO resources"""
         if self.is_available:
-          self.led_alive.close()
-          self.led_recording.close()
-          self.led_busy.close()
-          self.led_big_eye.close()
-          self.led_small_eye.close()
-          self.button_capture.close()
-          self.button_halt.close()
-          self.initialized = False
+            try:
+                self.led_alive.close()
+            except:
+                pass
+            
+            try:
+                self.led_recording.close()
+            except:
+                pass
+            
+            try:
+                self.led_busy.close()
+            except:
+                pass
+            
+            try:
+                self.led_big_eye.close()
+            except:
+                pass
+            
+            try:
+                self.led_small_eye.close()
+            except:
+                pass
+            
+            try:
+                self.button_capture.close()
+            except:
+                pass
+            
+            try:
+                self.button_halt.close()
+            except:
+                pass
+            
+            self.initialized = False

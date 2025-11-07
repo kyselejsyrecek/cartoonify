@@ -73,7 +73,11 @@ class Camera(BaseIODevice):
             self._available = False
             return
         
-        self._cam = picamera2.Picamera2()
+        try:
+            self._cam = picamera2.Picamera2()
+        except:
+            self._log.error('Camera not available.')
+            return
         
         if self._cam is not None:
             # Get video resolution

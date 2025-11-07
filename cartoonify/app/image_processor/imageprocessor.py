@@ -188,4 +188,5 @@ class ImageProcessor(object):
         return self._labels
 
     def close(self):
-        self._session.close()
+        if self._session:
+            self._session.close()
