@@ -20,6 +20,11 @@ def _trace_function(frame, event, arg, output=None):
     if event == "line":
         lineno = frame.f_lineno
         filename = frame.f_code.co_filename
+        
+        # Skip tracing internal files (tracing.py itself and contextlib.py).
+        if filename.endswith('/tracing.py') or filename.endswith('\\tracing.py'):
+            return lambda f, e, a: _trace_function(f, e, a, output)
+        
         # Get relative path if inside project.
         try:
             filepath = Path(filename)
