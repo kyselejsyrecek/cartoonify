@@ -6,7 +6,6 @@ import uuid
 from typing import Any, Callable, Dict, Optional, Union
 
 from app.debugging.logging import getLogger
-from app.debugging.tracing import trace, suppress_tracing
 
 
 class TaskRef:
@@ -172,7 +171,6 @@ def exclusive(lock_spec: Union[str, threading.Lock, Callable[[Any], Optional[thr
     """
     def decorator(func: Callable):
         @functools.wraps(func)
-        @trace
         def locked(self, *args, **kwargs):
             # Resolve the lock each execution (allows dynamic replacement if needed).
             self._log.debug(f"Trying to lock task '{func.__name__}' from PID {os.getpid()}.")
@@ -213,8 +211,7 @@ def exclusive(lock_spec: Union[str, threading.Lock, Callable[[Any], Optional[thr
                 return None
 
             try:
-                with suppress_tracing():
-                    return func(self, *args, **kwargs)
+                return func(self, *args, **kwargs)
             finally:
                 # Release only if we actually acquired (true by construction here).
                 try:
