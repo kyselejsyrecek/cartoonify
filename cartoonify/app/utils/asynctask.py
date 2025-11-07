@@ -173,7 +173,7 @@ def exclusive(lock_spec: Union[str, threading.Lock, Callable[[Any], Optional[thr
         @functools.wraps(func)
         def locked(self, *args, **kwargs):
             # Resolve the lock each execution (allows dynamic replacement if needed).
-            self._log.debug(f"Trying to lock task '{func.__name__}' from PID {os.getpid()}.")
+            self._log.debug(f"Trying to lock task '{func.__name__}'.")
             resolved_lock = None
             try:
                 if isinstance(lock_spec, str):
@@ -200,6 +200,7 @@ def exclusive(lock_spec: Union[str, threading.Lock, Callable[[Any], Optional[thr
             # abort the task without executing the wrapped function.
             try:
                 acquired = resolved_lock.acquire(blocking=blocking)
+                self._log.debug(f"Task '{func.__name__}' locked.")
             except Exception:
                 if hasattr(self, '_log'):
                     self._log.exception(f"Exception while acquiring lock for '{func.__name__}'. Aborting task.")
@@ -216,6 +217,7 @@ def exclusive(lock_spec: Union[str, threading.Lock, Callable[[Any], Optional[thr
                 # Release only if we actually acquired (true by construction here).
                 try:
                     resolved_lock.release()
+                    self._log.debug(f"Task '{func.__name__}' unlocked.")
                 except Exception:
                     if hasattr(self, '_log'):
                         self._log.exception(f"Failed to release lock in '{func.__name__}'.")
