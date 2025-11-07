@@ -81,8 +81,8 @@ class Workflow(AsyncExecutor):
         # We discard any operations requested when another operation is in progress.
         # However, to make that possible at least 2 worker threads are required by current solution.
         # Initialize executor with named lock registry. 'event' lock coordinates event handlers.
-        self._lock = Lock()
-        AsyncExecutor.__init__(self, max_workers=2, logger=self._log, locks={'event': self._lock})
+        self._event_lock = Lock()
+        AsyncExecutor.__init__(self, max_workers=2, logger=self._log, locks={'event': self._event_lock})
 
         self._path = Path('')
         self._image_path = Path('')
