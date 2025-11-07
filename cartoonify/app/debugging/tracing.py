@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 
-def _trace_function(frame, event, arg, output=None, target_frame=None, recursive=True):
+def _trace_function(frame, event, arg, output=None, target_frame=None, recursive=True, depth=0):
     """Internal trace function that prints executed lines.
     
     :param frame: Current stack frame
@@ -14,22 +14,29 @@ def _trace_function(frame, event, arg, output=None, target_frame=None, recursive
     :param output: File-like object to write to (default: sys.stdout)
     :param target_frame: Target frame to trace (for non-recursive mode)
     :param recursive: If True, trace all called functions; if False, trace only target frame
+    :param depth: Current call depth (for indentation)
     :return: Trace function for continued tracing
     """
     if output is None:
         output = sys.stdout
     
-    if event == "line":
+    if event == "call":
+        # Increase depth when entering a new function.
+        return lambda f, e, a: _trace_function(f, e, a, output, target_frame, recursive, depth + 1)
+    elif event == "return":
+        # Decrease depth when exiting a function.
+        return lambda f, e, a: _trace_function(f, e, a, output, target_frame, recursive, max(0, depth - 1))
+    elif event == "line":
         # Non-recursive mode: only trace the target frame.
         if not recursive and target_frame is not None and frame != target_frame:
-            return lambda f, e, a: _trace_function(f, e, a, output, target_frame, recursive)
+            return lambda f, e, a: _trace_function(f, e, a, output, target_frame, recursive, depth)
         
         lineno = frame.f_lineno
         filename = frame.f_code.co_filename
         
         # Skip tracing internal files (tracing.py itself and contextlib.py).
         if filename.endswith('/tracing.py') or filename.endswith('\\tracing.py'):
-            return lambda f, e, a: _trace_function(f, e, a, output, target_frame, recursive)
+            return lambda f, e, a: _trace_function(f, e, a, output, target_frame, recursive, depth)
         
         # Get relative path if inside project.
         try:
@@ -46,10 +53,11 @@ def _trace_function(frame, event, arg, output=None, target_frame=None, recursive
             pass
         
         line = linecache.getline(frame.f_code.co_filename, lineno).strip()
-        output.write(f"+ {filename}:{lineno}: {line}\n")
+        indent = '+' * max(1, depth)
+        output.write(f"{indent} {filename}:{lineno}: {line}\n")
         output.flush()
     
-    return lambda f, e, a: _trace_function(f, e, a, output, target_frame, recursive)
+    return lambda f, e, a: _trace_function(f, e, a, output, target_frame, recursive, depth)
 
 
 class trace:
@@ -111,7 +119,7 @@ class trace:
             # Get the frame that will execute the function body.
             target_frame = inspect.currentframe()
         
-        trace_func = lambda frame, event, arg: _trace_function(frame, event, arg, self.output, target_frame, self.recursive)
+        trace_func = lambda frame, event, arg: _trace_function(frame, event, arg, self.output, target_frame, self.recursive, 0)
         
         old_trace = sys.gettrace()
         sys.settrace(trace_func)
@@ -128,7 +136,7 @@ class trace:
             # Get the frame that called __enter__.
             target_frame = inspect.currentframe().f_back
         
-        trace_func = lambda frame, event, arg: _trace_function(frame, event, arg, self.output, target_frame, self.recursive)
+        trace_func = lambda frame, event, arg: _trace_function(frame, event, arg, self.output, target_frame, self.recursive, 0)
         self.old_trace = sys.gettrace()
         sys.settrace(trace_func)
         return self
