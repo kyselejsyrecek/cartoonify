@@ -111,3 +111,27 @@ class trace:
         """Exit context manager - stop tracing."""
         sys.settrace(self.old_trace)
         return False
+
+
+@contextmanager
+def suppress_tracing():
+    """Context manager to temporarily suppress tracing.
+    
+    Useful to prevent tracing of internal functions while keeping outer function traced.
+    
+    Usage:
+        @trace
+        def outer_function():
+            do_something()  # This will be traced
+            
+            with suppress_tracing():
+                internal_function()  # This will NOT be traced
+            
+            do_something_else()  # This will be traced again
+    """
+    old_trace = sys.gettrace()
+    sys.settrace(None)
+    try:
+        yield
+    finally:
+        sys.settrace(old_trace)
