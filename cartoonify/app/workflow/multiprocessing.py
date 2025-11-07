@@ -135,6 +135,8 @@ class ProcessManager:
         self._subprocesses = []
         self._manager_address = manager_address
         self._manager_authkey = manager_authkey
+
+        self._log.debug(f'Initializing ProcessManager. Main process PID: {os.getpid()}')
         
         # Register logger method for subprocesses (only once)
         EventManager.register('logger', callable=self.get_subprocess_logger)
@@ -285,13 +287,13 @@ class ProcessManager:
             print(f"Child Process {pid} ({process_class.__name__}), PID {os.getpid()}: Failed to connect to manager: {e}", file=sys.stderr)
             sys.exit(1)
 
-        subprocess_logger.info(f"Child Process {pid} ({process_class.__name__}), PID {os.getpid()}: Starting. ")
+        subprocess_logger.debug(f"Child Process {pid} ({process_class.__name__}), PID {os.getpid()}: Starting. ")
 
         try:
             # Call the static hook_up method on the process class
             process_class.hook_up(event_proxy, subprocess_logger, exit_event, halt_event, *args, **kwargs)
         finally:
-            subprocess_logger.info(f"Child Process {pid} ({process_class.__name__}), PID {os.getpid()}: Exiting.")
+            subprocess_logger.debug(f"Child Process {pid} ({process_class.__name__}), PID {os.getpid()}: Exiting.")
 
 
     def terminate(self):
