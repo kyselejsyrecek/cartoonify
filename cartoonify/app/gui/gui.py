@@ -12,26 +12,106 @@ from app.workflow.multiprocessing import ProcessInterface
 from app.debugging.tracing import trace
 
 
-class SayApp(App):
+class PILImageViewerWidget(gui.Image):
+    def __init__(self, **kwargs):
+        super(PILImageViewerWidget, self).__init__(**kwargs)
+        self._buf = None
+        initial_image = str(Path(__file__).parent / '..' / '..' / 'images' / 'default.png')
+        self.load(initial_image)
+
+    def load(self, file_path_name):
+        pil_image = PIL.Image.open(file_path_name)
+        self._buf = io.BytesIO()
+        pil_image.save(self._buf, format='png')
+        self.refresh()
+
+    def refresh(self):
+        i = int(time.time() * 1e6)
+        self.attributes['src'] = "/%s/get_image_data?update_index=%d" % (id(self), i)
+
+    def get_image_data(self, update_index):
+        if self._buf is None:
+            return None
+        self._buf.seek(0)
+        headers = {'Content-type': 'image/png'}
+        return [self._buf.read(), headers]
+
+
+class WebGui(App, ProcessInterface):
     """
-    Separate application for text-to-speech functionality on /say URL.
+    gui for the app
     """
+    _event_service = None
+    _log = None
+    _i18n = None
+    _full_capabilities = True
+
     def __init__(self, *args):
         super().__init__(*args)
-        self._event_service = None
-        self._log = None
-        self._i18n = None
-    
+
+    @staticmethod
+    def hook_up(event_service, logger, exit_event, halt_event, i18n, cam_only, web_host='0.0.0.0', web_port=8081, start_browser=False, cert_file=None, key_file=None):
+        """Static method for multiprocessing integration."""
+        from remi import start
+        
+        # Store references for SayApp to access.
+        WebGui._shared_event_service = event_service
+        WebGui._shared_logger = logger
+        WebGui._shared_exit_event = exit_event
+        WebGui._shared_halt_event = halt_event
+        WebGui._shared_i18n = i18n
+        WebGui._shared_cam_only = cam_only
+        
+        # Start REMI server with WebGui handling all paths.
+        try:
+            with trace():
+                start(
+                    WebGui,
+                    debug=False,
+                    address=web_host,
+                    port=web_port,
+                    start_browser=start_browser,
+                    certfile=cert_file,
+                    keyfile=key_file,
+                    userdata=(event_service, logger, exit_event, halt_event, i18n, cam_only))
+        except PermissionError:
+            logger.error(f'Could not start HTTP server - permission denied for {web_host}:{web_port}.')
+
+    def idle(self):
+        # idle function called every update cycle
+        # Check for exit_event to gracefully shutdown WebGui
+        try:
+            if self._exit_event.is_set():
+                self._log.info('Exit event detected in WebGui - closing application.')
+                self.close()
+        except Exception as e:
+            self._log.warning(f'Could not check exit_event: {e}')
+        pass
+
     def main(self, event_service, logger, exit_event, halt_event, i18n, cam_only):
-        """Construct the /say page UI."""
         self._event_service = event_service
         self._log = logger
         self._exit_event = exit_event
         self._halt_event = halt_event
         self._i18n = i18n
+        self._full_capabilities = not cam_only
         
+        self._log.debug(f'WebGui.main: Processing request for path: {self.path}')
+        
+        # Route based on path.
+        if self.path == '/say':
+            self._log.debug('WebGui.main: Routing to /say UI')
+            return self._construct_say_ui()
+        
+        # Default: main UI.
+        self._log.debug('WebGui.main: Routing to main UI')
+        self.display_original = False
+        return self.construct_ui()
+    
+    def _construct_say_ui(self):
+        """Construct the /say page UI."""
         self._log.debug('Constructing /say UI')
-        _ = i18n.gettext
+        _ = self._i18n.gettext
         
         # Main container.
         main_container = gui.VBox()
@@ -130,106 +210,6 @@ class SayApp(App):
         main_container.append(form_container)
         
         return main_container
-    
-    def on_say_pressed(self, *_):
-        """Handle Say button press."""
-        text = self.text_input.get_value().strip()
-        if text:
-            self._event_service.say(text)
-            self.text_input.set_value('')
-    
-    def on_back_pressed(self, *_):
-        """Handle Back to Main button press."""
-        try:
-            self.execute_javascript("window.location.href = '/';")
-        except:
-            pass
-
-
-class PILImageViewerWidget(gui.Image):
-    def __init__(self, **kwargs):
-        super(PILImageViewerWidget, self).__init__(**kwargs)
-        self._buf = None
-        initial_image = str(Path(__file__).parent / '..' / '..' / 'images' / 'default.png')
-        self.load(initial_image)
-
-    def load(self, file_path_name):
-        pil_image = PIL.Image.open(file_path_name)
-        self._buf = io.BytesIO()
-        pil_image.save(self._buf, format='png')
-        self.refresh()
-
-    def refresh(self):
-        i = int(time.time() * 1e6)
-        self.attributes['src'] = "/%s/get_image_data?update_index=%d" % (id(self), i)
-
-    def get_image_data(self, update_index):
-        if self._buf is None:
-            return None
-        self._buf.seek(0)
-        headers = {'Content-type': 'image/png'}
-        return [self._buf.read(), headers]
-
-
-class WebGui(App, ProcessInterface):
-    """
-    gui for the app
-    """
-    _event_service = None
-    _log = None
-    _i18n = None
-    _full_capabilities = True
-
-    def __init__(self, *args):
-        super().__init__(*args)
-
-    @staticmethod
-    def hook_up(event_service, logger, exit_event, halt_event, i18n, cam_only, web_host='0.0.0.0', web_port=8081, start_browser=False, cert_file=None, key_file=None):
-        """Static method for multiprocessing integration."""
-        from app.gui.remi_multipath import MultiPathServer
-        
-        # Start multi-path server with WebGui on / and SayApp on /say.
-        try:
-            with trace():
-                server = MultiPathServer()
-                server.register_app('/', WebGui)
-                server.register_app('/say', SayApp)
-                
-                server.start(
-                    debug=False,
-                    address=web_host,
-                    port=web_port,
-                    start_browser=start_browser,
-                    certfile=cert_file,
-                    keyfile=key_file,
-                    userdata=(event_service, logger, exit_event, halt_event, i18n, cam_only))
-        except PermissionError:
-            logger.error(f'Could not start HTTP server - permission denied for {web_host}:{web_port}.')
-
-    def idle(self):
-        # idle function called every update cycle
-        # Check for exit_event to gracefully shutdown WebGui
-        try:
-            if self._exit_event.is_set():
-                self._log.info('Exit event detected in WebGui - closing application.')
-                self.close()
-        except Exception as e:
-            self._log.warning(f'Could not check exit_event: {e}')
-        pass
-
-    def main(self, event_service, logger, exit_event, halt_event, i18n, cam_only):
-        self._event_service = event_service
-        self._log = logger
-        self._exit_event = exit_event
-        self._halt_event = halt_event
-        self._i18n = i18n
-        self._full_capabilities = not cam_only
-        
-        self._log.debug(f'Processing request for path: {self.path}')
-        
-        # This is the main UI (not /say)
-        self.display_original = False
-        return self.construct_ui()
 
     def construct_ui(self):
         self._log.debug(f"construct_ui() called for path: {self.path}")
@@ -375,3 +355,17 @@ class WebGui(App, ProcessInterface):
 
     def on_dialog_cancel(self, widget):
         self.set_root_widget(self.main_container)
+    
+    def on_say_pressed(self, *_):
+        """Handle Say button press."""
+        text = self.text_input.get_value().strip()
+        if text:
+            self._event_service.say(text)
+            self.text_input.set_value('')
+    
+    def on_back_pressed(self, *_):
+        """Handle Back to Main button press."""
+        try:
+            self.execute_javascript("window.location.href = '/';")
+        except:
+            pass
