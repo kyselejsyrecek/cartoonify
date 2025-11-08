@@ -113,6 +113,32 @@ class SessionAwareRuntimeInstances:
 _session_aware_instances = SessionAwareRuntimeInstances()
 server.runtimeInstances = _session_aware_instances
 
+# Monkey-patch REMI's do_GET to set session context from widget ID lookup
+_original_do_GET = server.App.do_GET if hasattr(server.App, 'do_GET') else None
+
+def _patched_do_GET(self):
+    """Patched do_GET that sets session context before handling request."""
+    # Try to extract widget ID from path and set session accordingly.
+    # Path format: /WIDGET_ID/method_name
+    try:
+        path_parts = self.path.split('/')
+        if len(path_parts) >= 2:
+            potential_widget_id = path_parts[1].split('?')[0]
+            # If this looks like a widget ID (numeric string), try to find its session.
+            if potential_widget_id.isdigit():
+                if potential_widget_id in _session_aware_instances._widget_to_session:
+                    session_id = _session_aware_instances._widget_to_session[potential_widget_id]
+                    _session_aware_instances.set_current_session(session_id)
+                    log.debug(f"do_GET: Set session to {session_id} for widget {potential_widget_id}")
+    except Exception as e:
+        log.warning(f"do_GET: Failed to extract session from path: {e}")
+    
+    if _original_do_GET:
+        return _original_do_GET(self)
+
+if _original_do_GET:
+    server.App.do_GET = _patched_do_GET
+
 
 class App(RemiApp):
     """
@@ -123,33 +149,27 @@ class App(RemiApp):
     """
     
     def __init__(self, *args, **kwargs):
-        # Set session before calling parent __init__
-        self._set_session_from_client()
+        # Use the App instance ID as session ID - each App instance is one session.
+        # This works because REMI creates one App instance per browser tab/connection.
+        self._session_id = str(id(self))
+        _session_aware_instances.set_current_session(self._session_id)
+        log.debug(f"App.__init__: Set session ID to {self._session_id}")
+        
         super(App, self).__init__(*args, **kwargs)
+        
+        # After parent init, we can access path and add it to session tracking.
+        if hasattr(self, 'path'):
+            log.debug(f"App.__init__: Session {self._session_id} is for path {self.path}")
     
-    def _set_session_from_client(self):
-        """Extract session ID and set it in the session-aware runtimeInstances."""
-        try:
-            # Try multiple ways to get a unique session ID
-            session_id = None
-            
-            # Method 1: Use client_address if available
-            if hasattr(self, 'client_address'):
-                session_id = f"{self.client_address[0]}:{self.client_address[1]}"
-            
-            # Method 2: Use path as part of session (so /say gets different session than /)
-            if hasattr(self, 'path'):
-                path_part = self.path if self.path != '/' else 'root'
-                if session_id:
-                    session_id = f"{session_id}_{path_part}"
-                else:
-                    session_id = path_part
-            
-            if session_id:
-                _session_aware_instances.set_current_session(session_id)
-                log.debug(f"Set session ID: {session_id}")
-        except Exception as e:
-            log.warning(f"Could not set session from client: {e}")
+    def execute_javascript(self, *args, **kwargs):
+        """Override to set session context before executing JavaScript."""
+        _session_aware_instances.set_current_session(self._session_id)
+        return super(App, self).execute_javascript(*args, **kwargs)
+    
+    def _process_all(self):
+        """Override to set session context before processing updates."""
+        _session_aware_instances.set_current_session(self._session_id)
+        return super(App, self)._process_all()
 
 
 def start(app_class, **kwargs):
