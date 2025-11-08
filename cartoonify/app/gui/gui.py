@@ -7,7 +7,7 @@ import os
 import sys
 
 from pathlib import Path
-from app.gui.remi_multipath import App, start
+from remi import App
 from app.workflow.multiprocessing import ProcessInterface
 from app.debugging.tracing import trace
 
@@ -52,16 +52,47 @@ class WebGui(App, ProcessInterface):
     @staticmethod
     def hook_up(event_service, logger, exit_event, halt_event, i18n, cam_only, web_host='0.0.0.0', web_port=8081, start_browser=False, cert_file=None, key_file=None):
         """Static method for multiprocessing integration."""
+        from app.gui.remi_multipath import MultiPathServer
+        
+        # Create separate App class for /say
+        class SayApp(App):
+            def main(self, event_service, logger, exit_event, halt_event, i18n, cam_only):
+                self._event_service = event_service
+                self._log = logger
+                self._exit_event = exit_event
+                self._halt_event = halt_event
+                self._i18n = i18n
+                return WebGui.construct_say_ui_static(self, event_service, i18n)
+            
+            # Add the event handler methods that say UI needs
+            def on_say_pressed(self, *_):
+                """Handle Say button press."""
+                text = self.text_input.get_value().strip()
+                if text:
+                    self._event_service.say(text)
+                    self.text_input.set_value('')
+            
+            def on_back_pressed(self, *_):
+                """Handle Back to Main button press."""
+                try:
+                    self.execute_javascript("window.location.href = '/';")
+                except:
+                    pass
+        
+        # Start multi-path server
         try:
-            with trace():
-                start(WebGui, 
-                    debug=False, 
-                    address=web_host, 
-                    port=web_port,
-                    start_browser=start_browser,
-                    certfile=cert_file,
-                    keyfile=key_file,
-                    userdata=(event_service, logger, exit_event, halt_event, i18n, cam_only))
+            server = MultiPathServer()
+            server.register_app('/', WebGui)
+            server.register_app('/say', SayApp)
+            
+            server.start(
+                debug=False,
+                address=web_host,
+                port=web_port,
+                start_browser=start_browser,
+                certfile=cert_file,
+                keyfile=key_file,
+                userdata=(event_service, logger, exit_event, halt_event, i18n, cam_only))
         except PermissionError:
             logger.error(f'Could not start HTTP server - permission denied for {web_host}:{web_port}.')
 
@@ -84,16 +115,11 @@ class WebGui(App, ProcessInterface):
         self._i18n = i18n
         self._full_capabilities = not cam_only
         
-        # Check if this is a request for the /say page
         self._log.debug(f'Processing request for path: {self.path}')
-            
-        # Route to different UIs based on path
-        if self.path == '/say':
-            return self.construct_say_ui()
-        else:
-            self.display_original = False
-            #self.display_tagged = False # TODO Not yet implemented.
-            return self.construct_ui()
+        
+        # This is the main UI (not /say)
+        self.display_original = False
+        return self.construct_ui()
 
     def construct_ui(self):
         self._log.debug(f"construct_ui() called for path: {self.path}")
@@ -198,8 +224,13 @@ class WebGui(App, ProcessInterface):
 
     def construct_say_ui(self):
         """Construct the /say page UI"""
-        self._log.debug('Constructing /say UI')
-        _ = self._i18n.gettext
+        return WebGui.construct_say_ui_static(self, self._event_service, self._i18n)
+    
+    @staticmethod
+    def construct_say_ui_static(app_instance, event_service, i18n):
+        """Static version of construct_say_ui for use in SayApp"""
+        app_instance._log.debug('Constructing /say UI')
+        _ = i18n.gettext
         
         # Main container
         main_container = gui.VBox()
@@ -247,8 +278,8 @@ class WebGui(App, ProcessInterface):
         form_container.append(text_label)
         
         # Text input field
-        self.text_input = gui.TextInput()
-        self.text_input.style.update({
+        app_instance.text_input = gui.TextInput()
+        app_instance.text_input.style.update({
             'width': '100%',
             'height': '100px',
             'margin-bottom': '20px',
@@ -257,7 +288,7 @@ class WebGui(App, ProcessInterface):
             'border-radius': '5px',
             'font-size': '14px'
         })
-        form_container.append(self.text_input)
+        form_container.append(app_instance.text_input)
         
         # Button container
         button_container = gui.HBox()
@@ -277,7 +308,7 @@ class WebGui(App, ProcessInterface):
             'font-size': '16px',
             'cursor': 'pointer'
         })
-        say_button.onclick.do(self.on_say_pressed)
+        say_button.onclick.do(app_instance.on_say_pressed)
         button_container.append(say_button)
         
         # Back button
@@ -291,7 +322,7 @@ class WebGui(App, ProcessInterface):
             'font-size': '16px',
             'cursor': 'pointer'
         })
-        back_button.onclick.do(self.on_back_pressed)
+        back_button.onclick.do(app_instance.on_back_pressed)
         button_container.append(back_button)
         
         form_container.append(button_container)

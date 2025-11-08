@@ -1,186 +1,157 @@
 """
-Multi-path routing support for REMI framework.
+Multi-application routing extension for REMI framework.
 
-This module extends REMI's App class to support multiple concurrent sessions
-with different URL paths, allowing multiple browser tabs to access different
-pages simultaneously without widget ID conflicts.
+This module allows a single REMI server to serve different App classes
+on different URL paths. Each path gets its own App instance with isolated
+widget trees and event handling.
+
+Usage:
+    from app.gui.remi_multipath import MultiPathServer
+    
+    server = MultiPathServer()
+    server.register_app('/', MainApp)
+    server.register_app('/say', SayApp)
+    server.start(address='0.0.0.0', port=80)
 """
 
-import weakref
 import logging
-from remi import App as RemiApp
-from remi import start as remi_start
-from remi import server
+import weakref
+from remi import server as remi_server
 
 log = logging.getLogger(__name__)
 
 
-class SessionAwareRuntimeInstances:
+class MultiPathServer:
     """
-    Proxy for runtimeInstances that maintains separate widget dictionaries per session.
+    A REMI server wrapper that routes different URL paths to different App classes.
+    
+    This works by monkey-patching the REMI RequestHandler to check the path
+    and instantiate the appropriate App class.
     """
     
     def __init__(self):
-        self._current_session_id = None
-        self._default_instances = weakref.WeakValueDictionary()
-        # Map widget ID to session ID
-        self._widget_to_session = {}
-        # Per-session storage for widget instances
-        self._session_instances = {}
+        self._routes = {}  # path -> app_class mapping
+        self._app_instances = weakref.WeakValueDictionary()  # Track app instances per connection
         
-    def set_current_session(self, session_id):
-        """Set the current session ID for subsequent operations."""
-        self._current_session_id = session_id
-        if session_id and session_id not in self._session_instances:
-            self._session_instances[session_id] = weakref.WeakValueDictionary()
-    
-    def _get_current_dict(self):
-        """Get the runtime instances dict for the current session."""
-        if self._current_session_id and self._current_session_id in self._session_instances:
-            return self._session_instances[self._current_session_id]
-        return self._default_instances
-    
-    def _get_dict_by_widget_id(self, widget_id):
-        """Get the runtime instances dict for a specific widget ID."""
-        # First try to find which session owns this widget.
-        if widget_id in self._widget_to_session:
-            session_id = self._widget_to_session[widget_id]
-            if session_id in self._session_instances:
-                log.debug(f"_get_dict_by_widget_id({widget_id}): Found in mapping -> session {session_id}")
-                return self._session_instances[session_id]
+    def register_app(self, path, app_class):
+        """
+        Register an App class to handle a specific URL path.
         
-        # If not found in mapping, search all session dictionaries.
-        for session_id, session_dict in self._session_instances.items():
-            if widget_id in session_dict:
-                # Update mapping for faster future lookups.
-                self._widget_to_session[widget_id] = session_id
-                log.debug(f"_get_dict_by_widget_id({widget_id}): Found by search in session {session_id}")
-                return session_dict
+        Args:
+            path (str): URL path (e.g., '/', '/say')
+            app_class: REMI App class (not instance) to handle this path
+        """
+        # Normalize path
+        if not path.startswith('/'):
+            path = '/' + path
         
-        # Fall back to default if still not found.
-        if widget_id in self._default_instances:
-            log.debug(f"_get_dict_by_widget_id({widget_id}): Found in default instances")
-            return self._default_instances
+        self._routes[path] = app_class
+        log.info(f"Registered {app_class.__name__} for path {path}")
+    
+    def start(self, **kwargs):
+        """
+        Start the multi-path REMI server.
         
-        # Last resort: use current session dict (widget will be created there).
-        log.debug(f"_get_dict_by_widget_id({widget_id}): Not found anywhere, using current session")
-        return self._get_current_dict()
-    
-    def __getitem__(self, key):
-        # When accessing by key (widget lookup), use widget-to-session mapping.
-        log.debug(f"__getitem__({key}): widget_to_session has {len(self._widget_to_session)} entries, "
-                  f"session_instances has {len(self._session_instances)} sessions, "
-                  f"current_session_id={self._current_session_id}")
+        Args:
+            **kwargs: All arguments accepted by remi.start() (address, port, etc.)
+        """
+        if not self._routes:
+            raise ValueError("No apps registered. Use register_app() before start().")
         
-        result_dict = self._get_dict_by_widget_id(key)
-        log.debug(f"__getitem__({key}): Found in dict with {len(result_dict)} widgets")
+        # Create a wrapper App class that routes based on path
+        routes = self._routes
+        app_instances = self._app_instances
         
-        return result_dict[key]
-    
-    def __setitem__(self, key, value):
-        # When setting, use current session and remember the mapping.
-        log.debug(f"__setitem__({key}, {type(value).__name__}): current_session_id={self._current_session_id}")
-        if self._current_session_id:
-            self._widget_to_session[key] = self._current_session_id
-        self._get_current_dict()[key] = value
-    
-    def __delitem__(self, key):
-        # Clean up mapping when widget is deleted
-        if key in self._widget_to_session:
-            del self._widget_to_session[key]
-        del self._get_current_dict()[key]
-    
-    def __contains__(self, key):
-        return key in self._get_dict_by_widget_id(key)
-    
-    def get(self, key, default=None):
-        try:
-            return self._get_dict_by_widget_id(key).get(key, default)
-        except:
-            return default
-    
-    def keys(self):
-        return self._get_current_dict().keys()
-    
-    def values(self):
-        return self._get_current_dict().values()
-    
-    def items(self):
-        return self._get_current_dict().items()
+        class MultiPathApp(remi_server.App):
+            """
+            Router App that delegates to the appropriate registered App based on URL path.
+            """
+            
+            def __init__(self, *args, **kwargs):
+                # Extract path from request before parent init
+                self._target_app = None
+                self._target_app_class = None
+                
+                # Determine which app to instantiate based on path
+                request_path = '/'
+                if hasattr(self, 'path'):
+                    request_path = self.path
+                elif len(args) > 0 and hasattr(args[0], 'path'):
+                    # First arg might be the request object
+                    request_path = args[0].path
+                
+                # Find matching route (exact match first, then prefix match)
+                matched_app_class = None
+                if request_path in routes:
+                    matched_app_class = routes[request_path]
+                else:
+                    # Try prefix matching for sub-paths
+                    for route_path, app_class in routes.items():
+                        if request_path.startswith(route_path):
+                            matched_app_class = app_class
+                            break
+                
+                # Fallback to root if no match
+                if matched_app_class is None:
+                    matched_app_class = routes.get('/')
+                
+                if matched_app_class is None:
+                    raise ValueError(f"No app registered for path {request_path} and no root (/) handler")
+                
+                self._target_app_class = matched_app_class
+                log.debug(f"MultiPathApp: Routing {request_path} to {matched_app_class.__name__}")
+                
+                # Instantiate the target app
+                self._target_app = matched_app_class(*args, **kwargs)
+                
+                # Store instance for tracking
+                app_instances[id(self._target_app)] = self._target_app
+                
+                # Don't call super().__init__ - we're just a router
+                # Copy essential attributes from target app
+                self.identifier = self._target_app.identifier
+                self.attributes = self._target_app.attributes
+                self.style = self._target_app.style
+                self.children = self._target_app.children
+            
+            def main(self, *args, **kwargs):
+                """Route main() to the target app."""
+                if self._target_app and hasattr(self._target_app, 'main'):
+                    return self._target_app.main(*args, **kwargs)
+                return None
+            
+            def idle(self):
+                """Route idle() to the target app."""
+                if self._target_app and hasattr(self._target_app, 'idle'):
+                    return self._target_app.idle()
+            
+            def __getattr__(self, name):
+                """Route any other method calls to the target app."""
+                if name.startswith('_'):
+                    raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+                
+                if self._target_app:
+                    return getattr(self._target_app, name)
+                
+                raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+        
+        # Start REMI server with our router app
+        return remi_server.start(MultiPathApp, **kwargs)
 
 
-# Replace global runtimeInstances with session-aware version
-_session_aware_instances = SessionAwareRuntimeInstances()
-server.runtimeInstances = _session_aware_instances
-
-# Monkey-patch REMI's do_GET to set session context from widget ID lookup
-_original_do_GET = server.App.do_GET if hasattr(server.App, 'do_GET') else None
-
-def _patched_do_GET(self):
-    """Patched do_GET that sets session context before handling request."""
-    # Try to extract widget ID from path and set session accordingly.
-    # Path format: /WIDGET_ID/method_name
-    try:
-        path_parts = self.path.split('/')
-        if len(path_parts) >= 2:
-            potential_widget_id = path_parts[1].split('?')[0]
-            # If this looks like a widget ID (numeric string), try to find its session.
-            if potential_widget_id.isdigit():
-                if potential_widget_id in _session_aware_instances._widget_to_session:
-                    session_id = _session_aware_instances._widget_to_session[potential_widget_id]
-                    _session_aware_instances.set_current_session(session_id)
-                    log.debug(f"do_GET: Set session to {session_id} for widget {potential_widget_id}")
-    except Exception as e:
-        log.warning(f"do_GET: Failed to extract session from path: {e}")
-    
-    if _original_do_GET:
-        return _original_do_GET(self)
-
-if _original_do_GET:
-    server.App.do_GET = _patched_do_GET
-
-
-class App(RemiApp):
+def start_multipath_server(apps_dict, **kwargs):
     """
-    Extended REMI App that supports multiple URL paths with separate sessions.
-    
-    Use this class instead of remi.App to get multi-path support.
-    Each browser tab/window gets its own session with separate widget instances.
-    """
-    
-    def __init__(self, *args, **kwargs):
-        # Use the App instance ID as session ID - each App instance is one session.
-        # This works because REMI creates one App instance per browser tab/connection.
-        self._session_id = str(id(self))
-        _session_aware_instances.set_current_session(self._session_id)
-        log.debug(f"App.__init__: Set session ID to {self._session_id}")
-        
-        super(App, self).__init__(*args, **kwargs)
-        
-        # After parent init, we can access path and add it to session tracking.
-        if hasattr(self, 'path'):
-            log.debug(f"App.__init__: Session {self._session_id} is for path {self.path}")
-    
-    def execute_javascript(self, *args, **kwargs):
-        """Override to set session context before executing JavaScript."""
-        _session_aware_instances.set_current_session(self._session_id)
-        return super(App, self).execute_javascript(*args, **kwargs)
-    
-    def _process_all(self):
-        """Override to set session context before processing updates."""
-        _session_aware_instances.set_current_session(self._session_id)
-        return super(App, self)._process_all()
-
-
-def start(app_class, **kwargs):
-    """
-    Start the REMI server with multi-path support.
-    
-    Use this instead of remi.start() to get multi-path functionality.
+    Convenient function to start a multi-path REMI server.
     
     Args:
-        app_class: Your App class (should inherit from remi_multipath.App)
-        **kwargs: All arguments that remi.start() accepts
+        apps_dict (dict): Dictionary mapping paths to App classes
+            Example: {'/' : MainApp, '/say': SayApp}
+        **kwargs: Arguments for remi.start() (address, port, etc.)
+    
+    Returns:
+        Server instance
     """
-    return remi_start(app_class, **kwargs)
-
+    server = MultiPathServer()
+    for path, app_class in apps_dict.items():
+        server.register_app(path, app_class)
+    return server.start(**kwargs)
