@@ -245,7 +245,7 @@ class ProcessManager:
         """
         The main task executed by each child process.
         """
-        # Redirect stdout/stderr if pipes are provided
+        # Redirect stdout/stderr if pipes are provided.
         if stdout_pipe:
             os.dup2(stdout_pipe[1], 1)  # Redirect stdout to pipe
             os.close(stdout_pipe[0])    # Close read end in child
@@ -255,23 +255,6 @@ class ProcessManager:
             os.dup2(stderr_pipe[1], 2)  # Redirect stderr to pipe
             os.close(stderr_pipe[0])    # Close read end in child
             os.close(stderr_pipe[1])    # Close write end after dup2
-        
-        def signal_handler(signum, frame):
-            try:
-                # Try to access exit_event through event_proxy.
-                if 'event_proxy' in locals() and 'subprocess_logger' in locals():
-                    if event_proxy.get_exit_event().is_set():
-                        return  # Already exiting, return immediately.
-                    subprocess_logger.info(f"Child Process {pid} ({process_class.__name__}), PID {os.getpid()}: Received signal {signum}, exiting.")
-                    event_proxy.get_exit_event().set()
-            except:
-                # Cannot access exit_event, just exit.
-                if 'subprocess_logger' in locals():
-                    subprocess_logger.info(f"Child Process {pid} ({process_class.__name__}), PID {os.getpid()}: Received signal {signum}, exiting.")
-            sys.exit(0)
-
-        # Set up the SIGINT handler for the child process.
-        signal.signal(signal.SIGINT, signal_handler)
 
         # Connect to the parent process's manager.
         # Register both event_service and logger for client-side access.
@@ -282,15 +265,37 @@ class ProcessManager:
             event_manager.connect()
             event_proxy = event_manager.event_service()
             subprocess_logger = event_manager.logger(pid)
+        
+            # TODO The signal handler is now unused. It may be configurable in the future.
+            def signal_handler(signum, frame):
+                try:
+                    # Try to access exit_event through event_proxy.
+                    if 'event_proxy' in locals() and 'subprocess_logger' in locals():
+                        if event_proxy.get_exit_event().is_set():
+                            return  # Already exiting, return immediately.
+                        subprocess_logger.info(f"Child Process {pid} ({process_class.__name__}), PID {os.getpid()}: Received signal {signum}, exiting.")
+                        event_proxy.get_exit_event().set()
+                except:
+                    # Cannot access exit_event, just exit.
+                    if 'subprocess_logger' in locals():
+                        subprocess_logger.info(f"Child Process {pid} ({process_class.__name__}), PID {os.getpid()}: Received signal {signum}, exiting.")
+                sys.exit(0)
+
+
+            #signal.signal(signal.SIGINT, signal_handler)
+
+            # Ignore SIGINT in child processes - they should exit via exit_event only.
+            # This prevents child processes from being killed directly by Ctrl+C.
+            signal.signal(signal.SIGINT, signal.SIG_IGN)
         except Exception as e:
-            # Fallback to stderr if connection fails
+            # Fallback to stderr if connection fails.
             print(f"Child Process {pid} ({process_class.__name__}), PID {os.getpid()}: Failed to connect to manager: {e}", file=sys.stderr)
             sys.exit(1)
 
-        subprocess_logger.debug(f"Child Process {pid} ({process_class.__name__}), PID {os.getpid()}: Starting. ")
+        subprocess_logger.debug(f"Child Process {pid} ({process_class.__name__}), PID {os.getpid()}: Starting.")
 
         try:
-            # Call the static hook_up method on the process class
+            # Call the static hook_up method on the process class.
             process_class.hook_up(event_proxy, subprocess_logger, exit_event, halt_event, *args, **kwargs)
         finally:
             subprocess_logger.debug(f"Child Process {pid} ({process_class.__name__}), PID {os.getpid()}: Exiting.")
