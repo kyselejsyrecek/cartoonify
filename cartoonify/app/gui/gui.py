@@ -7,7 +7,7 @@ import os
 import sys
 
 from pathlib import Path
-from remi import App, start
+from app.gui.remi_multipath import App, start
 from app.workflow.multiprocessing import ProcessInterface
 
 
