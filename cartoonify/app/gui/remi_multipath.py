@@ -17,6 +17,7 @@ Usage:
 import logging
 import weakref
 from remi import server as remi_server
+from app.debugging.tracing import trace
 
 log = logging.getLogger(__name__)
 
@@ -67,31 +68,32 @@ class MultiPathServer:
             Router App that delegates to the appropriate registered App based on URL path.
             """
             
+            @trace
             def __init__(self, *args, **kwargs):
-                # Extract path from request before parent init
+                # Extract path from request before parent init.
                 self._target_app = None
                 self._target_app_class = None
                 
-                # Determine which app to instantiate based on path
+                # Determine which app to instantiate based on path.
                 request_path = '/'
                 if hasattr(self, 'path'):
                     request_path = self.path
                 elif len(args) > 0 and hasattr(args[0], 'path'):
-                    # First arg might be the request object
+                    # First arg might be the request object.
                     request_path = args[0].path
                 
-                # Find matching route (exact match first, then prefix match)
+                # Find matching route (exact match first, then prefix match).
                 matched_app_class = None
                 if request_path in routes:
                     matched_app_class = routes[request_path]
                 else:
-                    # Try prefix matching for sub-paths
+                    # Try prefix matching for sub-paths.
                     for route_path, app_class in routes.items():
                         if request_path.startswith(route_path):
                             matched_app_class = app_class
                             break
                 
-                # Fallback to root if no match
+                # Fallback to root if no match.
                 if matched_app_class is None:
                     matched_app_class = routes.get('/')
                 
@@ -101,25 +103,23 @@ class MultiPathServer:
                 self._target_app_class = matched_app_class
                 log.debug(f"MultiPathApp: Routing {request_path} to {matched_app_class.__name__}")
                 
-                # Instantiate the target app
+                # Instantiate the target app.
                 self._target_app = matched_app_class(*args, **kwargs)
                 
-                # Store instance for tracking
+                # Store instance for tracking.
                 app_instances[id(self._target_app)] = self._target_app
                 
-                # Don't call super().__init__ - we're just a router
-                # Copy essential attributes from target app
-                self.identifier = self._target_app.identifier
-                self.attributes = self._target_app.attributes
-                self.style = self._target_app.style
-                self.children = self._target_app.children
+                # Don't call super().__init__ - we're just a router.
+                # The target app handles all actual App functionality.
             
+            @trace
             def main(self, *args, **kwargs):
                 """Route main() to the target app."""
                 if self._target_app and hasattr(self._target_app, 'main'):
                     return self._target_app.main(*args, **kwargs)
                 return None
             
+            @trace
             def idle(self):
                 """Route idle() to the target app."""
                 if self._target_app and hasattr(self._target_app, 'idle'):

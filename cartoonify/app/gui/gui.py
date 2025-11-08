@@ -12,6 +12,140 @@ from app.workflow.multiprocessing import ProcessInterface
 from app.debugging.tracing import trace
 
 
+class SayApp(App):
+    """
+    Separate application for text-to-speech functionality on /say URL.
+    """
+    def __init__(self, *args):
+        super().__init__(*args)
+        self._event_service = None
+        self._log = None
+        self._i18n = None
+    
+    def main(self, event_service, logger, exit_event, halt_event, i18n, cam_only):
+        """Construct the /say page UI."""
+        self._event_service = event_service
+        self._log = logger
+        self._exit_event = exit_event
+        self._halt_event = halt_event
+        self._i18n = i18n
+        
+        self._log.debug('Constructing /say UI')
+        _ = i18n.gettext
+        
+        # Main container.
+        main_container = gui.VBox()
+        main_container.style.update({
+            'top': '0px',
+            'display': 'flex',
+            'overflow': 'auto',
+            'width': '100%',
+            'flex-direction': 'column',
+            'position': 'absolute',
+            'justify-content': 'center',
+            'margin': '0px',
+            'align-items': 'center',
+            'left': '0px',
+            'height': '100%',
+            'background-color': '#f0f0f0'
+        })
+        
+        # Title.
+        title = gui.Label(_('Text-to-Speech'))
+        title.style.update({
+            'font-size': '24px',
+            'font-weight': 'bold',
+            'margin': '20px',
+            'text-align': 'center'
+        })
+        main_container.append(title)
+        
+        # Form container.
+        form_container = gui.VBox()
+        form_container.style.update({
+            'width': '400px',
+            'padding': '20px',
+            'background-color': 'white',
+            'border-radius': '10px',
+            'box-shadow': '0 2px 10px rgba(0,0,0,0.1)'
+        })
+        
+        # Text input label.
+        text_label = gui.Label(_('Enter text to speak:'))
+        text_label.style.update({
+            'margin-bottom': '10px',
+            'font-weight': 'bold'
+        })
+        form_container.append(text_label)
+        
+        # Text input field.
+        self.text_input = gui.TextInput()
+        self.text_input.style.update({
+            'width': '100%',
+            'height': '100px',
+            'margin-bottom': '20px',
+            'padding': '10px',
+            'border': '1px solid #ccc',
+            'border-radius': '5px',
+            'font-size': '14px'
+        })
+        form_container.append(self.text_input)
+        
+        # Button container.
+        button_container = gui.HBox()
+        button_container.style.update({
+            'justify-content': 'space-between',
+            'width': '100%'
+        })
+        
+        # Say button.
+        say_button = gui.Button(_('Say'))
+        say_button.style.update({
+            'background-color': '#4CAF50',
+            'color': 'white',
+            'padding': '10px 20px',
+            'border': 'none',
+            'border-radius': '5px',
+            'font-size': '16px',
+            'cursor': 'pointer'
+        })
+        say_button.onclick.do(self.on_say_pressed)
+        button_container.append(say_button)
+        
+        # Back button.
+        back_button = gui.Button(_('Back to Main'))
+        back_button.style.update({
+            'background-color': '#008CBA',
+            'color': 'white',
+            'padding': '10px 20px',
+            'border': 'none',
+            'border-radius': '5px',
+            'font-size': '16px',
+            'cursor': 'pointer'
+        })
+        back_button.onclick.do(self.on_back_pressed)
+        button_container.append(back_button)
+        
+        form_container.append(button_container)
+        main_container.append(form_container)
+        
+        return main_container
+    
+    def on_say_pressed(self, *_):
+        """Handle Say button press."""
+        text = self.text_input.get_value().strip()
+        if text:
+            self._event_service.say(text)
+            self.text_input.set_value('')
+    
+    def on_back_pressed(self, *_):
+        """Handle Back to Main button press."""
+        try:
+            self.execute_javascript("window.location.href = '/';")
+        except:
+            pass
+
+
 class PILImageViewerWidget(gui.Image):
     def __init__(self, **kwargs):
         super(PILImageViewerWidget, self).__init__(**kwargs)
@@ -54,32 +188,7 @@ class WebGui(App, ProcessInterface):
         """Static method for multiprocessing integration."""
         from app.gui.remi_multipath import MultiPathServer
         
-        # Create separate App class for /say
-        class SayApp(App):
-            def main(self, event_service, logger, exit_event, halt_event, i18n, cam_only):
-                self._event_service = event_service
-                self._log = logger
-                self._exit_event = exit_event
-                self._halt_event = halt_event
-                self._i18n = i18n
-                return WebGui.construct_say_ui_static(self, event_service, i18n)
-            
-            # Add the event handler methods that say UI needs
-            def on_say_pressed(self, *_):
-                """Handle Say button press."""
-                text = self.text_input.get_value().strip()
-                if text:
-                    self._event_service.say(text)
-                    self.text_input.set_value('')
-            
-            def on_back_pressed(self, *_):
-                """Handle Back to Main button press."""
-                try:
-                    self.execute_javascript("window.location.href = '/';")
-                except:
-                    pass
-        
-        # Start multi-path server
+        # Start multi-path server with WebGui on / and SayApp on /say.
         try:
             server = MultiPathServer()
             server.register_app('/', WebGui)
@@ -222,114 +331,6 @@ class WebGui(App, ProcessInterface):
 
         return self.main_container
 
-    def construct_say_ui(self):
-        """Construct the /say page UI"""
-        return WebGui.construct_say_ui_static(self, self._event_service, self._i18n)
-    
-    @staticmethod
-    def construct_say_ui_static(app_instance, event_service, i18n):
-        """Static version of construct_say_ui for use in SayApp"""
-        app_instance._log.debug('Constructing /say UI')
-        _ = i18n.gettext
-        
-        # Main container
-        main_container = gui.VBox()
-        main_container.style.update({
-            'top': '0px',
-            'display': 'flex',
-            'overflow': 'auto',
-            'width': '100%',
-            'flex-direction': 'column',
-            'position': 'absolute',
-            'justify-content': 'center',
-            'margin': '0px',
-            'align-items': 'center',
-            'left': '0px',
-            'height': '100%',
-            'background-color': '#f0f0f0'
-        })
-        
-        # Title
-        title = gui.Label(_('Text-to-Speech'))
-        title.style.update({
-            'font-size': '24px',
-            'font-weight': 'bold',
-            'margin': '20px',
-            'text-align': 'center'
-        })
-        main_container.append(title)
-        
-        # Form container
-        form_container = gui.VBox()
-        form_container.style.update({
-            'width': '400px',
-            'padding': '20px',
-            'background-color': 'white',
-            'border-radius': '10px',
-            'box-shadow': '0 2px 10px rgba(0,0,0,0.1)'
-        })
-        
-        # Text input label
-        text_label = gui.Label(_('Enter text to speak:'))
-        text_label.style.update({
-            'margin-bottom': '10px',
-            'font-weight': 'bold'
-        })
-        form_container.append(text_label)
-        
-        # Text input field
-        app_instance.text_input = gui.TextInput()
-        app_instance.text_input.style.update({
-            'width': '100%',
-            'height': '100px',
-            'margin-bottom': '20px',
-            'padding': '10px',
-            'border': '1px solid #ccc',
-            'border-radius': '5px',
-            'font-size': '14px'
-        })
-        form_container.append(app_instance.text_input)
-        
-        # Button container
-        button_container = gui.HBox()
-        button_container.style.update({
-            'justify-content': 'space-between',
-            'width': '100%'
-        })
-        
-        # Say button
-        say_button = gui.Button(_('Say'))
-        say_button.style.update({
-            'background-color': '#4CAF50',
-            'color': 'white',
-            'padding': '10px 20px',
-            'border': 'none',
-            'border-radius': '5px',
-            'font-size': '16px',
-            'cursor': 'pointer'
-        })
-        say_button.onclick.do(app_instance.on_say_pressed)
-        button_container.append(say_button)
-        
-        # Back button
-        back_button = gui.Button(_('Back to Main'))
-        back_button.style.update({
-            'background-color': '#008CBA',
-            'color': 'white',
-            'padding': '10px 20px',
-            'border': 'none',
-            'border-radius': '5px',
-            'font-size': '16px',
-            'cursor': 'pointer'
-        })
-        back_button.onclick.do(app_instance.on_back_pressed)
-        button_container.append(back_button)
-        
-        form_container.append(button_container)
-        main_container.append(form_container)
-        
-        return main_container
-
     def on_display_original_change(self, widget, value):
         self.display_original = value
         self.image_original.style['display'] = "block" if self.display_original else "none"
@@ -373,21 +374,3 @@ class WebGui(App, ProcessInterface):
 
     def on_dialog_cancel(self, widget):
         self.set_root_widget(self.main_container)
-    
-    def on_say_pressed(self, *_):
-        """Handle Say button press."""
-        text = self.text_input.get_value().strip()
-        if text:
-            self._event_service.say(text)
-            self.text_input.set_value('')  # Clear the input field.
-        
-    def on_back_pressed(self, *_):
-        """Handle Back to Main button press."""
-        # Redirect to main page by refreshing to root URL
-        try:
-            # Use REMI's built-in method to execute JavaScript for redirect
-            self.execute_javascript("window.location.href = '/';")
-        except:
-            # Fallback: just show main UI
-            main_ui = self.construct_ui()
-            self.set_root_widget(main_ui)
