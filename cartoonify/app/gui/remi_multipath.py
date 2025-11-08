@@ -46,6 +46,7 @@ class SessionAwareRuntimeInstances:
         if widget_id in self._widget_to_session:
             session_id = self._widget_to_session[widget_id]
             if session_id in self._session_instances:
+                log.debug(f"_get_dict_by_widget_id({widget_id}): Found in mapping -> session {session_id}")
                 return self._session_instances[session_id]
         
         # If not found in mapping, search all session dictionaries.
@@ -53,21 +54,32 @@ class SessionAwareRuntimeInstances:
             if widget_id in session_dict:
                 # Update mapping for faster future lookups.
                 self._widget_to_session[widget_id] = session_id
+                log.debug(f"_get_dict_by_widget_id({widget_id}): Found by search in session {session_id}")
                 return session_dict
         
         # Fall back to default if still not found.
         if widget_id in self._default_instances:
+            log.debug(f"_get_dict_by_widget_id({widget_id}): Found in default instances")
             return self._default_instances
         
         # Last resort: use current session dict (widget will be created there).
+        log.debug(f"_get_dict_by_widget_id({widget_id}): Not found anywhere, using current session")
         return self._get_current_dict()
     
     def __getitem__(self, key):
-        # When accessing by key (widget lookup), use widget-to-session mapping
-        return self._get_dict_by_widget_id(key)[key]
+        # When accessing by key (widget lookup), use widget-to-session mapping.
+        log.debug(f"__getitem__({key}): widget_to_session has {len(self._widget_to_session)} entries, "
+                  f"session_instances has {len(self._session_instances)} sessions, "
+                  f"current_session_id={self._current_session_id}")
+        
+        result_dict = self._get_dict_by_widget_id(key)
+        log.debug(f"__getitem__({key}): Found in dict with {len(result_dict)} widgets")
+        
+        return result_dict[key]
     
     def __setitem__(self, key, value):
-        # When setting, use current session and remember the mapping
+        # When setting, use current session and remember the mapping.
+        log.debug(f"__setitem__({key}, {type(value).__name__}): current_session_id={self._current_session_id}")
         if self._current_session_id:
             self._widget_to_session[key] = self._current_session_id
         self._get_current_dict()[key] = value
