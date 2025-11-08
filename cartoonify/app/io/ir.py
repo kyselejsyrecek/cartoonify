@@ -6,7 +6,6 @@ import signal
 import time
 
 from app.workflow.multiprocessing import ProcessInterface
-from app.debugging.syscall import strace
 
 
 BUTTON_IMMEDIATE_TRIGGER = [ 0x7fbfffff, 0xcab11f  ]
@@ -253,50 +252,49 @@ class IrReceiver(ProcessInterface):
         cmd = None
         last_command_time = 0
         
-        with strace():
-            while not self._exit_event.is_set():
-                try:
-                    for event in self.dev.read():
-                        self._log.debug(f'Received IR command: 0x{event.value:08x}')
-                        if cmd is None:
-                            cmd = event.value
+        while not self._exit_event.is_set():
+            try:
+                for event in self.dev.read():
+                    self._log.debug(f'Received IR command: 0x{event.value:08x}')
+                    if cmd is None:
+                        cmd = event.value
+                    else:
+                        if event.value == 0:
+                            if cmd > 0:
+                                # Check debounce time.
+                                current_time = time.time()
+                                if current_time - last_command_time < self._debounce_time:
+                                    self._log.debug(f'Ignoring command due to debounce (time since last: {current_time - last_command_time:.3f}s).')
+                                    cmd = None
+                                    continue
+                                last_command_time = current_time
+                                
+                                self._log.debug('Received terminating IR string. Processing command.')
+                                if cmd in BUTTON_IMMEDIATE_TRIGGER:
+                                    self._log.debug('Invoking immediate trigger.')
+                                    self.trigger_callback()
+                                elif cmd in BUTTON_2S_TRIGGER:
+                                    self._log.debug('Invoking 2-second trigger.')
+                                    self.trigger_2s_callback()
+                                elif cmd in BUTTON_TOGGLE_RECORDING:
+                                    self._log.debug('Toggling recording.')
+                                    self.recording_callback()
+                                elif cmd in BUTTON_WINK:
+                                    self._log.debug('Invoking wink trigger.')
+                                    self.wink_callback()
+                                else:
+                                    self._log.debug('Unknown IR command, ignoring.')
+                            cmd = None
                         else:
-                            if event.value == 0:
-                                if cmd > 0:
-                                    # Check debounce time.
-                                    current_time = time.time()
-                                    if current_time - last_command_time < self._debounce_time:
-                                        self._log.debug(f'Ignoring command due to debounce (time since last: {current_time - last_command_time:.3f}s).')
-                                        cmd = None
-                                        continue
-                                    last_command_time = current_time
-                                    
-                                    self._log.debug('Received terminating IR string. Processing command.')
-                                    if cmd in BUTTON_IMMEDIATE_TRIGGER:
-                                        self._log.debug('Invoking immediate trigger.')
-                                        self.trigger_callback()
-                                    elif cmd in BUTTON_2S_TRIGGER:
-                                        self._log.debug('Invoking 2-second trigger.')
-                                        self.trigger_2s_callback()
-                                    elif cmd in BUTTON_TOGGLE_RECORDING:
-                                        self._log.debug('Toggling recording.')
-                                        self.recording_callback()
-                                    elif cmd in BUTTON_WINK:
-                                        self._log.debug('Invoking wink trigger.')
-                                        self.wink_callback()
-                                    else:
-                                        self._log.debug('Unknown IR command, ignoring.')
-                                cmd = None
-                            else:
-                                self._log.debug('Received unsupported multi-integer command. Ignoring.')
-                                cmd = -1
+                            self._log.debug('Received unsupported multi-integer command. Ignoring.')
+                            cmd = -1
 
-                except BlockingIOError:
-                    #self._log.debug('No IR commands received.')
-                    time.sleep(0.05) # Safety interval between polling cycles.
+            except BlockingIOError:
+                #self._log.debug('No IR commands received.')
+                time.sleep(0.05) # Safety interval between polling cycles.
 
-                except Exception as e:
-                    self._log.exception(f'Error in IR processing: {e}')
-                    time.sleep(0.5) # Wait before retrying after error.
-            
-            self._log.info('Stopping IR receiver...')
+            except Exception as e:
+                self._log.exception(f'Error in IR processing: {e}')
+                time.sleep(0.5) # Wait before retrying after error.
+        
+        self._log.info('Stopping IR receiver...')
