@@ -23,10 +23,11 @@ class IrReceiver(ProcessInterface):
     interface to IR receiver
     """
 
-    def __init__(self, log=None, exit_event=None, halt_event=None):
+    def __init__(self, log=None, exit_event=None, halt_event=None, debounce_time=0.25):
         self._log = log or getLogger(self.__class__.__name__)
         self._exit_event = exit_event
         self._halt_event = halt_event
+        self._debounce_time = debounce_time
 
         self.dev = None
         self._rc_path = None
@@ -38,7 +39,8 @@ class IrReceiver(ProcessInterface):
 
     @staticmethod
     def hook_up(event_service, log, exit_event, halt_event, *args, **kwargs):
-        ir_receiver = IrReceiver(log, exit_event, halt_event)
+        debounce_time = kwargs.get('debounce_time', 0.25)
+        ir_receiver = IrReceiver(log, exit_event, halt_event, debounce_time)
         ir_receiver.setup(trigger_callback=event_service.capture,
                             trigger_2s_callback = event_service.delayed_capture,
                             recording_callback=event_service.toggle_recording,
@@ -248,6 +250,8 @@ class IrReceiver(ProcessInterface):
         self._log.info('Starting IR receiver processing loop...')
         
         cmd = None
+        last_command_time = 0
+        
         while not self._exit_event.is_set():
             try:
                 for event in self.dev.read():
@@ -257,6 +261,14 @@ class IrReceiver(ProcessInterface):
                     else:
                         if event.value == 0:
                             if cmd > 0:
+                                # Check debounce time.
+                                current_time = time.time()
+                                if current_time - last_command_time < self._debounce_time:
+                                    self._log.debug(f'Ignoring command due to debounce (time since last: {current_time - last_command_time:.3f}s).')
+                                    cmd = None
+                                    continue
+                                last_command_time = current_time
+                                
                                 self._log.debug('Received terminating IR string. Processing command.')
                                 if cmd in BUTTON_IMMEDIATE_TRIGGER:
                                     self._log.debug('Invoking immediate trigger.')
@@ -276,11 +288,10 @@ class IrReceiver(ProcessInterface):
                         else:
                             self._log.debug('Received unsupported multi-integer command. Ignoring.')
                             cmd = -1
-                    time.sleep(0.1) # Safety interval to ignore long signals.
 
             except BlockingIOError:
                 #self._log.debug('No IR commands received.')
-                pass
+                time.sleep(0.05) # Safety interval between polling cycles.
 
             except Exception as e:
                 self._log.exception(f'Error in IR processing: {e}')

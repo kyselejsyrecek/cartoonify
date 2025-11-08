@@ -76,6 +76,7 @@ def flatten(xss):
 @click.option('--no-accelerometer', is_flag=True, help='Disable accelerometer motion detection')
 @click.option('--no-camera', is_flag=True, help='Disable camera in --raspi-headless mode')
 @click.option('--no-gpio', is_flag=True, help='Disable GPIO (LEDs, buttons, sensors)')
+@click.option('--ir-debounce-time', type=float, default=0.25, help='IR receiver debounce time in seconds (default: 0.25)')
 @click.option('--tts-language', type=str, default='cs', help='Text-to-speech language code (default: cs for Czech)')
 @click.option('--no-log-colors', is_flag=True, help='Disable colored output in log messages')
 @click.option('--no-sound', is_flag=True, default=False, help='Disable all sounds.')

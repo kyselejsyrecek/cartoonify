@@ -207,7 +207,7 @@ class Workflow(AsyncExecutor):
                                 approach_callback=self.someone_approached,
                                 halt_callback=self.system_halt)
                 if not self._config.no_ir_receiver:
-                    self._ir_receiver = self._process_manager.start_process(IrReceiver)
+                    self._ir_receiver = self._process_manager.start_process(IrReceiver, debounce_time=self._config.ir_debounce_time)
                 if not self._config.no_clap_detector:
                     self._clap_detector = self._process_manager.start_process(ClapDetector)
                 if not self._config.no_accelerometer:
