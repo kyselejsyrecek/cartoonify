@@ -190,18 +190,19 @@ class WebGui(App, ProcessInterface):
         
         # Start multi-path server with WebGui on / and SayApp on /say.
         try:
-            server = MultiPathServer()
-            server.register_app('/', WebGui)
-            server.register_app('/say', SayApp)
-            
-            server.start(
-                debug=False,
-                address=web_host,
-                port=web_port,
-                start_browser=start_browser,
-                certfile=cert_file,
-                keyfile=key_file,
-                userdata=(event_service, logger, exit_event, halt_event, i18n, cam_only))
+            with trace():
+                server = MultiPathServer()
+                server.register_app('/', WebGui)
+                server.register_app('/say', SayApp)
+                
+                server.start(
+                    debug=False,
+                    address=web_host,
+                    port=web_port,
+                    start_browser=start_browser,
+                    certfile=cert_file,
+                    keyfile=key_file,
+                    userdata=(event_service, logger, exit_event, halt_event, i18n, cam_only))
         except PermissionError:
             logger.error(f'Could not start HTTP server - permission denied for {web_host}:{web_port}.')
 
