@@ -200,7 +200,6 @@ def exclusive(lock_spec: Union[str, threading.Lock, Callable[[Any], Optional[thr
             # abort the task without executing the wrapped function.
             try:
                 acquired = resolved_lock.acquire(blocking=blocking)
-                self._log.debug(f"Task '{func.__name__}' locked.")
             except Exception:
                 if hasattr(self, '_log'):
                     self._log.exception(f"Exception while acquiring lock for '{func.__name__}'. Aborting task.")
@@ -211,6 +210,7 @@ def exclusive(lock_spec: Union[str, threading.Lock, Callable[[Any], Optional[thr
                     self._log.info(f"Task '{func.__name__}' skipped: another operation in progress.")
                 return None
 
+            self._log.debug(f"Task '{func.__name__}' locked.")
             try:
                 return func(self, *args, **kwargs)
             finally:
