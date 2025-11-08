@@ -15,12 +15,6 @@ from remi import server
 log = logging.getLogger(__name__)
 
 
-# Per-session storage for widget instances
-# Key: session_id, Value: WeakValueDictionary of widget instances
-_session_instances = {}
-_original_runtimeInstances = server.runtimeInstances
-
-
 class SessionAwareRuntimeInstances:
     """
     Proxy for runtimeInstances that maintains separate widget dictionaries per session.
@@ -29,33 +23,57 @@ class SessionAwareRuntimeInstances:
     def __init__(self):
         self._current_session_id = None
         self._default_instances = weakref.WeakValueDictionary()
+        # Map widget ID to session ID
+        self._widget_to_session = {}
+        # Per-session storage for widget instances
+        self._session_instances = {}
         
     def set_current_session(self, session_id):
         """Set the current session ID for subsequent operations."""
         self._current_session_id = session_id
-        if session_id not in _session_instances:
-            _session_instances[session_id] = weakref.WeakValueDictionary()
+        if session_id and session_id not in self._session_instances:
+            self._session_instances[session_id] = weakref.WeakValueDictionary()
     
     def _get_current_dict(self):
         """Get the runtime instances dict for the current session."""
-        if self._current_session_id and self._current_session_id in _session_instances:
-            return _session_instances[self._current_session_id]
+        if self._current_session_id and self._current_session_id in self._session_instances:
+            return self._session_instances[self._current_session_id]
         return self._default_instances
     
+    def _get_dict_by_widget_id(self, widget_id):
+        """Get the runtime instances dict for a specific widget ID."""
+        # First try to find which session owns this widget
+        if widget_id in self._widget_to_session:
+            session_id = self._widget_to_session[widget_id]
+            if session_id in self._session_instances:
+                return self._session_instances[session_id]
+        # Fall back to current session
+        return self._get_current_dict()
+    
     def __getitem__(self, key):
-        return self._get_current_dict()[key]
+        # When accessing by key (widget lookup), use widget-to-session mapping
+        return self._get_dict_by_widget_id(key)[key]
     
     def __setitem__(self, key, value):
+        # When setting, use current session and remember the mapping
+        if self._current_session_id:
+            self._widget_to_session[key] = self._current_session_id
         self._get_current_dict()[key] = value
     
     def __delitem__(self, key):
+        # Clean up mapping when widget is deleted
+        if key in self._widget_to_session:
+            del self._widget_to_session[key]
         del self._get_current_dict()[key]
     
     def __contains__(self, key):
-        return key in self._get_current_dict()
+        return key in self._get_dict_by_widget_id(key)
     
     def get(self, key, default=None):
-        return self._get_current_dict().get(key, default)
+        try:
+            return self._get_dict_by_widget_id(key).get(key, default)
+        except:
+            return default
     
     def keys(self):
         return self._get_current_dict().keys()
@@ -88,11 +106,26 @@ class App(RemiApp):
     def _set_session_from_client(self):
         """Extract session ID and set it in the session-aware runtimeInstances."""
         try:
+            # Try multiple ways to get a unique session ID
+            session_id = None
+            
+            # Method 1: Use client_address if available
             if hasattr(self, 'client_address'):
                 session_id = f"{self.client_address[0]}:{self.client_address[1]}"
+            
+            # Method 2: Use path as part of session (so /say gets different session than /)
+            if hasattr(self, 'path'):
+                path_part = self.path if self.path != '/' else 'root'
+                if session_id:
+                    session_id = f"{session_id}_{path_part}"
+                else:
+                    session_id = path_part
+            
+            if session_id:
                 _session_aware_instances.set_current_session(session_id)
-        except:
-            pass
+                log.debug(f"Set session ID: {session_id}")
+        except Exception as e:
+            log.warning(f"Could not set session from client: {e}")
 
 
 def start(app_class, **kwargs):
@@ -106,3 +139,4 @@ def start(app_class, **kwargs):
         **kwargs: All arguments that remi.start() accepts
     """
     return remi_start(app_class, **kwargs)
+
