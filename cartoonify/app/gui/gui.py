@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 from remi import App, start
 from app.workflow.multiprocessing import ProcessInterface
+from app.debugging.tracing import trace
 
 
 class PILImageViewerWidget(gui.Image):
@@ -52,14 +53,15 @@ class WebGui(App, ProcessInterface):
     def hook_up(event_service, logger, exit_event, halt_event, i18n, cam_only, web_host='0.0.0.0', web_port=8081, start_browser=False, cert_file=None, key_file=None):
         """Static method for multiprocessing integration."""
         try:
-            start(WebGui, 
-                debug=False, 
-                address=web_host, 
-                port=web_port,
-                start_browser=start_browser,
-                certfile=cert_file,
-                keyfile=key_file,
-                userdata=(event_service, logger, exit_event, halt_event, i18n, cam_only))
+            with trace():
+                start(WebGui, 
+                    debug=False, 
+                    address=web_host, 
+                    port=web_port,
+                    start_browser=start_browser,
+                    certfile=cert_file,
+                    keyfile=key_file,
+                    userdata=(event_service, logger, exit_event, halt_event, i18n, cam_only))
         except PermissionError:
             logger.error(f'Could not start HTTP server - permission denied for {web_host}:{web_port}.')
 
