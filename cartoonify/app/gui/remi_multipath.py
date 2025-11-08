@@ -42,12 +42,24 @@ class SessionAwareRuntimeInstances:
     
     def _get_dict_by_widget_id(self, widget_id):
         """Get the runtime instances dict for a specific widget ID."""
-        # First try to find which session owns this widget
+        # First try to find which session owns this widget.
         if widget_id in self._widget_to_session:
             session_id = self._widget_to_session[widget_id]
             if session_id in self._session_instances:
                 return self._session_instances[session_id]
-        # Fall back to current session
+        
+        # If not found in mapping, search all session dictionaries.
+        for session_id, session_dict in self._session_instances.items():
+            if widget_id in session_dict:
+                # Update mapping for faster future lookups.
+                self._widget_to_session[widget_id] = session_id
+                return session_dict
+        
+        # Fall back to default if still not found.
+        if widget_id in self._default_instances:
+            return self._default_instances
+        
+        # Last resort: use current session dict (widget will be created there).
         return self._get_current_dict()
     
     def __getitem__(self, key):
