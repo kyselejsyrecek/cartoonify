@@ -89,25 +89,24 @@ class WebGui(App, ProcessInterface):
         pass
 
     def main(self, event_service, logger, exit_event, halt_event, i18n, cam_only):
-        with trace():
-            self._event_service = event_service
-            self._log = logger
-            self._exit_event = exit_event
-            self._halt_event = halt_event
-            self._i18n = i18n
-            self._full_capabilities = not cam_only
-            
-            self._log.debug(f'WebGui.main: Processing request for path: {self.path}')
-            
-            # Route based on path.
-            if self.path == '/say':
-                self._log.debug('WebGui.main: Routing to /say UI')
-                return self._construct_say_ui()
-            
-            # Default: main UI.
-            self._log.debug('WebGui.main: Routing to main UI')
-            self.display_original = False
-            return self.construct_ui()
+        self._event_service = event_service
+        self._log = logger
+        self._exit_event = exit_event
+        self._halt_event = halt_event
+        self._i18n = i18n
+        self._full_capabilities = not cam_only
+        
+        self._log.debug(f'WebGui.main: Processing request for path: {self.path}')
+        
+        # Route based on path.
+        if self.path == '/say':
+            self._log.debug('WebGui.main: Routing to /say UI')
+            return self._construct_say_ui()
+        
+        # Default: main UI.
+        self._log.debug('WebGui.main: Routing to main UI')
+        self.display_original = False
+        return self.construct_ui()
     
     def _construct_say_ui(self):
         """Construct the /say page UI."""
