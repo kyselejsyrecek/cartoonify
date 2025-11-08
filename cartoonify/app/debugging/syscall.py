@@ -38,6 +38,7 @@ class SyscallTracer:
         self.follow_forks = follow_forks
         self._strace_process = None
         self._reader_thread = None
+        self._reader_tid = None
         self._trace_file = None
     
     def __enter__(self):
@@ -165,7 +166,19 @@ class SyscallTracer:
         return None
     
     def _read_strace_output(self):
-        """Read and log strace output."""
+        """Read and log strace output, filtering out the reader thread itself."""
+        import re
+        
+        # Get the TID of this thread.
+        # Python threads have native thread IDs accessible via threading.get_native_id().
+        try:
+            self._reader_tid = threading.get_native_id()
+            _log.debug(f"Strace reader thread TID: {self._reader_tid}")
+        except AttributeError:
+            # Python < 3.8 doesn't have get_native_id(), fallback to no filtering.
+            self._reader_tid = None
+            _log.warning("Cannot get native thread ID, reader thread will not be filtered from strace output")
+        
         try:
             # Read from stderr (strace default output).
             for line in self._strace_process.stderr:
@@ -175,6 +188,17 @@ class SyscallTracer:
                 line = line.rstrip()
                 if not line:
                     continue
+                
+                # Filter out lines from the reader thread itself to avoid feedback loop.
+                if self._reader_tid is not None:
+                    # strace format: [pid  1273] syscall(...)
+                    # Extract pid from the line.
+                    match = re.match(r'^\[pid\s+(\d+)\]', line)
+                    if match:
+                        line_tid = int(match.group(1))
+                        if line_tid == self._reader_tid:
+                            # Skip this line, it's from the reader thread.
+                            continue
                 
                 # Format as [STRACE] prefix.
                 output_line = f"[STRACE] {line}\n"
