@@ -106,7 +106,6 @@ class Workflow(AsyncExecutor):
         self._scores = None
         self._next_image_number = 0
         self._last_original_image_number = -1
-        self._is_recording = False
         self._is_initialized = False
 
         # Register this instance as the event handler service.
@@ -487,13 +486,14 @@ class Workflow(AsyncExecutor):
         :param SmartButton e: Originator of the event (gpiozero object). None if called from IrReceiver.
         """
         self._log.info('Button for delayed capture pressed.')
-        self._gpio.set_recording_state(not self._is_recording)
+        current_recording_state = self._camera.is_recording
+        self._gpio.set_recording_state(not current_recording_state)
         time.sleep(0.2)
-        self._gpio.set_recording_state(self._is_recording)
+        self._gpio.set_recording_state(current_recording_state)
         time.sleep(0.8)
-        self._gpio.set_recording_state(not self._is_recording)
+        self._gpio.set_recording_state(not current_recording_state)
         time.sleep(0.2)
-        self._gpio.set_recording_state(self._is_recording)
+        self._gpio.set_recording_state(self._camera.is_recording)
         time.sleep(0.8)
         self._execute_concurrent_tasks(
             self._sound.fx.capture,
@@ -540,13 +540,18 @@ class Workflow(AsyncExecutor):
         :param SmartButton e: Originator of the event (gpiozero object). None if called from IrReceiver.
         """
         self._log.info('Button toggling video recording pressed.')
-        self._is_recording = not self._is_recording
-        self._gpio.set_recording_state(self._is_recording)
-        if self._camera is not None:
-            if self._is_recording:
-                self._camera.start_recording()
-            else:
-                self._camera.stop_recording()
+        if self._camera is None:
+            self._log.warning('Camera not available, cannot toggle recording.')
+            return
+            
+        new_state = not self._camera.is_recording
+        if new_state:
+            success = self._camera.start_recording()
+        else:
+            success = self._camera.stop_recording()
+        
+        if success:
+            self._gpio.set_recording_state(self._camera.is_recording)
 
 
     @async_task

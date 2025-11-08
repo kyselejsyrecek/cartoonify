@@ -30,6 +30,14 @@ class Camera(BaseIODevice):
         self._video_raw_stream = None
         self._available = False
 
+    @property
+    def is_recording(self):
+        """Check if camera is currently recording.
+        
+        :return: True if recording is in progress, False otherwise
+        """
+        return self._recording
+
     def setup(self, rotate_180deg=False, video_format='h264', video_resolution='1080p', video_fps=30, video_raw_stream=False, enabled: bool | None = None):
         """Setup camera system
         
@@ -240,14 +248,14 @@ class Camera(BaseIODevice):
         """Start video recording in background thread"""
         if not self._enabled:
             self._log.warning('Camera disabled; ignoring start_recording.')
-            return
+            return False
         if self._recording:
             self._log.warning('Recording already in progress')
-            return
+            return False
             
         if self._cam is None or not self._available:
             self._log.error('Camera not initialized or unavailable')
-            return
+            return False
             
         # Generate video filename based on format and raw stream setting.
         if self._video_raw_stream:
@@ -271,12 +279,13 @@ class Camera(BaseIODevice):
         # Start recording in separate thread to avoid blocking.
         self._video_thread = threading.Thread(target=self._record_video)
         self._video_thread.start()
+        return True
 
     def stop_recording(self):
         """Stop video recording"""
         if not self._recording:
             self._log.warning('No recording in progress')
-            return
+            return False
             
         self._recording = False
         self._log.info('Stopping video recording...')
@@ -286,6 +295,7 @@ class Camera(BaseIODevice):
             self._video_thread.join(timeout=5)
             
         self._log.info(f'Video recording stopped: {self._video_path}')
+        return True
 
     def _record_video(self):
         """Internal method to handle video recording"""
