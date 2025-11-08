@@ -92,9 +92,10 @@ class CustomFormatter(logging.Formatter):
         'WHITE_BOLD': '\033[1;97m'
     }
     
-    def __init__(self, use_colors=False):
+    def __init__(self, use_colors=False, high_precision_time=False):
         super().__init__()
         self.use_colors = use_colors
+        self.high_precision_time = high_precision_time
     
     def _get_originator(self, record):
         if '.' in record.name:
@@ -114,7 +115,14 @@ class CustomFormatter(logging.Formatter):
     
     def format(self, record):
         originator = self._get_originator(record)
-        formatted_time = self.formatTime(record, '%H:%M:%S.%f')[:-3]
+        
+        # Format time with microseconds using datetime.
+        dt = datetime.datetime.fromtimestamp(record.created)
+        if self.high_precision_time:
+            formatted_time = dt.strftime('%H:%M:%S.%f')
+        else:
+            formatted_time = dt.strftime('%H:%M:%S.%f')[:-3]
+        
         message = record.getMessage()
         
         # Check if message should be promoted to ERROR level.
@@ -247,7 +255,7 @@ class StderrRedirector:
         return self._original_stderr
 
 
-def _create_file_handler(logs_dir, log_level, use_colors=True):
+def _create_file_handler(logs_dir, log_level, use_colors=True, high_precision_time=False):
     """Create file handler for logging"""
     logs_dir = Path(logs_dir)
     logs_dir.mkdir(exist_ok=True)
@@ -257,28 +265,28 @@ def _create_file_handler(logs_dir, log_level, use_colors=True):
     
     file_handler = logging.FileHandler(str(log_filename))
     file_handler.setLevel(log_level)
-    file_handler.setFormatter(CustomFormatter(use_colors=use_colors))
+    file_handler.setFormatter(CustomFormatter(use_colors=use_colors, high_precision_time=high_precision_time))
     
     return file_handler
 
 
-def _create_console_handlers(log_level, use_colors):
+def _create_console_handlers(log_level, use_colors, high_precision_time=False):
     """Create console handlers for debug mode"""
     # stdout handler for non-ERROR messages
     stdout_handler = logging.StreamHandler(sys.stdout)
     stdout_handler.setLevel(log_level)
     stdout_handler.addFilter(lambda record: record.levelno < logging.ERROR)
-    stdout_handler.setFormatter(CustomFormatter(use_colors=use_colors))
+    stdout_handler.setFormatter(CustomFormatter(use_colors=use_colors, high_precision_time=high_precision_time))
     
     # stderr handler for ERROR messages
     stderr_handler = logging.StreamHandler(sys.stderr)
     stderr_handler.setLevel(logging.ERROR)
-    stderr_handler.setFormatter(CustomFormatter(use_colors=use_colors))
+    stderr_handler.setFormatter(CustomFormatter(use_colors=use_colors, high_precision_time=high_precision_time))
     
     return stdout_handler, stderr_handler
 
 
-def setup_file_logging(logs_dir, log_level=logging.DEBUG, redirect_stderr=True, use_colors=True):
+def setup_file_logging(logs_dir, log_level=logging.DEBUG, redirect_stderr=True, use_colors=True, high_precision_time=False):
     """Setup file-only logging (normal mode)"""
     root_logger = logging.getLogger()
     
@@ -287,7 +295,7 @@ def setup_file_logging(logs_dir, log_level=logging.DEBUG, redirect_stderr=True, 
         root_logger.removeHandler(handler)
     
     # Add file handler.
-    file_handler = _create_file_handler(logs_dir, log_level, use_colors)
+    file_handler = _create_file_handler(logs_dir, log_level, use_colors, high_precision_time)
     root_logger.addHandler(file_handler)
     root_logger.setLevel(log_level)
     
@@ -304,7 +312,7 @@ def setup_file_logging(logs_dir, log_level=logging.DEBUG, redirect_stderr=True, 
     return original_stdout, original_stderr, stderr_redirector
 
 
-def setup_debug_logging(log_level=logging.DEBUG, use_colors=True):
+def setup_debug_logging(log_level=logging.DEBUG, use_colors=True, high_precision_time=False):
     """Setup console-only logging (debug mode)"""
     root_logger = logging.getLogger()
     
@@ -313,7 +321,7 @@ def setup_debug_logging(log_level=logging.DEBUG, use_colors=True):
         root_logger.removeHandler(handler)
     
     # Add console handlers.
-    stdout_handler, stderr_handler = _create_console_handlers(log_level, use_colors)
+    stdout_handler, stderr_handler = _create_console_handlers(log_level, use_colors, high_precision_time)
     root_logger.addHandler(stdout_handler)
     root_logger.addHandler(stderr_handler)
     root_logger.setLevel(log_level)
