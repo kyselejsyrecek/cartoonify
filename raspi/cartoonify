@@ -102,6 +102,8 @@ case "$1" in
     ;;
   stop)
     echo "Stopping cartoonify"
+    echo "Please wait until the Wi-Fi connection is reestablished."
+    echo "This may take up to 1 minute."
     stop_daemon
     gpio_reset
     # It is not desired to re-enable swapping if the system is being shut down.
