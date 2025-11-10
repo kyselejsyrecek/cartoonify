@@ -62,16 +62,19 @@ _session_lock = threading.RLock()
 
 class RouteInstance:
     """
-    Wrapper for a route-specific persistent App instance.
+    Wrapper for a route-specific persistent root widget.
     
-    This stores the actual App instance (MainGui or SayGui) along with its
-    root widget. The instance is created once at startup and persists forever.
-    All clients accessing this route share this single instance.
+    This stores the App class and builds the root widget once, which is then
+    cached and reused for all clients accessing this route.
+    
+    IMPORTANT: We cannot pre-create App instances because App is a 
+    BaseHTTPRequestHandler and requires request, client_address, server args.
+    Instead, we cache the root widget built by RouterApp.main().
     """
     
     def __init__(self, app_class, userdata, path):
         """
-        Create a persistent App instance for a route.
+        Initialize route metadata.
         
         Args:
             app_class: The App class (MainGui or SayGui).
@@ -82,25 +85,21 @@ class RouteInstance:
         self.userdata = userdata
         self.path = path
         
-        log.info(f'Creating persistent RouteInstance: {app_class.__name__} for path {path}')
-        
-        # Create the App instance. This is the PERSISTENT instance that will
-        # be shared by all clients accessing this path.
-        self.instance = app_class(*userdata)
-        self.instance._route_path = path
-        
-        # Root widget will be created on first call to get_root_widget().
+        # Root widget will be built and cached by get_or_build_root_widget().
         self._root_widget = None
         self._root_lock = threading.RLock()
         
         log.info(f'Created RouteInstance: {app_class.__name__} at {path}')
     
-    def get_root_widget(self):
+    def get_or_build_root_widget(self, app_instance):
         """
-        Get or create the root widget for this route.
+        Get or build the root widget for this route.
         
-        This is called once per route (not per client!). The root widget
-        is cached and reused for all clients accessing this route.
+        This is called from RouterApp.main(). The root widget is built once
+        and cached, then reused for all subsequent requests to this route.
+        
+        Args:
+            app_instance: The current RouterApp instance (self from main()).
         
         Returns:
             Widget: The persistent root widget for this route.
@@ -108,15 +107,25 @@ class RouteInstance:
         with self._root_lock:
             if self._root_widget is None:
                 log.info(f'Building root widget for {self.app_class.__name__} at {self.path}')
-                self._root_widget = self.instance.main(*self.userdata)
-                log.info(f'Root widget created for {self.path}')
+                
+                # Build UI by calling the original App class's main() method.
+                # We call it on a temporary instance just to get the widget tree.
+                # The widget tree itself is the persistent state we need.
+                self._root_widget = self.app_class.main(app_instance, *self.userdata)
+                
+                log.info(f'Root widget built for {self.path}')
             return self._root_widget
     
-    def call_idle(self):
-        """Call idle() on the persistent instance if it has one."""
-        if hasattr(self.instance, 'idle'):
+    def call_idle(self, app_instance):
+        """
+        Call idle() on the App class if it has one.
+        
+        Args:
+            app_instance: The current RouterApp instance to pass to idle().
+        """
+        if hasattr(self.app_class, 'idle'):
             try:
-                self.instance.idle()
+                self.app_class.idle(app_instance)
             except Exception as e:
                 log.error(f'Error in {self.app_class.__name__}.idle(): {e}', exc_info=True)
 
@@ -196,8 +205,9 @@ class RouterApp(App):
         
         log.info(f'Using {route_instance.app_class.__name__} for session {self.session}')
         
-        # Get the root widget from the route instance.
-        root_widget = route_instance.get_root_widget()
+        # Get or build the root widget from the route instance.
+        # Pass self so the route can call the original App class's main().
+        root_widget = route_instance.get_or_build_root_widget(self)
         
         return root_widget
     
@@ -209,7 +219,7 @@ class RouterApp(App):
         """
         with _instances_lock:
             for path, route_instance in _route_instances.items():
-                route_instance.call_idle()
+                route_instance.call_idle(self)
 
 
 
@@ -413,27 +423,24 @@ def _patched_websocket_handshake_done(original_websocket_handshake_done):
 
 def _create_route_instances(routes, userdata):
     """
-    Create persistent RouteInstance objects for all routes.
+    Create RouteInstance metadata objects for all routes.
     
-    This happens ONCE at server startup, creating the App instances
-    that will be shared by all clients.
+    This happens ONCE at server startup. RouteInstance stores the App class
+    and userdata, but does NOT create App instances (those are created by REMI).
+    The root widgets are built lazily on first request to each route.
     
     Args:
         routes (dict): Mapping of path to App class.
-        userdata (tuple): Userdata tuple to pass to App instances.
+        userdata (tuple): Userdata tuple to pass to App.main() methods.
     """
     global _route_instances
     
     with _instances_lock:
         for path, app_class in routes.items():
-            log.info(f'Pre-creating RouteInstance: {app_class.__name__} for path {path}')
-            try:
-                route_instance = RouteInstance(app_class, userdata, path)
-                _route_instances[path] = route_instance
-                log.info(f'Successfully created RouteInstance for {path}')
-            except Exception as e:
-                log.error(f'Failed to create RouteInstance for {path}: {e}', exc_info=True)
-                raise
+            log.info(f'Registering route: {app_class.__name__} for path {path}')
+            route_instance = RouteInstance(app_class, userdata, path)
+            _route_instances[path] = route_instance
+            log.info(f'Successfully registered route for {path}')
 
 
 def start(app_class_or_routes, *args, **kwargs):
