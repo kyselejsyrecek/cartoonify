@@ -72,14 +72,6 @@ class MainGui(App):
     _exit_event = None
     _halt_event = None
     
-    def __init__(self, *args):
-        """Initialize MainGui.
-        
-        Args:
-            *args: Userdata tuple (event_service, logger, exit_event, halt_event, i18n, cam_only).
-        """
-        super().__init__(*args)
-        
     def idle(self):
         """Idle callback called periodically by REMI.
         

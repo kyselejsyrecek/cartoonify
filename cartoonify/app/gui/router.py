@@ -108,9 +108,10 @@ class RouteInstance:
             if self._root_widget is None:
                 log.info(f'Building root widget for {self.app_class.__name__} at {self.path}')
                 
-                # Build UI by calling the original App class's main() method.
-                # We call it on a temporary instance just to get the widget tree.
-                # The widget tree itself is the persistent state we need.
+                # Call the App class's main() as an unbound method.
+                # We pass the RouterApp instance as 'self' - it has all the REMI
+                # context needed (session, server, page, etc.).
+                # The App class's main() will build and return the widget tree.
                 self._root_widget = self.app_class.main(app_instance, *self.userdata)
                 
                 log.info(f'Root widget built for {self.path}')
