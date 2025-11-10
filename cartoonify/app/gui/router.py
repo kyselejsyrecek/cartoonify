@@ -1,303 +1,202 @@
 """
 REMI Multi-Path Router Extension
 
-This module extends REMI framework to support multiple URL paths with different App instances.
+This module extends REMI framework to support multi-path routing by monkey-patching
+the server's do_GET method to set path attribute before main() is called.
 
-REMI Architecture Analysis:
-============================
-1. ThreadedHTTPServer receives HTTP requests.
-2. For WebSocket connections, REMI creates ONE App instance per client.
-3. App.__init__(*userdata) is called, then App.main(*userdata) is called.
-4. App.path attribute is set by REMI BEFORE main() is called.
-5. The returned widget from main() becomes the root widget for that client.
+Architecture:
+1. RouterApp stores route mappings in class variable.
+2. Monkey-patch applied to server handler before starting REMI.
+3. do_GET sets self.path based on HTTP request path.
+4. RouterApp.main() reads self.path and delegates to appropriate App class.
+5. Each route gets its own root widget, avoiding cross-contamination.
 
-Key Insight:
-- App.path IS available in main() method.
-- We can check path in main() and delegate to appropriate UI builder.
-- No server patching needed!
-
-Solution Strategy:
-==================
-Simplified approach without server patching:
-
-1. **RouterApp**: Single App class that REMI instantiates normally.
-2. **Path Detection in main()**: Check self.path in main() method.
-3. **Dynamic Delegation**: Call appropriate target App's main() based on path.
-4. **Transparent Proxying**: Proxy all attributes to active target App.
-
-This approach:
-- NO server patching required.
-- Works entirely within REMI's App lifecycle.
-- Path is available in main() method.
-- Clean and simple implementation.
+This approach preserves REMI's session management while adding path-based routing.
 """
 
 import logging
-import remi.gui as gui
 from remi import App, start as remi_start
-from remi.server import runtimeInstances
-import threading
+from remi import server as remi_server
 
+# Re-export App classes for single import point.
+from app.gui.gui_main import MainGui
+from app.gui.gui_say import SayGui
 
 log = logging.getLogger('remi.router')
 
 
 class RouterApp(App):
     """
-    Router App that delegates to different target Apps based on URL path.
+    Router App that delegates to appropriate App class based on request path.
     
-    This is the ONLY App class registered with REMI server.
-    It checks self.path in main() method and creates the appropriate
-    target App instance dynamically.
-    
-    Key Insight:
-    - REMI sets self.path BEFORE calling main().
-    - We can check path in main() and create target App there.
-    - Target App's main() returns the widget tree.
-    - We store target App reference for attribute delegation.
-    
-    Architecture:
-    - REMI creates ONE RouterApp instance per WebSocket client.
-    - RouterApp.main() checks self.path.
-    - RouterApp creates appropriate target App (MainGui, SayGui, etc.).
-    - RouterApp calls target.main(*userdata) and returns the widget.
-    - All subsequent attribute access is delegated to target App.
+    This class stores route mappings and implements main() to instantiate
+    and return the correct App's root widget based on self.path.
     """
     
-    # Class-level route registry.
-    # Format: {'/path': TargetAppClass}
+    # Class variable to store route mappings.
     _routes = {}
-    
-    # Class-level lock for thread-safe route access.
-    _routes_lock = threading.RLock()
-    
-    # Default path when no specific path is requested.
     _default_path = '/'
     
     @classmethod
     def register_routes(cls, routes, default_path='/'):
-        """Register URL routes with their corresponding App classes.
+        """
+        Register route mappings.
         
         Args:
-            routes (dict): Mapping of URL paths to App classes.
-                Example: {'/': MainGui, '/say': SayGui}
-            default_path (str): Default path when none specified.
+            routes (dict): Mapping of path to App class {'/': MainGui, '/say': SayGui}.
+            default_path (str): Default path to use if none matches.
         """
-        with cls._routes_lock:
-            cls._routes = routes.copy()
-            cls._default_path = default_path
-            log.info(f'Registered routes: {list(routes.keys())}, default: {default_path}')
-    
-    def __init__(self, *userdata, **kwargs):
-        """Initialize RouterApp.
-        
-        REMI calls this with userdata tuple passed to start().
-        We just store userdata and call parent __init__.
-        The actual routing happens in main() where self.path is available.
-        
-        Args:
-            *userdata: User data tuple from start() function.
-            **kwargs: Additional keyword arguments (from REMI internals).
-        """
-        # Store userdata for later use in main().
-        self._userdata = userdata
-        self._kwargs = kwargs
-        
-        # Target App will be created in main().
-        self._target_app = None
-        self._target_class = None
-        
-        # Call parent __init__ to set up REMI internals.
-        super().__init__(*userdata, **kwargs)
-        
-        log.debug(f'RouterApp.__init__ called, identifier={self.identifier}')
+        cls._routes = routes
+        cls._default_path = default_path
+        log.info(f'Registered routes: {list(routes.keys())}, default={default_path}')
     
     def main(self, *userdata):
-        """Main entry point called by REMI.
+        """
+        Main entry point called by REMI when building UI.
         
-        REMI calls this after __init__() to get the root widget.
-        At this point, self.path is set by REMI.
-        
-        We check self.path, create the appropriate target App, and
-        delegate to its main() method.
-        
-        Args:
-            *userdata: User data tuple from start() function.
+        Reads self.request_path (set by patched do_GET), finds appropriate App class,
+        instantiates it with userdata, and returns its root widget.
         
         Returns:
-            Widget: The root widget for this App.
+            Widget: Root widget from the appropriate App instance.
         """
-        # Get the requested path from self.path (set by REMI).
-        requested_path = getattr(self, 'path', '/')
+        # Get path from self (set by patched do_GET).
+        path = getattr(self, 'request_path', self._default_path)
         
-        # Clean up path (remove query string).
-        if '?' in requested_path:
-            requested_path = requested_path.split('?')[0]
+        # Normalize path.
+        path = path.rstrip('/') or '/'
         
-        log.info(f'RouterApp.main() called for path: {requested_path}')
+        log.info(f'RouterApp.main() for path: {path}')
         
-        # Select target App class based on path.
-        with self._routes_lock:
-            target_class = self._routes.get(requested_path)
-            
-            # Try prefix matching if exact match fails.
-            if target_class is None and requested_path != '/':
-                for route_path in sorted(self._routes.keys(), key=len, reverse=True):
-                    if route_path != '/' and requested_path.startswith(route_path):
-                        target_class = self._routes[route_path]
-                        log.debug(f'Prefix match: {requested_path} -> {route_path}')
-                        break
-            
-            # Fallback to default path.
-            if target_class is None:
-                log.warning(f'No route found for {requested_path}, using default {self._default_path}')
-                requested_path = self._default_path
-                target_class = self._routes.get(self._default_path)
-            
-            if target_class is None:
-                raise ValueError(f'No App class registered for path: {requested_path}')
+        # Find matching App class.
+        app_class = self._routes.get(path)
         
-        log.info(f'RouterApp routing {requested_path} -> {target_class.__name__}')
+        # Try prefix matching if exact match fails.
+        if app_class is None:
+            for route_path in sorted(self._routes.keys(), key=len, reverse=True):
+                if route_path != '/' and path.startswith(route_path):
+                    app_class = self._routes[route_path]
+                    log.debug(f'Prefix match: {path} -> {route_path}')
+                    break
         
-        # Create target App instance.
-        # IMPORTANT: We create a NEW instance, passing the same userdata.
-        # The target App's __init__ will call App.__init__ which sets up REMI internals.
-        try:
-            self._target_app = target_class(*userdata, **self._kwargs)
-            self._target_class = target_class
-        except Exception as e:
-            log.exception(f'Failed to create target App {target_class.__name__}: {e}')
-            raise
+        # Fallback to default path.
+        if app_class is None:
+            app_class = self._routes.get(self._default_path)
+            log.warning(f'No route for {path}, using {self._default_path}')
         
-        # Call target App's main() method to get the root widget.
-        try:
-            root_widget = self._target_app.main(*userdata)
-        except Exception as e:
-            log.exception(f'Failed to call main() on {target_class.__name__}: {e}')
-            raise
+        if app_class is None:
+            raise ValueError(f'No App class found for path: {path}')
         
-        log.debug(f'RouterApp.main() returning widget from {target_class.__name__}')
+        log.info(f'Instantiating {app_class.__name__} for path: {path}')
+        
+        # Instantiate App and return its root widget.
+        app_instance = app_class(*userdata)
+        root_widget = app_instance.main(*userdata)
         
         return root_widget
+
+
+def _patched_do_GET(original_do_GET):
+    """
+    Creates a patched do_GET that manages path-based routing.
     
-    def idle(self):
-        """Idle callback called periodically by REMI.
-        
-        We delegate to the target App's idle() method.
-        """
-        if hasattr(self._target_app, 'idle'):
-            return self._target_app.idle()
+    This patch:
+    1. Extracts HTTP request path.
+    2. Stores it in self.request_path for RouterApp.main().
+    3. Removes cached 'root' widget if path changed, forcing REMI to call main() again.
     
-    def __getattribute__(self, name):
-        """Intercept ALL attribute access to proxy to target App.
-        
-        This makes RouterApp completely transparent. Any attribute access
-        (including identifier, path, etc.) is forwarded to the target App.
-        
-        Args:
-            name (str): Attribute name.
-        
-        Returns:
-            Any: The attribute value, either from RouterApp or target App.
-        """
-        # RouterApp's own private attributes - access directly.
-        # These are needed for the proxying mechanism itself.
-        router_private_attrs = {
-            '_userdata', '_kwargs', '_requested_path', '_target_app',
-            '_target_class', '_is_initialized', '__class__', '__dict__'
-        }
-        
-        if name in router_private_attrs:
-            return object.__getattribute__(self, name)
-        
-        # Check if RouterApp is fully initialized.
+    Args:
+        original_do_GET: Original do_GET method from REMI server.
+    
+    Returns:
+        Patched do_GET function.
+    """
+    def do_GET(self):
+        """Patched do_GET that implements path-based routing."""
+        # Extract path from HTTP request.
         try:
-            target = object.__getattribute__(self, '_target_app')
-        except AttributeError:
-            # Not yet initialized, return from self.
-            return object.__getattribute__(self, name)
+            from urllib.parse import unquote, urlparse
+        except ImportError:
+            from urlparse import unquote, urlparse
         
-        # Delegate to target App.
-        return getattr(target, name)
+        # self.path is the HTTP request path (builtin attribute).
+        http_path = str(unquote(self.path))
+        
+        # Parse path (remove query string).
+        parsed = urlparse(http_path)
+        clean_path = parsed.path
+        
+        # Normalize path.
+        clean_path = clean_path.rstrip('/') or '/'
+        
+        # Store in SEPARATE attribute for RouterApp.main().
+        self.request_path = clean_path
+        
+        log.debug(f'Patched do_GET: request_path={clean_path}')
+        
+        # Check if path changed from previous request.
+        # If yes, remove cached root to force REMI to call main() again.
+        previous_path = getattr(self, '_previous_request_path', None)
+        if previous_path is not None and previous_path != clean_path:
+            # Path changed - remove cached root widget.
+            if hasattr(self, 'page') and 'body' in self.page.children:
+                body = self.page.children['body']
+                if 'root' in body.children:
+                    log.info(f'Path changed {previous_path} -> {clean_path}, removing cached root')
+                    body.children.pop('root', None)
+                    if 'root' in body._render_children_list:
+                        body._render_children_list.remove('root')
+        
+        # Remember current path for next request.
+        self._previous_request_path = clean_path
+        
+        # Call original do_GET.
+        return original_do_GET(self)
     
-    def __setattr__(self, name, value):
-        """Intercept attribute setting to proxy to target App.
-        
-        Args:
-            name (str): Attribute name.
-            value: Attribute value.
-        """
-        # RouterApp's own private attributes - set directly on self.
-        router_private_attrs = {
-            '_userdata', '_kwargs', '_requested_path', '_target_app',
-            '_target_class', '_is_initialized'
-        }
-        
-        if name in router_private_attrs:
-            object.__setattr__(self, name, value)
-            return
-        
-        # Check if RouterApp is fully initialized.
-        try:
-            target = object.__getattribute__(self, '_target_app')
-            # Delegate to target App.
-            setattr(target, name, value)
-        except AttributeError:
-            # Not yet initialized, set on self.
-            object.__setattr__(self, name, value)
+    return do_GET
 
 
 def start(app_class_or_routes, *args, **kwargs):
     """
-    Enhanced start() function that supports routing.
-    
-    This function wraps REMI's start() to provide multi-path routing.
+    Enhanced start() function with multi-path routing support.
     
     Usage:
-        # Option 1: Pass routes dict directly.
+        # Multi-path routing.
         routes = {'/': MainGui, '/say': SayGui}
         start(routes, userdata=(...), address='0.0.0.0', port=8081, ...)
         
-        # Option 2: Pass single App class (backward compatible).
-        start(WebGui, userdata=(...), address='0.0.0.0', port=8081, ...)
+        # Single App (backward compatible).
+        start(MainGui, userdata=(...), address='0.0.0.0', port=8081, ...)
     
     Args:
-        app_class_or_routes: Either a dict of routes {path: AppClass} or a single App class.
-        *args: Positional arguments for REMI's start().
-        **kwargs: Keyword arguments for REMI's start().
-            Special kwargs for routing:
-                - default_path (str): Default path (default: '/').
+        app_class_or_routes: Either dict {path: AppClass} or single App class.
+        *args: Positional arguments for remi.start().
+        **kwargs: Keyword arguments for remi.start().
+            Special kwarg: default_path (str) - default route (default '/').
     
     Returns:
-        The return value from REMI's start() function.
+        Result from remi.start().
     """
-    # Check if we have routes dict or single App class.
+    # Check if routing is requested.
     if isinstance(app_class_or_routes, dict):
-        # Routes dict provided.
         routes = app_class_or_routes
         default_path = kwargs.pop('default_path', '/')
         
         # Register routes with RouterApp.
         RouterApp.register_routes(routes, default_path)
         
-        # Use RouterApp as the App class for REMI.
+        # Monkey-patch do_GET to set path attribute.
+        original_do_GET = remi_server.App.do_GET
+        remi_server.App.do_GET = _patched_do_GET(original_do_GET)
+        
+        log.info('Applied do_GET patch for multi-path routing')
+        
+        # Use RouterApp as the App class.
         app_class = RouterApp
     else:
-        # Single App class provided (backward compatible mode).
-        # Create a simple route mapping.
+        # Single App class (backward compatible).
         app_class = app_class_or_routes
-        routes = {'/': app_class}
-        default_path = '/'
-        
-        # Register routes.
-        RouterApp.register_routes(routes, default_path)
-        
-        # Use RouterApp.
-        app_class = RouterApp
+        log.info(f'Starting REMI with single App: {app_class.__name__}')
     
-    log.info(f'Starting REMI server with routing: {list(routes.keys())}')
-    
-    # Call REMI's original start() with RouterApp.
-    # No server patching needed - path is available in main().
+    # Start REMI server.
     return remi_start(app_class, *args, **kwargs)
-

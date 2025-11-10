@@ -1,42 +1,35 @@
-import remi.gui as gui
-import PIL.Image
-import io
-import time
-import importlib
 import os
 import sys
-
 from pathlib import Path
+
 from app.workflow.multiprocessing import ProcessInterface
 from app.debugging.tracing import trace
 from app.debugging.logging import getLogger
 
-# Import our router extension and target App classes.
-from app.gui.router import start as router_start
-from app.gui.gui_main import MainGui
-from app.gui.gui_say import SayGui
+# Import from router - single import point.
+from app.gui.router import start as router_start, MainGui, SayGui
 
 
 class WebGui(ProcessInterface):
     """
     WebGui integration for multiprocessing.
     
-    This class serves as the ProcessInterface implementation that integrates
-    with the router system. It doesn't inherit from App - instead it uses
-    MainGui and SayGui as separate App classes for different URL paths.
+    This class serves as the ProcessInterface implementation that starts
+    the REMI web server with multi-path routing support.
     
-    The router system handles:
-    - Routing / to MainGui.
-    - Routing /say to SayGui.
-    - Passing userdata to both Apps.
-    - Managing App lifecycle.
+    The router system:
+    - Pre-creates MainGui and SayGui instances
+    - Keeps them in memory (2 instances total)
+    - RouterApp delegates to correct instance based on request path
+    - No code duplication, uses existing App classes
     """
     
     @staticmethod
     def hook_up(event_service, logger, exit_event, halt_event, i18n, cam_only, 
                 web_host='0.0.0.0', web_port=8081, start_browser=False, 
                 cert_file=None, key_file=None):
-        """Static method for multiprocessing integration.
+        """
+        Static method for multiprocessing integration.
         
         This is called by ProcessManager to start the web server.
         
@@ -60,7 +53,7 @@ class WebGui(ProcessInterface):
                 '/say': SayGui
             }
             
-            # Prepare userdata tuple that will be passed to each App's main().
+            # Prepare userdata tuple passed to each App's __init__ and main().
             userdata = (event_service, logger, exit_event, halt_event, i18n, cam_only)
             
             logger.info(f'Starting WebGui with routes: {list(routes.keys())}')
@@ -79,15 +72,9 @@ class WebGui(ProcessInterface):
                     start_browser=start_browser,
                     certfile=cert_file,
                     keyfile=key_file,
-                    userdata=userdata,
-                    default_path='/'
+                    userdata=userdata
                 )
         except PermissionError:
             logger.error(f'Could not start HTTP server - permission denied for {web_host}:{web_port}.')
         except Exception as e:
             logger.exception(f'Error starting WebGui: {e}')
-
-
-# Remove old WebGui App class code below this point.
-# The PILImageViewerWidget is now in gui_main.py.
-# All UI construction is in MainGui (gui_main.py) and SayGui (gui_say.py).
