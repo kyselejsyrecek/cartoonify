@@ -132,16 +132,24 @@ class WebGuiProxyAddon:
         matched_route = None
         matched_path = ''
         
-        # Longest prefix matching.
-        for route_path in self._routes.keys():
+        # Longest prefix matching - iterate routes from longest to shortest.
+        for route_path in sorted(self._routes.keys(), key=len, reverse=True):
             if path.startswith(route_path):
                 # Check that the match is at a proper boundary.
-                # Valid if: exact match, followed by '/', or followed by '?'
-                if len(route_path) > len(matched_path):
+                # For root '/' route, accept everything.
+                # For other routes, require '/', '?', or exact match after prefix.
+                if route_path == '/':
+                    # Root route matches everything (as fallback).
+                    matched_route = self._routes[route_path]
+                    matched_path = route_path
+                    break
+                else:
+                    # Non-root routes require boundary check.
                     path_after_prefix = path[len(route_path):]
                     if not path_after_prefix or path_after_prefix[0] in ('/', '?'):
                         matched_route = self._routes[route_path]
                         matched_path = route_path
+                        break
         
         if matched_route:
             flow.request.host = matched_route['host']
