@@ -29,7 +29,8 @@ class SayWebGui(App, ProcessInterface):
     
     @staticmethod
     def hook_up(event_service, logger, exit_event, halt_event, i18n, 
-                web_host='127.0.0.1', web_port=2001, start_browser=False):
+                web_host='127.0.0.1', web_port=2000, start_browser=False,
+                cert_file=None, key_file=None):
         try:
             logger.info(f'Starting SayWebGui on {web_host}:{web_port}')
             start(
@@ -38,6 +39,8 @@ class SayWebGui(App, ProcessInterface):
                 address=web_host,
                 port=web_port,
                 start_browser=start_browser,
+                certfile=cert_file,
+                keyfile=key_file,
                 userdata=(event_service, logger, exit_event, halt_event, i18n)
             )
         except PermissionError:
