@@ -17,6 +17,7 @@ from threading import Lock
 
 from app.sketch import SketchGizeh
 from app.io import Gpio, IrReceiver, ClapDetector, SoundPlayer, Camera, Accelerometer, Printer
+from app.gui import WebGui
 from app.utils.attributedict import AttributeDict
 from app.debugging import profiling
 from app.debugging.logging import getLogger  # Import our enhanced getLogger
@@ -69,6 +70,7 @@ class Workflow(AsyncExecutor):
             "raspi_headless": False,
             "ip": "0.0.0.0",
             "port": 8081,
+            "localhost_first_port": 2000,
             "no_sound": False,
             "cert_file": None,
             "key_file": None
@@ -93,11 +95,11 @@ class Workflow(AsyncExecutor):
         self._camera = Camera(enabled=self._config.camera and not self._config.no_camera)
         self._gpio = Gpio(enabled=not self._config.no_gpio or self._config.raspi_headless or self._config.gui or self._config.web_server)
         self._printer = Printer(enabled=not self._config.no_printer)
+        self._web_gui = WebGui(enabled=self._config.gui or self._config.web_server)
         self._ir_receiver = None
         self._clap_detector = None
         self._sound = SoundPlayer(enabled=not self._config.no_sound)
         self._sketcher = None
-        self._web_gui = None
         self._image = None
         self._annotated_image = None
         self._image_labels = []
@@ -143,6 +145,12 @@ class Workflow(AsyncExecutor):
         self._log.info('Workflow termination completed.')
 
     def close(self):
+        try:
+            if self._web_gui:
+                self._web_gui.close()
+        except Exception as e:
+            self._log.exception(f'Error closing Web GUI: {e}')
+
         try:
             if self._camera:
                 self._camera.close()
@@ -190,10 +198,10 @@ class Workflow(AsyncExecutor):
 
 
     def setup(self):
-        # Set up the SIGINT handler for the parent process
+        # Set up the SIGINT handler for the parent process.
         signal.signal(signal.SIGINT, signal_handler)
 
-        # Initialize and start event manager using static method
+        # Initialize and start event manager using static method.
         EventManager.start(self._event_manager_address, self._event_manager_authkey)
 
         try:
@@ -213,28 +221,27 @@ class Workflow(AsyncExecutor):
                     self._accelerometer = self._process_manager.start_process(Accelerometer)
                 self._log.info('done')
             
-            # Start web GUI if requested
-            if self._config.gui or self._config.web_server:
-                from app.gui import WebGui
-                
+            # Start web GUI if requested.
+            if self._web_gui.is_enabled:
                 if self._config.gui:
                     self._log.info('Starting GUI...')
                     print('Starting GUI...')
                 elif self._config.web_server:
                     self._log.info(f'Starting HTTP server on address {self._config.ip}:{self._config.port}...')
                 
-                self._web_gui = self._process_manager.start_process(
-                    WebGui, 
-                    self._i18n,  # i18n object from run.py
-                    self._config.raspi_headless,  # cam_only mode - limits GUI features to camera operations only
-                    self._config.ip, 
-                    self._config.port,
-                    self._config.gui,  # start_browser - True for GUI mode, False for web_server mode
-                    self._config.cert_file,  # SSL certificate file
-                    self._config.key_file,   # SSL private key file
-                    capture_stdout=False,  # Allow WebGUI stdout to go to console
-                    capture_stderr=False,  # Allow WebGUI stderr to go to console
-                    filter_ansi=False      # Don't filter ANSI codes from WebGUI
+                self._web_gui.setup(
+                    process_manager=self._process_manager,
+                    i18n=self._i18n,                                         # i18n object from run.py
+                    cam_only=self._config.raspi_headless,                    # cam_only mode - limits GUI features to camera operations only
+                    web_host=self._config.ip,
+                    web_port=self._config.port,
+                    localhost_first_port=self._config.localhost_first_port,  # Base port for internal web applications
+                    start_browser=self._config.gui,                          # start_browser - True for GUI mode, False for web_server mode
+                    cert_file=self._config.cert_file,                        # SSL certificate file
+                    key_file=self._config.key_file,                          # SSL private key file
+                    capture_stdout=False,                                    # Allow WebGUI stdout to go to console
+                    capture_stderr=False,                                    # Allow WebGUI stderr to go to console
+                    filter_ansi=False                                        # Don't filter ANSI codes from WebGUI
                 )
                 
                 if self._config.gui:
@@ -243,7 +250,7 @@ class Workflow(AsyncExecutor):
                     self._log.info('HTTP server started successfully')
                     print(f'HTTP server running on address {self._config.ip}:{self._config.port}.')
             
-            # Setup camera system
+            # Setup camera system.
             if self._camera.is_enabled:
                 self._log.info('setting up camera...')
                 self._camera.setup(
@@ -255,7 +262,7 @@ class Workflow(AsyncExecutor):
                 )
                 self._log.info('done')
             
-            # Setup sound system
+            # Setup sound system.
             self._log.info('setting up sound system...')
             self._sound.setup(audio_backend=self._config.audio_backend,
                 volume=self._config.volume,
@@ -294,10 +301,10 @@ class Workflow(AsyncExecutor):
         :param tasks: Functions to execute concurrently
         """
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(tasks)) as executor:
-            # Submit all tasks
+            # Submit all tasks.
             futures = [executor.submit(task) for task in tasks]
             
-            # Wait for all to complete
+            # Wait for all to complete.
             concurrent.futures.wait(futures)
 
 

@@ -1,1 +1,1 @@
-from .gui import WebGui
+from .webgui import WebGui

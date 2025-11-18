@@ -1,18 +1,22 @@
+"""
+Main GUI Application
+
+This module contains the main camera/capture interface accessible at the root path (/).
+"""
+
 import remi.gui as gui
 import PIL.Image
 import io
 import time
-import importlib
-import os
-import sys
-
 from pathlib import Path
 from remi import App, start
+
 from app.workflow.multiprocessing import ProcessInterface
-from app.debugging.tracing import trace
 
 
 class PILImageViewerWidget(gui.Image):
+    """Widget for displaying PIL images in REMI GUI."""
+    
     def __init__(self, **kwargs):
         super(PILImageViewerWidget, self).__init__(**kwargs)
         self._buf = None
@@ -20,16 +24,30 @@ class PILImageViewerWidget(gui.Image):
         self.load(initial_image)
 
     def load(self, file_path_name):
+        """Load image from file path.
+        
+        Args:
+            file_path_name (str): Path to image file.
+        """
         pil_image = PIL.Image.open(file_path_name)
         self._buf = io.BytesIO()
         pil_image.save(self._buf, format='png')
         self.refresh()
 
     def refresh(self):
+        """Refresh the image display with cache busting."""
         i = int(time.time() * 1e6)
         self.attributes['src'] = "/%s/get_image_data?update_index=%d" % (id(self), i)
 
     def get_image_data(self, update_index):
+        """Get image data for HTTP response.
+        
+        Args:
+            update_index: Cache busting parameter.
+            
+        Returns:
+            tuple: (data, headers) or None.
+        """
         if self._buf is None:
             return None
         self._buf.seek(0)
@@ -37,45 +55,53 @@ class PILImageViewerWidget(gui.Image):
         return [self._buf.read(), headers]
 
 
-class WebGui(App, ProcessInterface):
+class MainWebGui(App, ProcessInterface):
     """
-    gui for the app
+    Main GUI for camera/capture interface.
+    
+    This App may display the camera interface with:
+    - Snap button (capture photo).
+    - Open button (load image from file).
+    - Terminate button (close app).
+    - Image display widgets.
+    - Settings checkboxes.
     """
+    
     _event_service = None
     _log = None
     _i18n = None
     _full_capabilities = True
-
-    def __init__(self, *args):
-        super().__init__(*args)
-
+    _exit_event = None
+    _halt_event = None
+    
     @staticmethod
-    def hook_up(event_service, logger, exit_event, halt_event, i18n, cam_only, web_host='0.0.0.0', web_port=8081, start_browser=False, cert_file=None, key_file=None):
-        """Static method for multiprocessing integration."""
+    def hook_up(event_service, logger, exit_event, halt_event, i18n, cam_only, 
+                web_host='127.0.0.1', web_port=2000, start_browser=False):
         try:
-            with trace():
-                start(WebGui, 
-                    debug=False, 
-                    address=web_host, 
-                    port=web_port,
-                    start_browser=start_browser,
-                    certfile=cert_file,
-                    keyfile=key_file,
-                    userdata=(event_service, logger, exit_event, halt_event, i18n, cam_only))
+            logger.info(f'Starting MainWebGui on {web_host}:{web_port}')
+            start(
+                MainWebGui,
+                debug=False,
+                address=web_host,
+                port=web_port,
+                start_browser=start_browser,
+                userdata=(event_service, logger, exit_event, halt_event, i18n, cam_only)
+            )
         except PermissionError:
-            logger.error(f'Could not start HTTP server - permission denied for {web_host}:{web_port}.')
-
+            logger.error(f'Could not start MainWebGui - permission denied for {web_host}:{web_port}.')
+        except Exception as e:
+            logger.error(f'Error starting MainWebGui: {e}', exc_info=True)
+    
     def idle(self):
         # idle function called every update cycle
-        # Check for exit_event to gracefully shutdown WebGui
+        # Check for exit_event to gracefully shutdown MainWebGui
         try:
             if self._exit_event.is_set():
-                self._log.info('Exit event detected in WebGui - closing application.')
+                self._log.info('Exit event detected in MainWebGui - closing application.')
                 self.close()
         except Exception as e:
             self._log.warning(f'Could not check exit_event: {e}')
-        pass
-
+    
     def main(self, event_service, logger, exit_event, halt_event, i18n, cam_only):
         self._event_service = event_service
         self._log = logger
@@ -84,19 +110,14 @@ class WebGui(App, ProcessInterface):
         self._i18n = i18n
         self._full_capabilities = not cam_only
         
-        # Check if this is a request for the /say page
-        self._log.debug(f'Processing request for path: {self.path}')
-            
-        # Route to different UIs based on path
-        if self.path == '/say':
-            return self.construct_say_ui()
-        else:
-            self.display_original = False
-            #self.display_tagged = False # TODO Not yet implemented.
-            return self.construct_ui()
-
+        self._log.debug(f'MainWebGui.main() called, path={getattr(self, "path", "unknown")}')
+        
+        self.display_original = False
+        #self.display_tagged = False # TODO Not yet implemented.
+        return self.construct_ui()
+    
     def construct_ui(self):
-        self._log.debug(f"construct_ui() called for path: {self.path}")
+        self._log.debug(f"Constructing Main UI")
         _ = self._i18n.gettext
         # layout
         self.main_container = gui.VBox()
@@ -185,7 +206,7 @@ class WebGui(App, ProcessInterface):
             self.image_label = gui.Label('', width=400, height=30, margin='10px')
             self.image_label.style['text-align'] = "center"
             self.main_container.append(self.image_label, 'image_label')
-
+    
         # event handlers
         button_snap.onclick.do(self.on_snap_pressed)
         if self._full_capabilities:
@@ -193,128 +214,25 @@ class WebGui(App, ProcessInterface):
             button_close.onclick.do(self.on_close_pressed)
         checkbox_display_original.onchange.do(self.on_display_original_change)
         #checkbox_display_tagged.onchange.do(self.on_display_tagged_change)
-
+    
         return self.main_container
-
-    def construct_say_ui(self):
-        """Construct the /say page UI"""
-        self._log.debug('Constructing /say UI')
-        _ = self._i18n.gettext
-        
-        # Main container
-        main_container = gui.VBox()
-        main_container.style.update({
-            'top': '0px',
-            'display': 'flex',
-            'overflow': 'auto',
-            'width': '100%',
-            'flex-direction': 'column',
-            'position': 'absolute',
-            'justify-content': 'center',
-            'margin': '0px',
-            'align-items': 'center',
-            'left': '0px',
-            'height': '100%',
-            'background-color': '#f0f0f0'
-        })
-        
-        # Title
-        title = gui.Label(_('Text-to-Speech'))
-        title.style.update({
-            'font-size': '24px',
-            'font-weight': 'bold',
-            'margin': '20px',
-            'text-align': 'center'
-        })
-        main_container.append(title)
-        
-        # Form container
-        form_container = gui.VBox()
-        form_container.style.update({
-            'width': '400px',
-            'padding': '20px',
-            'background-color': 'white',
-            'border-radius': '10px',
-            'box-shadow': '0 2px 10px rgba(0,0,0,0.1)'
-        })
-        
-        # Text input label
-        text_label = gui.Label(_('Enter text to speak:'))
-        text_label.style.update({
-            'margin-bottom': '10px',
-            'font-weight': 'bold'
-        })
-        form_container.append(text_label)
-        
-        # Text input field
-        self.text_input = gui.TextInput()
-        self.text_input.style.update({
-            'width': '100%',
-            'height': '100px',
-            'margin-bottom': '20px',
-            'padding': '10px',
-            'border': '1px solid #ccc',
-            'border-radius': '5px',
-            'font-size': '14px'
-        })
-        form_container.append(self.text_input)
-        
-        # Button container
-        button_container = gui.HBox()
-        button_container.style.update({
-            'justify-content': 'space-between',
-            'width': '100%'
-        })
-        
-        # Say button
-        say_button = gui.Button(_('Say'))
-        say_button.style.update({
-            'background-color': '#4CAF50',
-            'color': 'white',
-            'padding': '10px 20px',
-            'border': 'none',
-            'border-radius': '5px',
-            'font-size': '16px',
-            'cursor': 'pointer'
-        })
-        say_button.onclick.do(self.on_say_pressed)
-        button_container.append(say_button)
-        
-        # Back button
-        back_button = gui.Button(_('Back to Main'))
-        back_button.style.update({
-            'background-color': '#008CBA',
-            'color': 'white',
-            'padding': '10px 20px',
-            'border': 'none',
-            'border-radius': '5px',
-            'font-size': '16px',
-            'cursor': 'pointer'
-        })
-        back_button.onclick.do(self.on_back_pressed)
-        button_container.append(back_button)
-        
-        form_container.append(button_container)
-        main_container.append(form_container)
-        
-        return main_container
-
+    
     def on_display_original_change(self, widget, value):
         self.display_original = value
         self.image_original.style['display'] = "block" if self.display_original else "none"
-
+    
     #def on_display_tagged_change(self, widget, value):
     #    self.display_tagged = value
-
+    
     def on_close_pressed(self, *_):
         self._event_service.close()
         self.close()  #closes the application
         # sys.exit()
-
+    
     def on_snap_pressed(self, *_):
         # FIXME Seems to be sometimes still called with a delay when another print operation is in progress.
         self._event_service.capture() 
-
+    
     def on_open_pressed(self, *_):
         self.fileselectionDialog = gui.FileSelectionDialog(_('File Selection Dialog'), _('Select an image file'), False, '.')
         self.fileselectionDialog.onchange.do(self.process_image)
@@ -322,7 +240,7 @@ class WebGui(App, ProcessInterface):
             self.on_dialog_cancel)
         # here is shown the dialog as root widget.
         self.fileselectionDialog.show(self)
-
+    
     def process_image(self, widget, file_list):
         if len(file_list) != 1:
             return
@@ -330,7 +248,7 @@ class WebGui(App, ProcessInterface):
         self._event_service.process(original)
         annotated, cartoon = self._event_service.save_results() # TODO Refactor.
         self.show_image(original, annotated, cartoon)
-
+    
     def show_image(self, original, annotated, cartoon, image_labels):
         # In multiprocessing mode, this method won't be called from workflow
         # Image updates would need to be handled differently (e.g., via file watching)
@@ -339,24 +257,6 @@ class WebGui(App, ProcessInterface):
         if self._full_capabilities:
             self.image_label.set_text(', '.join(image_labels))
         self.set_root_widget(self.main_container)
-
+    
     def on_dialog_cancel(self, widget):
         self.set_root_widget(self.main_container)
-    
-    def on_say_pressed(self, *_):
-        """Handle Say button press."""
-        text = self.text_input.get_value().strip()
-        if text:
-            self._event_service.say(text)
-            self.text_input.set_value('')  # Clear the input field.
-        
-    def on_back_pressed(self, *_):
-        """Handle Back to Main button press."""
-        # Redirect to main page by refreshing to root URL
-        try:
-            # Use REMI's built-in method to execute JavaScript for redirect
-            self.execute_javascript("window.location.href = '/';")
-        except:
-            # Fallback: just show main UI
-            main_ui = self.construct_ui()
-            self.set_root_widget(main_ui)

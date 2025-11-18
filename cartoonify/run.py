@@ -88,6 +88,7 @@ def flatten(xss):
 @click.option('--debug-timing', is_flag=True, help='Use microsecond precision for timestamps in log messages.')
 @click.option('--log-level', type=click.Choice(['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], case_sensitive=False), 
               default='DEBUG', help='Set logging level (default: DEBUG)')
+@click.option('--localhost-first-port', type=int, default=2000, help='Starting port number for internal web applications to be used on localhost (default: 2000).')
 def run(**kwargs):
     print('Starting up, please wait...')
     # Configure logging based on command line options
