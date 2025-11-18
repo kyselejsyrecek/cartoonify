@@ -10,9 +10,10 @@ pillow # ==11.2.1
 protobuf==3.20.3 # Version lower than 3.21 is required.
 pypng # ==0.20220715.0
 remi==2022.07.27
-gpiozero==2.0.1 # Required on Raspberry Pi 5
+gpiozero==2.0.1 # Required on Raspberry Pi 5.
 tensorflow # ==2.19.0
-mitmproxy # ==11.0.2
+mitmproxy #==11.0.2 # Latest version available for Python 3.11. 
+bcrypt==4.0.1 # Passlib backend bundled with mitmproxy 11.0.2 requires bcrypt <4.1.
 
 # Original requirements:
 #bleach==1.5.0
@@ -155,3 +156,4 @@ mitmproxy # ==11.0.2
 #wcwidth==0.2.14
 #wsproto==1.2.0
 #zstandard==0.23.0
+bcrypt==3.2.2 # Passlib 1.7.4 requires pre-4.0 bcrypt to avoid >72-byte ValueError

@@ -1,6 +1,6 @@
+import asyncio
+import logging
 import threading
-from mitmproxy import options, http
-from mitmproxy.tools.dump import DumpMaster
 
 from app.debugging.logging import getLogger
 from .routes import routes
@@ -69,22 +69,44 @@ class WebGuiProxy:
         self._log.info('WebGuiProxy stopped')
     
     def _run_proxy(self):
+        """Run mitmproxy in dedicated asyncio event loop."""
         try:
-            opts = options.Options(
-                listen_host=self.listen_host,
-                listen_port=self.listen_port,
-                mode=['regular']
-            )
+            from mitmproxy import options
+            from mitmproxy.tools.dump import DumpMaster
             
-            if self.cert_file and self.key_file:
-                opts.certs = [f"{self.cert_file}={self.key_file}"]
+            # Create new event loop for this thread.
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
             
-            master = DumpMaster(opts)
-            addon = WebGuiProxyAddon(self._routes)
-            master.addons.add(addon)
+            # Prevent mitmproxy from injecting its log handler into root logger.
+            root_logger = logging.getLogger()
+            original_handlers = root_logger.handlers[:]
             
-            self._log.info('mitmproxy starting...')
-            master.run()
+            try:
+                opts = options.Options(
+                    listen_host=self.listen_host,
+                    listen_port=self.listen_port,
+                    mode=['regular']
+                )
+                
+                if self.cert_file and self.key_file:
+                    opts.certs = [f"{self.cert_file}={self.key_file}"]
+                
+                # Pass event loop explicitly to DumpMaster.
+                master = DumpMaster(opts, event_loop=loop, with_termlog=False)
+                
+                # Remove mitmproxy's log handler from root logger to prevent child process errors.
+                for handler in root_logger.handlers[:]:
+                    if handler not in original_handlers:
+                        root_logger.removeHandler(handler)
+                
+                addon = WebGuiProxyAddon(self._routes)
+                master.addons.add(addon)
+                
+                self._log.info('mitmproxy starting...')
+                loop.run_until_complete(master.run())
+            finally:
+                loop.close()
             
         except ImportError:
             self._log.error('mitmproxy not installed. Install with: pip install mitmproxy')
@@ -95,8 +117,11 @@ class WebGuiProxy:
 class WebGuiProxyAddon:
     
     def __init__(self, routes):
+        from mitmproxy import http
+        
         self._routes = routes
         self._log = getLogger(self.__class__.__name__)
+        self._http = http
     
     def request(self, flow):
         path = flow.request.path
@@ -127,7 +152,7 @@ class WebGuiProxyAddon:
             self._log.debug(f"Routing {path} -> {matched_route['host']}:{matched_route['port']}{flow.request.path}")
         else:
             self._log.warning(f'No route found for path: {path}')
-            flow.response = http.Response.make(
+            flow.response = self._http.Response.make(
                 404,
                 b"Not Found",
                 {"Content-Type": "text/plain"}
