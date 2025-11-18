@@ -92,19 +92,22 @@ class WebGuiProxy:
                 if self.cert_file and self.key_file:
                     opts.certs = [f"{self.cert_file}={self.key_file}"]
                 
-                # Pass event loop explicitly to DumpMaster.
-                master = DumpMaster(opts, event_loop=loop, with_termlog=False)
+                # Start event loop so DumpMaster can detect it.
+                async def run_proxy():
+                    master = DumpMaster(opts, with_termlog=False)
+                    
+                    # Remove mitmproxy's log handler from root logger to prevent child process errors.
+                    for handler in root_logger.handlers[:]:
+                        if handler not in original_handlers:
+                            root_logger.removeHandler(handler)
+                    
+                    addon = WebGuiProxyAddon(self._routes)
+                    master.addons.add(addon)
+                    
+                    self._log.info('mitmproxy starting...')
+                    await master.run()
                 
-                # Remove mitmproxy's log handler from root logger to prevent child process errors.
-                for handler in root_logger.handlers[:]:
-                    if handler not in original_handlers:
-                        root_logger.removeHandler(handler)
-                
-                addon = WebGuiProxyAddon(self._routes)
-                master.addons.add(addon)
-                
-                self._log.info('mitmproxy starting...')
-                loop.run_until_complete(master.run())
+                loop.run_until_complete(run_proxy())
             finally:
                 loop.close()
             
