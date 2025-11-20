@@ -92,7 +92,7 @@ class WebGui:
         """
         if not self._enabled:
             self._log.info('WebGui is disabled')
-            return
+            return False
         
         self._process_manager = process_manager
         
@@ -102,28 +102,24 @@ class WebGui:
         
         use_subdomains = is_subdomain_capable(host)
         
+        main_host = host
         if use_subdomains:
-            self._log.info(f'Using subdomain mode with hostname: {host}')
-            main_host = host
+            self._log.debug(f'Using subdomain mode with hostname: {host}')
             say_host = f'say.{host}'
-            main_app_port = main_port
-            say_app_port = main_port
+            say_port = main_port
         else:
             self._log.info(f'Host "{host}" does not support subdomains - using port mode')
-            main_host = host
             say_host = host
-            main_app_port = main_port
-            # First subordinate port.
-            say_app_port = main_port if main_port != 80 else first_subordinate_port
+            say_port = first_subordinate_port
         
         # Start MainWebGui.
-        self._log.info(f'Starting MainWebGui on {main_host}:{main_app_port}')
+        self._log.info(f'Starting MainWebGui on {main_host}:{main_port}')
         self._apps['main'] = self._process_manager.start_process(
             MainWebGui,
             i18n,
             cam_only,
             main_host,
-            main_app_port,
+            main_port,
             start_browser,
             cert_file,
             key_file,
@@ -131,14 +127,16 @@ class WebGui:
             capture_stderr=capture_stderr,
             filter_ansi=filter_ansi
         )
+        if not start_browser:
+            print(f'Main WebGUI running on http://{main_host}:{main_port}.')
         
         # Start SayWebGui.
-        self._log.info(f'Starting SayWebGui on {say_host}:{say_app_port}')
+        self._log.info(f'Starting SayWebGui on {say_host}:{say_port}')
         self._apps['say'] = self._process_manager.start_process(
             SayWebGui,
             i18n,
             say_host,
-            say_app_port,
+            say_port,
             False,  # start_browser always False for SayWebGui.
             cert_file,
             key_file,
@@ -146,5 +144,7 @@ class WebGui:
             capture_stderr=capture_stderr,
             filter_ansi=filter_ansi
         )
-        
-        self._log.info('WebGui setup complete')
+        if not start_browser:
+            print(f'Say WebGUI running on http://{say_host}:{say_port}.')
+
+        return True

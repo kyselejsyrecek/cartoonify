@@ -218,31 +218,36 @@ class Workflow(AsyncExecutor):
             # Start web GUI if requested.
             if self._web_gui.is_enabled:
                 if self._config.gui:
-                    self._log.info('Starting GUI...')
+                    self._log.info('starting GUI...')
                     print('Starting GUI...')
-                elif self._config.web_server:
-                    self._log.info(f'Starting HTTP server on host {self._config.host}:{self._config.main_port}...')
+                else:
+                    self._log.info('starting HTTP servers...')
                 
-                self._web_gui.setup(
-                    process_manager=self._process_manager,
-                    i18n=self._i18n,                                              # i18n object from run.py
-                    cam_only=self._config.raspi_headless,                         # cam_only mode - limits GUI features to camera operations only
-                    host=self._config.host,                                       # Hostname or IP address to bind to
-                    main_port=self._config.main_port,                             # Port for main web application
-                    first_subordinate_port=self._config.first_subordinate_port,   # Base port for subordinate applications when subdomains unavailable
-                    start_browser=self._config.gui,                               # start_browser - True for GUI mode, False for web_server mode
-                    cert_file=self._config.cert_file,                             # TLS certificate file
-                    key_file=self._config.key_file,                               # TLS private key file
-                    capture_stdout=False,                                         # Allow WebGUI stdout to go to console
-                    capture_stderr=False,                                         # Allow WebGUI stderr to go to console
-                    filter_ansi=False                                             # Don't filter ANSI codes from WebGUI
-                )
+                if self._web_gui.setup(
+                        process_manager=self._process_manager,
+                        i18n=self._i18n,                                              # i18n object from run.py
+                        cam_only=self._config.raspi_headless,                         # cam_only mode - limits GUI features to camera operations only
+                        host=self._config.host,                                       # Hostname or IP address to bind to
+                        main_port=self._config.main_port,                             # Port for main web application
+                        first_subordinate_port=self._config.first_subordinate_port,   # Base port for subordinate applications when subdomains unavailable
+                        start_browser=self._config.gui,                               # start_browser - True for GUI mode, False for web_server mode
+                        cert_file=self._config.cert_file,                             # TLS certificate file
+                        key_file=self._config.key_file,                               # TLS private key file
+                        capture_stdout=False,                                         # Allow WebGUI stdout to go to console
+                        capture_stderr=False,                                         # Allow WebGUI stderr to go to console
+                        filter_ansi=False                                             # Don't filter ANSI codes from WebGUI
+                    ) is True:
                 
-                if self._config.gui:
-                    self._log.info('GUI started successfully')
-                elif self._config.web_server:
-                    self._log.info('HTTP server started successfully')
-                    print(f'HTTP server running on host {self._config.host}:{self._config.main_port}.')
+                    if self._config.gui:
+                        self._log.info('GUI started successfully')
+                    else:
+                        self._log.info('HTTP servers started successfully')
+                
+                else:
+                    if self._config.gui:
+                        self._log.info('failed to start GUI')
+                    else:
+                        self._log.info('failed to start HTTP servers')
             
             # Setup camera system.
             if self._camera.is_enabled:
